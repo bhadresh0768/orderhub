@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "756949582742",
+    "project_id": "auth-app-b8896",
+    "storage_bucket": "auth-app-b8896.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:756949582742:android:4dfb24c01922e7089493b7",
+        "android_client_info": {
+          "package_name": "com.example.todo_reminder_alarm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmuj7h2vNyR-Q0_tCitVTqNW-bjHTAY1Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:756949582742:android:ab2838785ba133359493b7",
+        "android_client_info": {
+          "package_name": "com.helpme.orderhub"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmuj7h2vNyR-Q0_tCitVTqNW-bjHTAY1Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

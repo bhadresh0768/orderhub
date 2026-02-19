@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function isAdmin() {
+      return signedIn() && userDoc(request.auth.uid).data.role == 'admin';
+    }
+
+    function isDeliveryBoy() {
+      return signedIn() && userDoc(request.auth.uid).data.role == 'deliveryBoy';
+    }
+
+    function myPhone() {
+      return userDoc(request.auth.uid).data.phoneNumber;
+    }
+
+    function myBusinessId() {
+      return userDoc(request.auth.uid).data.businessId;
+    }
+
+    function isBusinessOwnerOf(businessId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+        get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /businesses/{businessId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.ownerId == request.auth.uid
+      );
+      allow update: if isAdmin() || isBusinessOwnerOf(businessId) || (
+        signedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['orderCounter', 'updatedAt']) &&
+        request.resource.data.orderCounter is int &&
+        (
+          (resource.data.orderCounter is int && request.resource.data.orderCounter == resource.data.orderCounter + 1) ||
+          (!(resource.data.orderCounter is int) && request.resource.data.orderCounter >= 1)
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (
+        signedIn() && (
+          resource.data.customerId == request.auth.uid ||
+          isBusinessOwnerOf(resource.data.businessId) ||
+          (isDeliveryBoy() && resource.data.assignedDeliveryAgentPhone == myPhone())
+        )
+      );
+      allow create: if signedIn() &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isAdmin() || (
+        signedIn() && (
+          isBusinessOwnerOf(resource.data.businessId) ||
+          (
+            isDeliveryBoy() &&
+            resource.data.assignedDeliveryAgentPhone == myPhone() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['delivery', 'status', 'payment', 'updatedAt'])
+          )
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /item_catalog/{itemId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /deliveryAgents/{agentId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || (
+        signedIn() && (
+          request.resource.data.businessId == myBusinessId() ||
+          isBusinessOwnerOf(request.resource.data.businessId)
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /orderCounters/{businessId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() &&
+        request.resource.data.businessId == businessId &&
+        request.resource.data.value is int &&
+        request.resource.data.value >= 1 &&
+        (
+          (!exists(/databases/$(database)/documents/orderCounters/$(businessId)) && request.resource.data.value == 1) ||
+          (exists(/databases/$(database)/documents/orderCounters/$(businessId)) &&
+            request.resource.data.value == resource.data.value + 1)
+        );
+      allow delete: if isAdmin();
+    }
+  }
+}
