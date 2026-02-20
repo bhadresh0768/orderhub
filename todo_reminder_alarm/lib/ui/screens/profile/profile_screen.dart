@@ -12,6 +12,70 @@ import '../../../providers.dart';
 import '../../../app/deep_link_utils.dart';
 import 'public_business_profile_screen.dart';
 
+final _profileUiProvider =
+    StateProvider.autoDispose.family<_ProfileUiState, String>(
+      (ref, _) => _ProfileUiState(businessCountry: Country.parse('IN')),
+    );
+
+class _ProfileUiState {
+  const _ProfileUiState({
+    required this.businessCountry,
+    this.didInitUser = false,
+    this.didInitBusiness = false,
+    this.saving = false,
+    this.uploadingUserImage = false,
+    this.uploadingBusinessLogo = false,
+    this.userPhotoUrl,
+    this.businessLogoUrl,
+    this.error,
+    this.refreshTick = 0,
+  });
+
+  final bool didInitUser;
+  final bool didInitBusiness;
+  final bool saving;
+  final bool uploadingUserImage;
+  final bool uploadingBusinessLogo;
+  final String? userPhotoUrl;
+  final String? businessLogoUrl;
+  final String? error;
+  final Country businessCountry;
+  final int refreshTick;
+
+  _ProfileUiState copyWith({
+    bool? didInitUser,
+    bool? didInitBusiness,
+    bool? saving,
+    bool? uploadingUserImage,
+    bool? uploadingBusinessLogo,
+    Object? userPhotoUrl = _profileUnset,
+    Object? businessLogoUrl = _profileUnset,
+    Object? error = _profileUnset,
+    Country? businessCountry,
+    int? refreshTick,
+  }) {
+    return _ProfileUiState(
+      didInitUser: didInitUser ?? this.didInitUser,
+      didInitBusiness: didInitBusiness ?? this.didInitBusiness,
+      saving: saving ?? this.saving,
+      uploadingUserImage: uploadingUserImage ?? this.uploadingUserImage,
+      uploadingBusinessLogo:
+          uploadingBusinessLogo ?? this.uploadingBusinessLogo,
+      userPhotoUrl: userPhotoUrl == _profileUnset
+          ? this.userPhotoUrl
+          : userPhotoUrl as String?,
+      businessLogoUrl: businessLogoUrl == _profileUnset
+          ? this.businessLogoUrl
+          : businessLogoUrl as String?,
+      error: error == _profileUnset ? this.error : error as String?,
+      businessCountry: businessCountry ?? this.businessCountry,
+      refreshTick: refreshTick ?? this.refreshTick,
+    );
+  }
+}
+
+const _profileUnset = Object();
+
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, required this.user});
 
@@ -39,15 +103,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _businessDescriptionController = TextEditingController();
   final _businessShareLinkController = TextEditingController();
 
-  bool _didInitUser = false;
-  bool _didInitBusiness = false;
-  bool _saving = false;
-  bool _uploadingUserImage = false;
-  bool _uploadingBusinessLogo = false;
-  String? _userPhotoUrl;
-  String? _businessLogoUrl;
-  String? _error;
-  Country _businessCountry = Country.parse('IN');
+  _ProfileUiState get _ui => ref.read(_profileUiProvider(widget.user.id));
+  void _updateUi(_ProfileUiState Function(_ProfileUiState state) update) {
+    final notifier = ref.read(_profileUiProvider(widget.user.id).notifier);
+    notifier.state = update(notifier.state);
+  }
 
   @override
   void dispose() {
@@ -69,20 +129,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _initUser(AppUser user) {
-    if (_didInitUser) return;
-    _didInitUser = true;
+    if (_ui.didInitUser) return;
     _nameController.text = user.name;
     _shopNameController.text = user.shopName ?? '';
     _addressController.text = user.address ?? '';
     _emailController.text = user.email;
     _phoneController.text = user.phoneNumber ?? '';
     _appShareLinkController.text = user.appShareLink ?? '';
-    _userPhotoUrl = user.photoUrl;
+    _updateUi(
+      (state) => state.copyWith(didInitUser: true, userPhotoUrl: user.photoUrl),
+    );
   }
 
   void _initBusiness(BusinessProfile? business) {
-    if (_didInitBusiness || business == null) return;
-    _didInitBusiness = true;
+    if (_ui.didInitBusiness || business == null) return;
     _businessNameController.text = business.name;
     _businessCategoryController.text = business.category;
     _businessCityController.text = business.city;
@@ -91,14 +151,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _businessPhoneController.text = business.phone ?? '';
     _businessDescriptionController.text = business.description ?? '';
     _businessShareLinkController.text = business.shareLink ?? '';
-    _businessLogoUrl = business.logoUrl;
+    _updateUi(
+      (state) => state.copyWith(
+        didInitBusiness: true,
+        businessLogoUrl: business.logoUrl,
+      ),
+    );
   }
 
   Future<void> _pickAndUploadUserImage() async {
-    setState(() {
-      _error = null;
-      _uploadingUserImage = true;
-    });
+    _updateUi(
+      (state) => state.copyWith(error: null, uploadingUserImage: true),
+    );
     try {
       final picked = await FilePicker.platform.pickFiles(
         withData: true,
@@ -108,7 +172,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (picked == null || picked.files.isEmpty) return;
       final file = picked.files.single;
       if (file.bytes == null) {
-        setState(() => _error = 'Unable to read selected image.');
+        _updateUi(
+          (state) => state.copyWith(error: 'Unable to read selected image.'),
+        );
         return;
       }
       final url = await ref
@@ -122,21 +188,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         'photoUrl': url,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      setState(() => _userPhotoUrl = url);
+      _updateUi((state) => state.copyWith(userPhotoUrl: url));
     } catch (err) {
-      setState(() => _error = 'Profile image upload failed: $err');
+      _updateUi(
+        (state) => state.copyWith(error: 'Profile image upload failed: $err'),
+      );
     } finally {
       if (mounted) {
-        setState(() => _uploadingUserImage = false);
+        _updateUi((state) => state.copyWith(uploadingUserImage: false));
       }
     }
   }
 
   Future<void> _pickAndUploadBusinessLogo(String businessId) async {
-    setState(() {
-      _error = null;
-      _uploadingBusinessLogo = true;
-    });
+    _updateUi(
+      (state) => state.copyWith(error: null, uploadingBusinessLogo: true),
+    );
     try {
       final picked = await FilePicker.platform.pickFiles(
         withData: true,
@@ -146,7 +213,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (picked == null || picked.files.isEmpty) return;
       final file = picked.files.single;
       if (file.bytes == null) {
-        setState(() => _error = 'Unable to read selected image.');
+        _updateUi(
+          (state) => state.copyWith(error: 'Unable to read selected image.'),
+        );
         return;
       }
       final url = await ref
@@ -160,12 +229,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         'logoUrl': url,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      setState(() => _businessLogoUrl = url);
+      _updateUi((state) => state.copyWith(businessLogoUrl: url));
     } catch (err) {
-      setState(() => _error = 'Business logo upload failed: $err');
+      _updateUi(
+        (state) => state.copyWith(error: 'Business logo upload failed: $err'),
+      );
     } finally {
       if (mounted) {
-        setState(() => _uploadingBusinessLogo = false);
+        _updateUi((state) => state.copyWith(uploadingBusinessLogo: false));
       }
     }
   }
@@ -181,15 +252,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _saveProfile({required String? businessId}) async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    _updateUi((state) => state.copyWith(saving: true, error: null));
     try {
       final firestore = ref.read(firestoreServiceProvider);
       final normalizedBusinessPhone = _normalizePhoneNumber(
         _businessPhoneController.text,
-        _businessCountry,
+        _ui.businessCountry,
       );
       await firestore.updateUser(widget.user.id, {
         'name': _nameController.text.trim(),
@@ -199,7 +267,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         'address': _addressController.text.trim().isEmpty
             ? null
             : _addressController.text.trim(),
-        'photoUrl': _userPhotoUrl,
+        'photoUrl': _ui.userPhotoUrl,
         'appShareLink': _appShareLinkController.text.trim().isEmpty
             ? null
             : _appShareLinkController.text.trim(),
@@ -227,7 +295,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ? null
               : normalizedBusinessPhone,
           'shareLink': businessShareLink,
-          'logoUrl': _businessLogoUrl,
+          'logoUrl': _ui.businessLogoUrl,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
@@ -236,10 +304,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Profile updated')));
     } catch (err) {
-      setState(() => _error = err.toString());
+      _updateUi((state) => state.copyWith(error: err.toString()));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _updateUi((state) => state.copyWith(saving: false));
       }
     }
   }
@@ -254,6 +322,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uiState = ref.watch(_profileUiProvider(widget.user.id));
     _initUser(widget.user);
     final isCustomer = widget.user.role == UserRole.customer;
     final businessId = widget.user.businessId;
@@ -273,8 +342,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_error != null) ...[
-                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                  if (uiState.error != null) ...[
+                    Text(uiState.error!, style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 12),
                   ],
                   Text(
@@ -286,19 +355,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       CircleAvatar(
                         radius: 36,
-                        backgroundImage: (_userPhotoUrl ?? '').isNotEmpty
-                            ? NetworkImage(_userPhotoUrl!)
+                        backgroundImage: (uiState.userPhotoUrl ?? '').isNotEmpty
+                            ? NetworkImage(uiState.userPhotoUrl!)
                             : null,
-                        child: (_userPhotoUrl ?? '').isEmpty
+                        child: (uiState.userPhotoUrl ?? '').isEmpty
                             ? const Icon(Icons.person, size: 36)
                             : null,
                       ),
                       const SizedBox(width: 12),
                       FilledButton.icon(
-                        onPressed: _uploadingUserImage
+                        onPressed: uiState.uploadingUserImage
                             ? null
                             : _pickAndUploadUserImage,
-                        icon: _uploadingUserImage
+                        icon: uiState.uploadingUserImage
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
@@ -359,7 +428,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _appShareLinkController,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => _updateUi(
+                      (state) =>
+                          state.copyWith(refreshTick: state.refreshTick + 1),
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'App Share Link',
                       hintText:
@@ -369,8 +441,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      onPressed: _appShareLinkController.text.trim().isEmpty
+                              child: OutlinedButton.icon(
+                                onPressed: _appShareLinkController.text.trim().isEmpty
                           ? null
                           : () => _copyToClipboard(
                               'App share link',
@@ -401,21 +473,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 CircleAvatar(
                                   radius: 36,
                                   backgroundImage:
-                                      (_businessLogoUrl ?? '').isNotEmpty
-                                      ? NetworkImage(_businessLogoUrl!)
+                                      (uiState.businessLogoUrl ?? '').isNotEmpty
+                                      ? NetworkImage(uiState.businessLogoUrl!)
                                       : null,
-                                  child: (_businessLogoUrl ?? '').isEmpty
+                                  child: (uiState.businessLogoUrl ?? '').isEmpty
                                       ? const Icon(Icons.store, size: 36)
                                       : null,
                                 ),
                                 const SizedBox(width: 12),
                                 FilledButton.icon(
-                                  onPressed: _uploadingBusinessLogo
+                                  onPressed: uiState.uploadingBusinessLogo
                                       ? null
                                       : () => _pickAndUploadBusinessLogo(
                                           business.id,
                                         ),
-                                  icon: _uploadingBusinessLogo
+                                  icon: uiState.uploadingBusinessLogo
                                       ? const SizedBox(
                                           height: 16,
                                           width: 16,
@@ -491,8 +563,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                         context: context,
                                         showPhoneCode: true,
                                         onSelect: (country) {
-                                          setState(
-                                            () => _businessCountry = country,
+                                          _updateUi(
+                                            (state) => state.copyWith(
+                                              businessCountry: country,
+                                            ),
                                           );
                                         },
                                       );
@@ -502,7 +576,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                         labelText: 'Code',
                                       ),
                                       child: Text(
-                                        '${_businessCountry.flagEmoji} +${_businessCountry.phoneCode}',
+                                        '${uiState.businessCountry.flagEmoji} +${uiState.businessCountry.phoneCode}',
                                       ),
                                     ),
                                   ),
@@ -531,7 +605,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             const SizedBox(height: 10),
                             TextFormField(
                               controller: _businessShareLinkController,
-                              onChanged: (_) => setState(() {}),
+                              onChanged: (_) => _updateUi(
+                                (state) => state.copyWith(
+                                  refreshTick: state.refreshTick + 1,
+                                ),
+                              ),
                               decoration: const InputDecoration(
                                 labelText: 'Business Share Link',
                                 hintText: 'https://your-business-link.com',
@@ -619,11 +697,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                               : _businessPhoneController.text
                                                     .trim(),
                                           logoUrl:
-                                              (_businessLogoUrl ?? '')
+                                              (uiState.businessLogoUrl ?? '')
                                                   .trim()
                                                   .isEmpty
                                               ? business.logoUrl
-                                              : _businessLogoUrl,
+                                              : uiState.businessLogoUrl,
                                           shareLink:
                                               _businessShareLinkController.text
                                                   .trim()
@@ -657,12 +735,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed:
-                          _saving ||
-                              _uploadingUserImage ||
-                              _uploadingBusinessLogo
+                          uiState.saving ||
+                              uiState.uploadingUserImage ||
+                              uiState.uploadingBusinessLogo
                           ? null
                           : () => _saveProfile(businessId: businessId),
-                      child: _saving
+                      child: uiState.saving
                           ? const SizedBox(
                               height: 18,
                               width: 18,

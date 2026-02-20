@@ -8,6 +8,64 @@ import '../../../models/order.dart';
 import '../../../models/payment.dart';
 import '../../../providers.dart';
 
+final _businessOrderUiProvider =
+    StateProvider.autoDispose.family<_BusinessOrderUiState, String>(
+  (ref, _) => throw UnimplementedError(),
+);
+
+class _BusinessOrderUiState {
+  const _BusinessOrderUiState({
+    required this.order,
+    required this.selectedPaymentStatus,
+    required this.selectedPaymentMethod,
+    required this.itemGstIncluded,
+    required this.itemIncluded,
+    this.selectedDeliveryAgentId,
+    this.collectPaymentOnAssign = false,
+    this.saving = false,
+    this.refreshTick = 0,
+  });
+
+  final Order order;
+  final bool saving;
+  final PaymentStatus selectedPaymentStatus;
+  final PaymentMethod selectedPaymentMethod;
+  final String? selectedDeliveryAgentId;
+  final bool collectPaymentOnAssign;
+  final List<bool> itemGstIncluded;
+  final List<bool> itemIncluded;
+  final int refreshTick;
+
+  _BusinessOrderUiState copyWith({
+    Order? order,
+    bool? saving,
+    PaymentStatus? selectedPaymentStatus,
+    PaymentMethod? selectedPaymentMethod,
+    Object? selectedDeliveryAgentId = _businessOrderUnset,
+    bool? collectPaymentOnAssign,
+    List<bool>? itemGstIncluded,
+    List<bool>? itemIncluded,
+    int? refreshTick,
+  }) {
+    return _BusinessOrderUiState(
+      order: order ?? this.order,
+      saving: saving ?? this.saving,
+      selectedPaymentStatus: selectedPaymentStatus ?? this.selectedPaymentStatus,
+      selectedPaymentMethod: selectedPaymentMethod ?? this.selectedPaymentMethod,
+      selectedDeliveryAgentId: selectedDeliveryAgentId == _businessOrderUnset
+          ? this.selectedDeliveryAgentId
+          : selectedDeliveryAgentId as String?,
+      collectPaymentOnAssign:
+          collectPaymentOnAssign ?? this.collectPaymentOnAssign,
+      itemGstIncluded: itemGstIncluded ?? this.itemGstIncluded,
+      itemIncluded: itemIncluded ?? this.itemIncluded,
+      refreshTick: refreshTick ?? this.refreshTick,
+    );
+  }
+}
+
+const _businessOrderUnset = Object();
+
 class BusinessOrderDetailScreen extends ConsumerStatefulWidget {
   const BusinessOrderDetailScreen({super.key, required this.order});
 
@@ -20,49 +78,66 @@ class BusinessOrderDetailScreen extends ConsumerStatefulWidget {
 
 class _BusinessOrderDetailScreenState
     extends ConsumerState<BusinessOrderDetailScreen> {
-  late Order _order;
-  bool _saving = false;
-  late PaymentStatus _selectedPaymentStatus;
-  late PaymentMethod _selectedPaymentMethod;
-  String? _selectedDeliveryAgentId;
-  bool _collectPaymentOnAssign = false;
   late final TextEditingController _paymentAmountController;
   late final TextEditingController _gstPercentController;
   late final TextEditingController _extraChargesController;
   late List<TextEditingController> _itemPriceControllers;
-  late List<bool> _itemGstIncluded;
-  late List<bool> _itemIncluded;
   late List<TextEditingController> _itemUnavailableReasonControllers;
   late final String _actorName;
+  _BusinessOrderUiState get _ui =>
+      ref.read(_businessOrderUiProvider(widget.order.id));
+  void _updateUi(
+    _BusinessOrderUiState Function(_BusinessOrderUiState state) update,
+  ) {
+    final notifier = ref.read(_businessOrderUiProvider(widget.order.id).notifier);
+    notifier.state = update(notifier.state);
+  }
+  Order get _order => _ui.order;
+  bool get _saving => _ui.saving;
+  PaymentStatus get _selectedPaymentStatus => _ui.selectedPaymentStatus;
+  PaymentMethod get _selectedPaymentMethod => _ui.selectedPaymentMethod;
+  String? get _selectedDeliveryAgentId => _ui.selectedDeliveryAgentId;
+  bool get _collectPaymentOnAssign => _ui.collectPaymentOnAssign;
+  List<bool> get _itemGstIncluded => _ui.itemGstIncluded;
+  List<bool> get _itemIncluded => _ui.itemIncluded;
+  bool get _isLocked =>
+      _order.status == OrderStatus.completed ||
+      _order.delivery.status == DeliveryStatus.delivered;
 
   @override
   void initState() {
     super.initState();
-    _order = widget.order;
-    _selectedPaymentStatus = _order.payment.status;
-    _selectedPaymentMethod = _order.payment.method;
-    _selectedDeliveryAgentId = _order.assignedDeliveryAgentId;
+    final order = widget.order;
+    ref.read(_businessOrderUiProvider(widget.order.id).notifier).state =
+        _BusinessOrderUiState(
+          order: order,
+          selectedPaymentStatus: order.payment.status,
+          selectedPaymentMethod: order.payment.method,
+          selectedDeliveryAgentId: order.assignedDeliveryAgentId,
+          itemGstIncluded: order.items
+              .map((item) => item.gstIncluded ?? false)
+              .toList(),
+          itemIncluded: order.items.map((item) => item.isIncluded ?? true).toList(),
+        );
     _actorName = ref.read(authStateProvider).value?.displayName?.trim().isNotEmpty == true
         ? ref.read(authStateProvider).value!.displayName!.trim()
         : 'Business Owner';
     _paymentAmountController = TextEditingController(
-      text: _order.payment.amount?.toStringAsFixed(2) ?? '',
+      text: order.payment.amount?.toStringAsFixed(2) ?? '',
     );
     _gstPercentController = TextEditingController(
-      text: _order.gstPercent?.toStringAsFixed(2) ?? '',
+      text: order.gstPercent?.toStringAsFixed(2) ?? '',
     );
     _extraChargesController = TextEditingController(
-      text: _order.extraCharges?.toStringAsFixed(2) ?? '',
+      text: order.extraCharges?.toStringAsFixed(2) ?? '',
     );
-    _itemPriceControllers = _order.items
+    _itemPriceControllers = order.items
         .map(
           (item) =>
               TextEditingController(text: item.unitPrice?.toStringAsFixed(2) ?? ''),
         )
         .toList();
-    _itemGstIncluded = _order.items.map((item) => item.gstIncluded ?? false).toList();
-    _itemIncluded = _order.items.map((item) => item.isIncluded ?? true).toList();
-    _itemUnavailableReasonControllers = _order.items
+    _itemUnavailableReasonControllers = order.items
         .map(
           (item) => TextEditingController(text: item.unavailableReason ?? ''),
         )
@@ -103,8 +178,12 @@ class _BusinessOrderDetailScreenState
   }
 
   Future<void> _saveStatusUpdates() async {
+    if (_isLocked) {
+      _showLockedMessage();
+      return;
+    }
     if (_saving) return;
-    setState(() => _saving = true);
+    _updateUi((state) => state.copyWith(saving: true));
     try {
       await ref.read(firestoreServiceProvider).updateOrder(_order.id, {
         'payment': {
@@ -127,8 +206,7 @@ class _BusinessOrderDetailScreenState
           'updatedAt': Timestamp.fromDate(DateTime.now()),
         },
       });
-      setState(() {
-        _order = Order(
+      final nextOrder = Order(
           id: _order.id,
           orderNumber: _order.orderNumber,
           businessId: _order.businessId,
@@ -179,14 +257,14 @@ class _BusinessOrderDetailScreenState
           createdAt: _order.createdAt,
           updatedAt: DateTime.now(),
         );
-      });
+      _updateUi((state) => state.copyWith(order: nextOrder));
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Payment updated')));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _updateUi((state) => state.copyWith(saving: false));
       }
     }
   }
@@ -219,6 +297,20 @@ class _BusinessOrderDetailScreenState
         : value.toStringAsFixed(2);
   }
 
+  void _showLockedMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Completed order is locked and cannot be updated.'),
+      ),
+    );
+  }
+
+  String? _clean(String? value) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? null : text;
+  }
+
   bool _looksLikeImage(String value) {
     final normalized = value.toLowerCase();
     return normalized.contains('.jpg') ||
@@ -232,34 +324,42 @@ class _BusinessOrderDetailScreenState
     return _looksLikeImage(attachment.name) || _looksLikeImage(attachment.url);
   }
 
-  Future<void> _showImagePreview(OrderAttachment attachment) async {
+  Future<void> _showImageGallery(
+    List<OrderAttachment> attachments,
+    int initialIndex,
+  ) async {
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return Dialog(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  attachment.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 10),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 420),
-                  child: InteractiveViewer(
-                    child: Image.network(
-                      attachment.url,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) =>
-                          const Text('Unable to load image'),
+        return Dialog.fullscreen(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: PageController(initialPage: initialIndex),
+                itemCount: attachments.length,
+                itemBuilder: (context, index) {
+                  final attachment = attachments[index];
+                  return Center(
+                    child: InteractiveViewer(
+                      child: Image.network(
+                        attachment.url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            const Text('Unable to load image'),
+                      ),
                     ),
-                  ),
+                  );
+                },
+              ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: IconButton.filledTonal(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -296,8 +396,12 @@ class _BusinessOrderDetailScreenState
   }
 
   Future<void> _saveBilling() async {
+    if (_isLocked) {
+      _showLockedMessage();
+      return;
+    }
     if (_saving) return;
-    setState(() => _saving = true);
+    _updateUi((state) => state.copyWith(saving: true));
     try {
       final now = DateTime.now();
       final billing = _billingPreview();
@@ -312,6 +416,7 @@ class _BusinessOrderDetailScreenState
           unit: item.unit,
           packSize: item.packSize,
           note: item.note,
+          attachments: item.attachments,
           unitPrice: included ? _toDouble(_itemPriceControllers[i].text) : null,
           gstIncluded: included ? _itemGstIncluded[i] : false,
           isIncluded: included,
@@ -336,64 +441,67 @@ class _BusinessOrderDetailScreenState
         },
       });
 
-      setState(() {
-        _paymentAmountController.text = billing.total.toStringAsFixed(2);
-        _order = Order(
-          id: _order.id,
-          orderNumber: _order.orderNumber,
-          businessId: _order.businessId,
-          businessName: _order.businessName,
-          customerId: _order.customerId,
-          customerName: _order.customerName,
-          requesterType: _order.requesterType,
-          requesterBusinessId: _order.requesterBusinessId,
-          requesterBusinessName: _order.requesterBusinessName,
-          priority: _order.priority,
-          status: _order.status,
-          payment: PaymentInfo(
-            status: _order.payment.status,
-            method: _order.payment.method,
-            amount: billing.total,
-            remark: _order.payment.remark,
-            confirmedByCustomer: _order.payment.confirmedByCustomer,
-            collectedBy: _order.payment.collectedBy,
-            collectedByName: _order.payment.collectedByName,
-            collectedAt: _order.payment.collectedAt,
-            collectionNote: _order.payment.collectionNote,
-            updatedAt: now,
-          ),
-          delivery: _order.delivery,
-          items: updatedItems,
-          attachments: _order.attachments,
-          packedItemIndexes: _order.packedItemIndexes,
-          assignedDeliveryAgentId: _order.assignedDeliveryAgentId,
-          assignedDeliveryAgentName: _order.assignedDeliveryAgentName,
-          assignedDeliveryAgentPhone: _order.assignedDeliveryAgentPhone,
-          assignedDeliveryAt: _order.assignedDeliveryAt,
-          notes: _order.notes,
-          gstPercent: billing.gstPercent,
-          extraCharges: billing.extra,
-          subtotalAmount: billing.subtotal,
-          gstAmount: billing.gstAmount,
-          totalAmount: billing.total,
-          billingUpdatedAt: now,
-          scheduledAt: _order.scheduledAt,
-          createdAt: _order.createdAt,
+      _paymentAmountController.text = billing.total.toStringAsFixed(2);
+      final nextOrder = Order(
+        id: _order.id,
+        orderNumber: _order.orderNumber,
+        businessId: _order.businessId,
+        businessName: _order.businessName,
+        customerId: _order.customerId,
+        customerName: _order.customerName,
+        requesterType: _order.requesterType,
+        requesterBusinessId: _order.requesterBusinessId,
+        requesterBusinessName: _order.requesterBusinessName,
+        priority: _order.priority,
+        status: _order.status,
+        payment: PaymentInfo(
+          status: _order.payment.status,
+          method: _order.payment.method,
+          amount: billing.total,
+          remark: _order.payment.remark,
+          confirmedByCustomer: _order.payment.confirmedByCustomer,
+          collectedBy: _order.payment.collectedBy,
+          collectedByName: _order.payment.collectedByName,
+          collectedAt: _order.payment.collectedAt,
+          collectionNote: _order.payment.collectionNote,
           updatedAt: now,
-        );
-      });
+        ),
+        delivery: _order.delivery,
+        items: updatedItems,
+        attachments: _order.attachments,
+        packedItemIndexes: _order.packedItemIndexes,
+        assignedDeliveryAgentId: _order.assignedDeliveryAgentId,
+        assignedDeliveryAgentName: _order.assignedDeliveryAgentName,
+        assignedDeliveryAgentPhone: _order.assignedDeliveryAgentPhone,
+        assignedDeliveryAt: _order.assignedDeliveryAt,
+        notes: _order.notes,
+        gstPercent: billing.gstPercent,
+        extraCharges: billing.extra,
+        subtotalAmount: billing.subtotal,
+        gstAmount: billing.gstAmount,
+        totalAmount: billing.total,
+        billingUpdatedAt: now,
+        scheduledAt: _order.scheduledAt,
+        createdAt: _order.createdAt,
+        updatedAt: now,
+      );
+      _updateUi((state) => state.copyWith(order: nextOrder));
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Billing updated')));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _updateUi((state) => state.copyWith(saving: false));
       }
     }
   }
 
   Future<void> _acceptOrder() async {
+    if (_isLocked) {
+      _showLockedMessage();
+      return;
+    }
     if (_saving) return;
     final billing = _billingPreview();
     if (billing.total <= 0) {
@@ -404,7 +512,7 @@ class _BusinessOrderDetailScreenState
       return;
     }
 
-    setState(() => _saving = true);
+    _updateUi((state) => state.copyWith(saving: true));
     try {
       final now = DateTime.now();
       final updatedItems = _order.items.asMap().entries.map((entry) {
@@ -418,6 +526,7 @@ class _BusinessOrderDetailScreenState
           unit: item.unit,
           packSize: item.packSize,
           note: item.note,
+          attachments: item.attachments,
           unitPrice: included ? _toDouble(_itemPriceControllers[i].text) : null,
           gstIncluded: included ? _itemGstIncluded[i] : false,
           isIncluded: included,
@@ -444,54 +553,57 @@ class _BusinessOrderDetailScreenState
         'updatedAt': Timestamp.fromDate(now),
       });
 
-      setState(() {
-        _selectedPaymentStatus = _order.payment.status;
-        _selectedPaymentMethod = _order.payment.method;
-        _paymentAmountController.text = billing.total.toStringAsFixed(2);
-        _order = Order(
-          id: _order.id,
-          orderNumber: _order.orderNumber,
-          businessId: _order.businessId,
-          businessName: _order.businessName,
-          customerId: _order.customerId,
-          customerName: _order.customerName,
-          requesterType: _order.requesterType,
-          requesterBusinessId: _order.requesterBusinessId,
-          requesterBusinessName: _order.requesterBusinessName,
-          priority: _order.priority,
-          status: OrderStatus.inProgress,
-          payment: PaymentInfo(
-            status: _order.payment.status,
-            method: _order.payment.method,
-            amount: billing.total,
-            remark: _order.payment.remark,
-            confirmedByCustomer: _order.payment.confirmedByCustomer,
-            collectedBy: _order.payment.collectedBy,
-            collectedByName: _order.payment.collectedByName,
-            collectedAt: _order.payment.collectedAt,
-            collectionNote: _order.payment.collectionNote,
-            updatedAt: now,
-          ),
-          delivery: _order.delivery,
-          items: updatedItems,
-          attachments: _order.attachments,
-          packedItemIndexes: _order.packedItemIndexes,
-          assignedDeliveryAgentId: _order.assignedDeliveryAgentId,
-          assignedDeliveryAgentName: _order.assignedDeliveryAgentName,
-          assignedDeliveryAgentPhone: _order.assignedDeliveryAgentPhone,
-          assignedDeliveryAt: _order.assignedDeliveryAt,
-          notes: _order.notes,
-          gstPercent: billing.gstPercent,
-          extraCharges: billing.extra,
-          subtotalAmount: billing.subtotal,
-          gstAmount: billing.gstAmount,
-          totalAmount: billing.total,
-          billingUpdatedAt: now,
-          scheduledAt: _order.scheduledAt,
-          createdAt: _order.createdAt,
+      _paymentAmountController.text = billing.total.toStringAsFixed(2);
+      final nextOrder = Order(
+        id: _order.id,
+        orderNumber: _order.orderNumber,
+        businessId: _order.businessId,
+        businessName: _order.businessName,
+        customerId: _order.customerId,
+        customerName: _order.customerName,
+        requesterType: _order.requesterType,
+        requesterBusinessId: _order.requesterBusinessId,
+        requesterBusinessName: _order.requesterBusinessName,
+        priority: _order.priority,
+        status: OrderStatus.inProgress,
+        payment: PaymentInfo(
+          status: _order.payment.status,
+          method: _order.payment.method,
+          amount: billing.total,
+          remark: _order.payment.remark,
+          confirmedByCustomer: _order.payment.confirmedByCustomer,
+          collectedBy: _order.payment.collectedBy,
+          collectedByName: _order.payment.collectedByName,
+          collectedAt: _order.payment.collectedAt,
+          collectionNote: _order.payment.collectionNote,
           updatedAt: now,
-        );
-      });
+        ),
+        delivery: _order.delivery,
+        items: updatedItems,
+        attachments: _order.attachments,
+        packedItemIndexes: _order.packedItemIndexes,
+        assignedDeliveryAgentId: _order.assignedDeliveryAgentId,
+        assignedDeliveryAgentName: _order.assignedDeliveryAgentName,
+        assignedDeliveryAgentPhone: _order.assignedDeliveryAgentPhone,
+        assignedDeliveryAt: _order.assignedDeliveryAt,
+        notes: _order.notes,
+        gstPercent: billing.gstPercent,
+        extraCharges: billing.extra,
+        subtotalAmount: billing.subtotal,
+        gstAmount: billing.gstAmount,
+        totalAmount: billing.total,
+        billingUpdatedAt: now,
+        scheduledAt: _order.scheduledAt,
+        createdAt: _order.createdAt,
+        updatedAt: now,
+      );
+      _updateUi(
+        (state) => state.copyWith(
+          selectedPaymentStatus: nextOrder.payment.status,
+          selectedPaymentMethod: nextOrder.payment.method,
+          order: nextOrder,
+        ),
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -499,7 +611,7 @@ class _BusinessOrderDetailScreenState
       ).showSnackBar(const SnackBar(content: Text('Order accepted')));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _updateUi((state) => state.copyWith(saving: false));
       }
     }
   }
@@ -572,13 +684,17 @@ class _BusinessOrderDetailScreenState
   }
 
   Future<void> _assignDeliveryAgent(List<DeliveryAgent> agents) async {
+    if (_isLocked) {
+      _showLockedMessage();
+      return;
+    }
     (PaymentStatus, PaymentMethod)? paymentDecision;
     if (_collectPaymentOnAssign) {
       paymentDecision = await _askPaymentOnAssign();
       if (paymentDecision == null) return;
     }
     if (_saving) return;
-    setState(() => _saving = true);
+    _updateUi((state) => state.copyWith(saving: true));
     try {
       final agent = agents
           .where((value) => value.id == _selectedDeliveryAgentId)
@@ -618,44 +734,45 @@ class _BusinessOrderDetailScreenState
           'payment': updatedPayment.toMap(),
         });
       }
-      setState(() {
-        if (paymentDecision != null) {
-          _selectedPaymentStatus = paymentDecision.$1;
-          _selectedPaymentMethod = paymentDecision.$2;
-        }
-        _order = Order(
-          id: _order.id,
-          orderNumber: _order.orderNumber,
-          businessId: _order.businessId,
-          businessName: _order.businessName,
-          customerId: _order.customerId,
-          customerName: _order.customerName,
-          requesterType: _order.requesterType,
-          requesterBusinessId: _order.requesterBusinessId,
-          requesterBusinessName: _order.requesterBusinessName,
-          priority: _order.priority,
-          status: _order.status,
-          payment: updatedPayment,
-          delivery: _order.delivery,
-          items: _order.items,
-          attachments: _order.attachments,
-          packedItemIndexes: _order.packedItemIndexes,
-          assignedDeliveryAgentId: agent?.id,
-          assignedDeliveryAgentName: agent?.name,
-          assignedDeliveryAgentPhone: agent?.phone,
-          assignedDeliveryAt: agent == null ? null : DateTime.now(),
-          notes: _order.notes,
-          gstPercent: _order.gstPercent,
-          extraCharges: _order.extraCharges,
-          subtotalAmount: _order.subtotalAmount,
-          gstAmount: _order.gstAmount,
-          totalAmount: _order.totalAmount,
-          billingUpdatedAt: _order.billingUpdatedAt,
-          scheduledAt: _order.scheduledAt,
-          createdAt: _order.createdAt,
-          updatedAt: DateTime.now(),
-        );
-      });
+      final nextOrder = Order(
+        id: _order.id,
+        orderNumber: _order.orderNumber,
+        businessId: _order.businessId,
+        businessName: _order.businessName,
+        customerId: _order.customerId,
+        customerName: _order.customerName,
+        requesterType: _order.requesterType,
+        requesterBusinessId: _order.requesterBusinessId,
+        requesterBusinessName: _order.requesterBusinessName,
+        priority: _order.priority,
+        status: _order.status,
+        payment: updatedPayment,
+        delivery: _order.delivery,
+        items: _order.items,
+        attachments: _order.attachments,
+        packedItemIndexes: _order.packedItemIndexes,
+        assignedDeliveryAgentId: agent?.id,
+        assignedDeliveryAgentName: agent?.name,
+        assignedDeliveryAgentPhone: agent?.phone,
+        assignedDeliveryAt: agent == null ? null : DateTime.now(),
+        notes: _order.notes,
+        gstPercent: _order.gstPercent,
+        extraCharges: _order.extraCharges,
+        subtotalAmount: _order.subtotalAmount,
+        gstAmount: _order.gstAmount,
+        totalAmount: _order.totalAmount,
+        billingUpdatedAt: _order.billingUpdatedAt,
+        scheduledAt: _order.scheduledAt,
+        createdAt: _order.createdAt,
+        updatedAt: DateTime.now(),
+      );
+      _updateUi(
+        (state) => state.copyWith(
+          selectedPaymentStatus: paymentDecision?.$1,
+          selectedPaymentMethod: paymentDecision?.$2,
+          order: nextOrder,
+        ),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -672,13 +789,14 @@ class _BusinessOrderDetailScreenState
       );
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _updateUi((state) => state.copyWith(saving: false));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(_businessOrderUiProvider(widget.order.id));
     final agentsAsync = ref.watch(
       deliveryAgentsForBusinessProvider(_order.businessId),
     );
@@ -687,8 +805,15 @@ class _BusinessOrderDetailScreenState
     final requester = isBusinessOrder
         ? (_order.requesterBusinessName ?? _order.customerName)
         : _order.customerName;
+    final itemAttachments = _order.items.expand((item) => item.attachments).toList();
+    final allAttachments = <OrderAttachment>[
+      ..._order.attachments,
+      ...itemAttachments,
+    ];
+    final imageAttachments = allAttachments.where(_isImageAttachment).toList();
     final includedCount = _itemIncluded.where((value) => value).length;
     final billing = _billingPreview();
+    final isLocked = _isLocked;
     return Scaffold(
       appBar: AppBar(title: Text('Order ${_order.displayOrderNumber} Details')),
       body: ListView(
@@ -704,11 +829,21 @@ class _BusinessOrderDetailScreenState
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _saving ? null : _acceptOrder,
+                        onPressed: (_saving || isLocked) ? null : _acceptOrder,
                         child: const Text('Accept Order'),
                       ),
                     ),
                     const SizedBox(height: 12),
+                  ],
+                  if (isLocked) ...[
+                    Text(
+                      'Order is completed. Editing is disabled.',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                   Text(
                     'Type: ${isBusinessOrder ? 'Business Order' : 'Customer Order'}',
@@ -745,9 +880,24 @@ class _BusinessOrderDetailScreenState
                     'Delivery Agent: ${_order.assignedDeliveryAgentName ?? 'Not assigned'}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  if (_order.notes != null && _order.notes!.isNotEmpty)
+                  if (_clean(_order.notes) != null)
                     Text(
-                      'Notes: ${_order.notes}',
+                      'Order Remark: ${_clean(_order.notes)}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  if (_clean(_order.delivery.note) != null)
+                    Text(
+                      'Delivery Remark: ${_clean(_order.delivery.note)}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  if (_clean(_order.payment.remark) != null)
+                    Text(
+                      'Payment Remark: ${_clean(_order.payment.remark)}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  if (_clean(_order.payment.collectionNote) != null)
+                    Text(
+                      'Delivery Boy Remark: ${_clean(_order.payment.collectionNote)}',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   const SizedBox(height: 8),
@@ -798,20 +948,33 @@ class _BusinessOrderDetailScreenState
                             dense: true,
                             controlAffinity: ListTileControlAffinity.leading,
                             value: included,
-                            onChanged: (value) => setState(
-                              () => _itemIncluded[index] = value ?? true,
-                            ),
+                            onChanged: isLocked
+                                ? null
+                                : (value) => _updateUi((state) {
+                                    final updated = List<bool>.from(
+                                      state.itemIncluded,
+                                    );
+                                    updated[index] = value ?? true;
+                                    return state.copyWith(itemIncluded: updated);
+                                  }),
                             title: const Text('Include in Delivery'),
                           ),
                           if (!included)
                             TextFormField(
                               controller:
                                   _itemUnavailableReasonControllers[index],
+                              enabled: !isLocked,
                               decoration: const InputDecoration(
                                 labelText: 'Unavailable Reason',
                                 hintText: 'Not available',
                               ),
-                              onChanged: (_) => setState(() {}),
+                              onChanged: isLocked
+                                  ? null
+                                  : (_) => _updateUi(
+                                      (state) => state.copyWith(
+                                        refreshTick: state.refreshTick + 1,
+                                      ),
+                                    ),
                             ),
                           const SizedBox(height: 8),
                           Row(
@@ -819,7 +982,7 @@ class _BusinessOrderDetailScreenState
                               Expanded(
                                 child: TextFormField(
                                   controller: _itemPriceControllers[index],
-                                  enabled: included,
+                                  enabled: included && !isLocked,
                                   keyboardType:
                                       const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -827,7 +990,13 @@ class _BusinessOrderDetailScreenState
                                   decoration: const InputDecoration(
                                     labelText: 'Unit Price',
                                   ),
-                                  onChanged: (_) => setState(() {}),
+                                  onChanged: isLocked
+                                  ? null
+                                  : (_) => _updateUi(
+                                      (state) => state.copyWith(
+                                        refreshTick: state.refreshTick + 1,
+                                      ),
+                                    ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -838,11 +1007,16 @@ class _BusinessOrderDetailScreenState
                                   controlAffinity:
                                       ListTileControlAffinity.leading,
                                   value: _itemGstIncluded[index],
-                                  onChanged: included
-                                      ? (value) => setState(
-                                          () => _itemGstIncluded[index] =
-                                              value ?? false,
-                                        )
+                                  onChanged: (included && !isLocked)
+                                      ? (value) => _updateUi((state) {
+                                          final updated = List<bool>.from(
+                                            state.itemGstIncluded,
+                                          );
+                                          updated[index] = value ?? false;
+                                          return state.copyWith(
+                                            itemGstIncluded: updated,
+                                          );
+                                        })
                                       : null,
                                   title: const Text('GST'),
                                 ),
@@ -863,6 +1037,7 @@ class _BusinessOrderDetailScreenState
                       Expanded(
                         child: TextFormField(
                           controller: _gstPercentController,
+                          enabled: !isLocked,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -870,13 +1045,20 @@ class _BusinessOrderDetailScreenState
                             labelText: 'Common GST %',
                             hintText: 'e.g. 18',
                           ),
-                          onChanged: (_) => setState(() {}),
+                          onChanged: isLocked
+                                  ? null
+                                  : (_) => _updateUi(
+                                      (state) => state.copyWith(
+                                        refreshTick: state.refreshTick + 1,
+                                      ),
+                                    ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
                           controller: _extraChargesController,
+                          enabled: !isLocked,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -884,7 +1066,13 @@ class _BusinessOrderDetailScreenState
                             labelText: 'Extra Charges',
                             hintText: 'e.g. 50',
                           ),
-                          onChanged: (_) => setState(() {}),
+                          onChanged: isLocked
+                                  ? null
+                                  : (_) => _updateUi(
+                                      (state) => state.copyWith(
+                                        refreshTick: state.refreshTick + 1,
+                                      ),
+                                    ),
                         ),
                       ),
                     ],
@@ -900,7 +1088,7 @@ class _BusinessOrderDetailScreenState
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _saving ? null : _saveBilling,
+                      onPressed: (_saving || isLocked) ? null : _saveBilling,
                       child: Text(_saving ? 'Saving...' : 'Save Pricing'),
                     ),
                   ),
@@ -930,16 +1118,23 @@ class _BusinessOrderDetailScreenState
                           activeAgents.any(
                             (agent) => agent.id == _selectedDeliveryAgentId,
                           );
+                      final selectedDeliveryAgentId = hasSelectedAgent
+                          ? _selectedDeliveryAgentId
+                          : null;
                       if (!hasSelectedAgent) {
-                        _selectedDeliveryAgentId = null;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _updateUi(
+                            (state) => state.copyWith(
+                              selectedDeliveryAgentId: null,
+                            ),
+                          );
+                        });
                       }
                       return Column(
                         children: [
                           DropdownButtonFormField<String?>(
                             isExpanded: true,
-                            initialValue: hasSelectedAgent
-                                ? _selectedDeliveryAgentId
-                                : null,
+                            initialValue: selectedDeliveryAgentId,
                             decoration: const InputDecoration(
                               labelText: 'Assign Delivery Agent',
                             ),
@@ -955,9 +1150,13 @@ class _BusinessOrderDetailScreenState
                                 ),
                               ),
                             ],
-                            onChanged: (value) => setState(
-                              () => _selectedDeliveryAgentId = value,
-                            ),
+                            onChanged: isLocked
+                                ? null
+                                : (value) => _updateUi(
+                                    (state) => state.copyWith(
+                                      selectedDeliveryAgentId: value,
+                                    ),
+                                  ),
                           ),
                           const SizedBox(height: 6),
                           CheckboxListTile(
@@ -965,15 +1164,21 @@ class _BusinessOrderDetailScreenState
                             dense: true,
                             value: _collectPaymentOnAssign,
                             title: const Text('Collect payment now (optional)'),
-                            onChanged: (value) => setState(
-                              () => _collectPaymentOnAssign = value ?? false,
-                            ),
+                            onChanged: isLocked
+                                ? null
+                                : (value) => _updateUi(
+                                    (state) => state.copyWith(
+                                      collectPaymentOnAssign: value ?? false,
+                                    ),
+                                  ),
                           ),
                           const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
                               onPressed: _saving
+                                  ? null
+                                  : isLocked
                                   ? null
                                   : () => _assignDeliveryAgent(activeAgents),
                               child: const Text('Save Delivery Agent'),
@@ -1003,10 +1208,15 @@ class _BusinessOrderDetailScreenState
                           ),
                         )
                         .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _selectedPaymentStatus = value);
-                    },
+                    onChanged: isLocked
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            _updateUi(
+                              (state) =>
+                                  state.copyWith(selectedPaymentStatus: value),
+                            );
+                          },
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<PaymentMethod>(
@@ -1023,14 +1233,20 @@ class _BusinessOrderDetailScreenState
                           ),
                         )
                         .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _selectedPaymentMethod = value);
-                    },
+                    onChanged: isLocked
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            _updateUi(
+                              (state) =>
+                                  state.copyWith(selectedPaymentMethod: value),
+                            );
+                          },
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _paymentAmountController,
+                    enabled: !isLocked,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
@@ -1043,7 +1259,8 @@ class _BusinessOrderDetailScreenState
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _saving ? null : _saveStatusUpdates,
+                      onPressed:
+                          (_saving || isLocked) ? null : _saveStatusUpdates,
                       child: Text(_saving ? 'Saving...' : 'Update Payment'),
                     ),
                   ),
@@ -1051,47 +1268,40 @@ class _BusinessOrderDetailScreenState
               ),
             ),
           ),
-          if (_order.attachments.isNotEmpty) ...[
+          if (imageAttachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
-              'Attachments',
+              'Item Images',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            ..._order.attachments.map(
-              (attachment) {
-                final isImage = _isImageAttachment(attachment);
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    onTap: isImage ? () => _showImagePreview(attachment) : null,
-                    leading: isImage
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              attachment.url,
-                              width: 44,
-                              height: 44,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Icon(
-                                Icons.image_not_supported_outlined,
-                              ),
-                            ),
-                          )
-                        : const Icon(Icons.attach_file),
-                    title: Text(
-                      attachment.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    subtitle: Text(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: imageAttachments.asMap().entries.map((entry) {
+                final index = entry.key;
+                final attachment = entry.value;
+                return InkWell(
+                  onTap: () => _showImageGallery(imageAttachments, index),
+                  borderRadius: BorderRadius.circular(10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
                       attachment.url,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      width: 92,
+                      height: 92,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 92,
+                        height: 92,
+                        color: Colors.black12,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.image_not_supported_outlined),
+                      ),
                     ),
                   ),
                 );
-              },
+              }).toList(),
             ),
           ],
         ],

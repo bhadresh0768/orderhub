@@ -17,6 +17,71 @@ import '../orders/business_order_detail_screen.dart';
 import '../orders/create_order_screen.dart';
 import '../orders/order_history_report_screen.dart';
 
+final _businessOrdersUiProvider =
+    StateProvider.autoDispose.family<_BusinessOrdersUiState, String>(
+      (ref, _) => const _BusinessOrdersUiState(),
+    );
+
+class _BusinessOrdersUiState {
+  const _BusinessOrdersUiState({this.searchQuery = ''});
+  final String searchQuery;
+  _BusinessOrdersUiState copyWith({String? searchQuery}) {
+    return _BusinessOrdersUiState(searchQuery: searchQuery ?? this.searchQuery);
+  }
+}
+
+final _placeOrdersUiProvider =
+    StateProvider.autoDispose.family<_PlaceOrdersUiState, String>(
+      (ref, _) => const _PlaceOrdersUiState(),
+    );
+
+class _PlaceOrdersUiState {
+  const _PlaceOrdersUiState({this.searchQuery = '', this.categoryFilter = 'All'});
+  final String searchQuery;
+  final String categoryFilter;
+  _PlaceOrdersUiState copyWith({String? searchQuery, String? categoryFilter}) {
+    return _PlaceOrdersUiState(
+      searchQuery: searchQuery ?? this.searchQuery,
+      categoryFilter: categoryFilter ?? this.categoryFilter,
+    );
+  }
+}
+
+final _deliveryTeamUiProvider =
+    StateProvider.autoDispose.family<_DeliveryTeamUiState, String>(
+      (ref, _) => _DeliveryTeamUiState(selectedCountry: Country.parse('IN')),
+    );
+
+class _DeliveryTeamUiState {
+  const _DeliveryTeamUiState({
+    required this.selectedCountry,
+    this.editingAgentId,
+    this.saving = false,
+    this.error,
+  });
+  final Country selectedCountry;
+  final String? editingAgentId;
+  final bool saving;
+  final String? error;
+  _DeliveryTeamUiState copyWith({
+    Country? selectedCountry,
+    Object? editingAgentId = _businessHomeUnset,
+    bool? saving,
+    Object? error = _businessHomeUnset,
+  }) {
+    return _DeliveryTeamUiState(
+      selectedCountry: selectedCountry ?? this.selectedCountry,
+      editingAgentId: editingAgentId == _businessHomeUnset
+          ? this.editingAgentId
+          : editingAgentId as String?,
+      saving: saving ?? this.saving,
+      error: error == _businessHomeUnset ? this.error : error as String?,
+    );
+  }
+}
+
+const _businessHomeUnset = Object();
+
 class BusinessHomeScreen extends ConsumerWidget {
   const BusinessHomeScreen({super.key});
 
@@ -168,6 +233,15 @@ class _BusinessOrdersTab extends ConsumerStatefulWidget {
 
 class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   final TextEditingController _searchController = TextEditingController();
+  late final String _uiKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _uiKey =
+        '${widget.profile.businessId}-${widget.allowedStatuses.map((e) => e.name).join(",")}';
+    _searchController.text = ref.read(_businessOrdersUiProvider(_uiKey)).searchQuery;
+  }
 
   @override
   void dispose() {
@@ -204,12 +278,13 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_businessOrdersUiProvider(_uiKey));
     final ordersAsync = ref.watch(
       ordersForBusinessProvider(widget.profile.businessId!),
     );
     return ordersAsync.when(
       data: (orders) {
-        final query = _searchController.text.trim().toLowerCase();
+        final query = ui.searchQuery.trim().toLowerCase();
         final tabOrders = orders.where((order) {
           final effectiveStatus = _effectiveOrderStatus(order);
           if (!widget.allowedStatuses.contains(effectiveStatus)) return false;
@@ -241,7 +316,11 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                     labelText: 'Search order/customer/item',
                     prefixIcon: Icon(Icons.search),
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (value) {
+                    ref
+                        .read(_businessOrdersUiProvider(_uiKey).notifier)
+                        .state = ui.copyWith(searchQuery: value);
+                  },
                 );
               },
             ),
@@ -316,7 +395,8 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   }
 
   List<OrderAttachment> _imageAttachments(Order order) {
-    return order.attachments
+    final itemLevel = order.items.expand((item) => item.attachments);
+    return [...order.attachments, ...itemLevel]
         .where(
           (attachment) =>
               _looksLikeImage(attachment.name) ||
@@ -385,9 +465,6 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final paymentBadge = _buildPaymentBadge(order);
     final statusColor = _statusColor(effectiveStatus);
     final imageAttachments = _imageAttachments(order);
-    final firstImageUrl = imageAttachments.isEmpty
-        ? null
-        : imageAttachments.first.url;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -433,21 +510,6 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
           ),
         ),
         isThreeLine: true,
-        leading: firstImageUrl == null
-            ? null
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  firstImageUrl,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Icon(
-                    Icons.image_not_supported_outlined,
-                    size: 22,
-                  ),
-                ),
-              ),
         trailing: widget.allowActions
             ? PopupMenuButton<String>(
                 onSelected: (value) =>
@@ -632,7 +694,14 @@ class _PlaceOrdersBody extends ConsumerStatefulWidget {
 
 class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
   final TextEditingController _searchController = TextEditingController();
-  String _categoryFilter = 'All';
+  late final String _uiKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _uiKey = widget.profile.id;
+    _searchController.text = ref.read(_placeOrdersUiProvider(_uiKey)).searchQuery;
+  }
 
   @override
   void dispose() {
@@ -641,10 +710,11 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
   }
 
   List<BusinessProfile> _filterBusinesses(List<BusinessProfile> businesses) {
-    final query = _searchController.text.trim().toLowerCase();
+    final ui = ref.read(_placeOrdersUiProvider(_uiKey));
+    final query = ui.searchQuery.trim().toLowerCase();
     return businesses.where((business) {
       final categoryOk =
-          _categoryFilter == 'All' || business.category == _categoryFilter;
+          ui.categoryFilter == 'All' || business.category == ui.categoryFilter;
       final matchesQuery =
           query.isEmpty ||
           business.name.toLowerCase().contains(query) ||
@@ -657,6 +727,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_placeOrdersUiProvider(_uiKey));
     final businessesAsync = ref.watch(businessesProvider);
     final outgoingAsync = ref.watch(
       ordersPlacedByBusinessOwnerProvider(widget.profile.id),
@@ -716,12 +787,20 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                           'Search business/category/address/city',
                                       prefixIcon: Icon(Icons.search),
                                     ),
-                                    onChanged: (_) => setState(() {}),
+                                    onChanged: (value) {
+                                      ref
+                                              .read(
+                                                _placeOrdersUiProvider(_uiKey)
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          ui.copyWith(searchQuery: value);
+                                    },
                                   ),
                                   const SizedBox(height: 10),
                                   DropdownButtonFormField<String>(
                                     isExpanded: true,
-                                    initialValue: _categoryFilter,
+                                    initialValue: ui.categoryFilter,
                                     decoration: const InputDecoration(
                                       labelText: 'Category',
                                     ),
@@ -733,9 +812,17 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                           ),
                                         )
                                         .toList(),
-                                    onChanged: (value) => setState(
-                                      () => _categoryFilter = value ?? 'All',
-                                    ),
+                                    onChanged: (value) {
+                                      ref
+                                              .read(
+                                                _placeOrdersUiProvider(_uiKey)
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          ui.copyWith(
+                                            categoryFilter: value ?? 'All',
+                                          );
+                                    },
                                   ),
                                 ],
                               );
@@ -751,14 +838,22 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                           'Search business/category/address/city',
                                       prefixIcon: Icon(Icons.search),
                                     ),
-                                    onChanged: (_) => setState(() {}),
+                                    onChanged: (value) {
+                                      ref
+                                              .read(
+                                                _placeOrdersUiProvider(_uiKey)
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          ui.copyWith(searchQuery: value);
+                                    },
                                   ),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
                                     isExpanded: true,
-                                    initialValue: _categoryFilter,
+                                    initialValue: ui.categoryFilter,
                                     decoration: const InputDecoration(
                                       labelText: 'Category',
                                     ),
@@ -770,9 +865,17 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                           ),
                                         )
                                         .toList(),
-                                    onChanged: (value) => setState(
-                                      () => _categoryFilter = value ?? 'All',
-                                    ),
+                                    onChanged: (value) {
+                                      ref
+                                              .read(
+                                                _placeOrdersUiProvider(_uiKey)
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          ui.copyWith(
+                                            categoryFilter: value ?? 'All',
+                                          );
+                                    },
                                   ),
                                 ),
                               ],
@@ -992,10 +1095,21 @@ class _DeliveryTeamTab extends ConsumerStatefulWidget {
 class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  Country _selectedCountry = Country.parse('IN');
-  String? _editingAgentId;
-  bool _saving = false;
-  String? _error;
+  late final String _uiKey;
+
+  _DeliveryTeamUiState get _ui => ref.read(_deliveryTeamUiProvider(_uiKey));
+  void _updateUi(
+    _DeliveryTeamUiState Function(_DeliveryTeamUiState state) update,
+  ) {
+    final notifier = ref.read(_deliveryTeamUiProvider(_uiKey).notifier);
+    notifier.state = update(notifier.state);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _uiKey = widget.profile.businessId!;
+  }
 
   @override
   void dispose() {
@@ -1005,19 +1119,16 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
   }
 
   Future<void> _submitAgent() async {
-    if (_saving) return;
+    if (_ui.saving) return;
     final name = _nameController.text.trim();
     final phone = _normalizePhoneNumber(_phoneController.text);
     if (name.isEmpty || phone.isEmpty) {
-      setState(() => _error = 'Enter delivery boy name and phone');
+      _updateUi((state) => state.copyWith(error: 'Enter delivery boy name and phone'));
       return;
     }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    _updateUi((state) => state.copyWith(saving: true, error: null));
     try {
-      if (_editingAgentId == null) {
+      if (_ui.editingAgentId == null) {
         final agent = DeliveryAgent(
           id: const Uuid().v4(),
           businessId: widget.profile.businessId!,
@@ -1028,20 +1139,20 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
         await ref.read(firestoreServiceProvider).createDeliveryAgent(agent);
       } else {
         await ref.read(firestoreServiceProvider).updateDeliveryAgent(
-          _editingAgentId!,
+          _ui.editingAgentId!,
           {'name': name, 'phone': phone, 'isActive': true},
         );
       }
-      setState(() {
-        _editingAgentId = null;
-        _nameController.clear();
-        _phoneController.clear();
-      });
+      _nameController.clear();
+      _phoneController.clear();
+      _updateUi((state) => state.copyWith(editingAgentId: null, error: null));
     } catch (err) {
-      setState(() => _error = 'Failed to save delivery boy: $err');
+      _updateUi(
+        (state) => state.copyWith(error: 'Failed to save delivery boy: $err'),
+      );
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _updateUi((state) => state.copyWith(saving: false));
       }
     }
   }
@@ -1051,18 +1162,15 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
     if (raw.isEmpty) return '';
     if (raw.startsWith('+')) return raw;
     if (RegExp(r'^\d+$').hasMatch(raw)) {
-      return '+${_selectedCountry.phoneCode}$raw';
+      return '+${_ui.selectedCountry.phoneCode}$raw';
     }
     return value.trim();
   }
 
   void _editAgent(DeliveryAgent agent) {
-    setState(() {
-      _editingAgentId = agent.id;
-      _nameController.text = agent.name;
-      _phoneController.text = agent.phone;
-      _error = null;
-    });
+    _nameController.text = agent.name;
+    _phoneController.text = agent.phone;
+    _updateUi((state) => state.copyWith(editingAgentId: agent.id, error: null));
   }
 
   Future<void> _setAgentActive(DeliveryAgent agent, bool isActive) async {
@@ -1073,6 +1181,7 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_deliveryTeamUiProvider(_uiKey));
     final agentsAsync = ref.watch(
       deliveryAgentsForBusinessProvider(widget.profile.businessId!),
     );
@@ -1103,14 +1212,18 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
                             context: context,
                             showPhoneCode: true,
                             onSelect: (country) {
-                              setState(() => _selectedCountry = country);
+                              _updateUi(
+                                (state) => state.copyWith(
+                                  selectedCountry: country,
+                                ),
+                              );
                             },
                           );
                         },
                         child: InputDecorator(
                           decoration: const InputDecoration(labelText: 'Code'),
                           child: Text(
-                            '${_selectedCountry.flagEmoji} +${_selectedCountry.phoneCode}',
+                            '${ui.selectedCountry.flagEmoji} +${ui.selectedCountry.phoneCode}',
                           ),
                         ),
                       ),
@@ -1128,12 +1241,12 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
                     ),
                   ],
                 ),
-                if (_error != null) ...[
+                if (ui.error != null) ...[
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      _error!,
+                      ui.error!,
                       style: const TextStyle(color: Colors.red),
                     ),
                   ),
@@ -1143,26 +1256,28 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
                   children: [
                     Expanded(
                       child: FilledButton(
-                        onPressed: _saving ? null : _submitAgent,
+                        onPressed: ui.saving ? null : _submitAgent,
                         child: Text(
-                          _editingAgentId == null
+                          ui.editingAgentId == null
                               ? 'Add Delivery Boy'
                               : 'Update Delivery Boy',
                         ),
                       ),
                     ),
-                    if (_editingAgentId != null) ...[
+                    if (ui.editingAgentId != null) ...[
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        onPressed: _saving
+                        onPressed: ui.saving
                             ? null
                             : () {
-                                setState(() {
-                                  _editingAgentId = null;
-                                  _nameController.clear();
-                                  _phoneController.clear();
-                                  _error = null;
-                                });
+                                _nameController.clear();
+                                _phoneController.clear();
+                                _updateUi(
+                                  (state) => state.copyWith(
+                                    editingAgentId: null,
+                                    error: null,
+                                  ),
+                                );
                               },
                         child: const Text('Cancel'),
                       ),

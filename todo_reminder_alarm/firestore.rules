@@ -31,6 +31,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
     }
 
+    function isOrderLocked() {
+      return resource.data.status == 'completed' ||
+        (resource.data.delivery is map &&
+          resource.data.delivery.status == 'delivered');
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if signedIn() && request.auth.uid == userId;
@@ -68,6 +74,7 @@ service cloud.firestore {
         request.resource.data.customerId == request.auth.uid &&
         request.resource.data.status == 'pending';
       allow update: if isAdmin() || (
+        !isOrderLocked() &&
         signedIn() && (
           isBusinessOwnerOf(resource.data.businessId) ||
           (

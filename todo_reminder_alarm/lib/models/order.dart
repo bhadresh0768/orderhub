@@ -10,6 +10,7 @@ class OrderItem {
     required this.unit,
     this.packSize,
     this.note,
+    this.attachments = const [],
     this.unitPrice,
     this.gstIncluded,
     this.isIncluded,
@@ -21,6 +22,7 @@ class OrderItem {
   final QuantityUnit unit;
   final String? packSize;
   final String? note;
+  final List<OrderAttachment> attachments;
   final double? unitPrice;
   final bool? gstIncluded;
   final bool? isIncluded;
@@ -33,6 +35,7 @@ class OrderItem {
       'unit': enumToString(unit),
       'packSize': packSize,
       'note': note,
+      'attachments': attachments.map((e) => e.toMap()).toList(),
       'unitPrice': unitPrice,
       'gstIncluded': gstIncluded,
       'isIncluded': isIncluded,
@@ -42,6 +45,7 @@ class OrderItem {
 
   factory OrderItem.fromMap(Map<String, dynamic> data) {
     final rawQuantity = data['quantity'];
+    final attachmentData = (data['attachments'] as List?) ?? [];
     return OrderItem(
       title: (data['title'] as String?) ?? '',
       quantity: rawQuantity is num ? rawQuantity.toDouble() : 1,
@@ -52,6 +56,13 @@ class OrderItem {
       ),
       packSize: data['packSize'] as String?,
       note: data['note'] as String?,
+      attachments: attachmentData
+          .whereType<Map>()
+          .map(
+            (entry) =>
+                OrderAttachment.fromMap(Map<String, dynamic>.from(entry)),
+          )
+          .toList(),
       unitPrice: (data['unitPrice'] is num)
           ? (data['unitPrice'] as num).toDouble()
           : null,

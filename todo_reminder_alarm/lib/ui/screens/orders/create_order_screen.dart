@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,6 +12,81 @@ import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../models/payment.dart';
 import '../../../providers.dart';
+
+final _createOrderUiProvider =
+    StateProvider.autoDispose.family<_CreateOrderUiState, String>(
+  (ref, id) => const _CreateOrderUiState(),
+);
+
+class _CreateOrderUiState {
+  const _CreateOrderUiState({
+    this.items = const [],
+    this.itemAttachmentsDraft = const [],
+    this.itemUnit = QuantityUnit.piece,
+    this.editingItemIndex,
+    this.priority = OrderPriority.medium,
+    this.paymentMethod = PaymentMethod.cash,
+    this.confirmedOnline = false,
+    this.loading = false,
+    this.uploadingItemImage = false,
+    this.loadingSuggestions = false,
+    this.catalogItems = const [],
+    this.itemSuggestions = const [],
+    this.inlineError,
+  });
+
+  final List<OrderItem> items;
+  final List<OrderAttachment> itemAttachmentsDraft;
+  final QuantityUnit itemUnit;
+  final int? editingItemIndex;
+  final OrderPriority priority;
+  final PaymentMethod paymentMethod;
+  final bool confirmedOnline;
+  final bool loading;
+  final bool uploadingItemImage;
+  final bool loadingSuggestions;
+  final List<String> catalogItems;
+  final List<String> itemSuggestions;
+  final String? inlineError;
+
+  _CreateOrderUiState copyWith({
+    List<OrderItem>? items,
+    List<OrderAttachment>? itemAttachmentsDraft,
+    QuantityUnit? itemUnit,
+    Object? editingItemIndex = _createOrderUnset,
+    OrderPriority? priority,
+    PaymentMethod? paymentMethod,
+    bool? confirmedOnline,
+    bool? loading,
+    bool? uploadingItemImage,
+    bool? loadingSuggestions,
+    List<String>? catalogItems,
+    List<String>? itemSuggestions,
+    Object? inlineError = _createOrderUnset,
+  }) {
+    return _CreateOrderUiState(
+      items: items ?? this.items,
+      itemAttachmentsDraft: itemAttachmentsDraft ?? this.itemAttachmentsDraft,
+      itemUnit: itemUnit ?? this.itemUnit,
+      editingItemIndex: editingItemIndex == _createOrderUnset
+          ? this.editingItemIndex
+          : editingItemIndex as int?,
+      priority: priority ?? this.priority,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      confirmedOnline: confirmedOnline ?? this.confirmedOnline,
+      loading: loading ?? this.loading,
+      uploadingItemImage: uploadingItemImage ?? this.uploadingItemImage,
+      loadingSuggestions: loadingSuggestions ?? this.loadingSuggestions,
+      catalogItems: catalogItems ?? this.catalogItems,
+      itemSuggestions: itemSuggestions ?? this.itemSuggestions,
+      inlineError: inlineError == _createOrderUnset
+          ? this.inlineError
+          : inlineError as String?,
+    );
+  }
+}
+
+const _createOrderUnset = Object();
 
 class CreateOrderScreen extends ConsumerStatefulWidget {
   const CreateOrderScreen({
@@ -37,28 +111,17 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   final _packSizeController = TextEditingController();
   final _itemNoteController = TextEditingController();
   final _notesController = TextEditingController();
-  final _attachmentNameController = TextEditingController();
-  final _attachmentUrlController = TextEditingController();
   final _paymentRemarkController = TextEditingController();
-  final List<OrderItem> _items = [];
-  final List<OrderAttachment> _attachments = [];
-  QuantityUnit _itemUnit = QuantityUnit.piece;
-  int? _editingItemIndex;
-  OrderPriority _priority = OrderPriority.medium;
-  PaymentMethod _paymentMethod = PaymentMethod.cash;
-  DateTime? _scheduledDate;
-  TimeOfDay? _scheduledTime;
-  bool _confirmedOnline = false;
-  bool _loading = false;
-  bool _uploadingAttachment = false;
-  bool _loadingSuggestions = false;
   final Map<String, List<String>> _prefixSuggestionCache = {};
-  List<String> _catalogItems = const [];
-  List<String> _itemSuggestions = const [];
   Timer? _searchDebounce;
-  String? _inlineError;
   final String _draftOrderId = const Uuid().v4();
   final ImagePicker _imagePicker = ImagePicker();
+
+  _CreateOrderUiState get _ui => ref.read(_createOrderUiProvider(_draftOrderId));
+  void _updateUi(_CreateOrderUiState Function(_CreateOrderUiState state) update) {
+    final notifier = ref.read(_createOrderUiProvider(_draftOrderId).notifier);
+    notifier.state = update(notifier.state);
+  }
 
   @override
   void initState() {
@@ -73,8 +136,6 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     _packSizeController.dispose();
     _itemNoteController.dispose();
     _notesController.dispose();
-    _attachmentNameController.dispose();
-    _attachmentUrlController.dispose();
     _paymentRemarkController.dispose();
     _searchDebounce?.cancel();
     super.dispose();
@@ -84,11 +145,11 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     final service = ref.read(itemCatalogServiceProvider);
     final cached = await service.getCachedItems();
     if (!mounted) return;
-    setState(() => _catalogItems = cached);
+    _updateUi((state) => state.copyWith(catalogItems: cached));
     try {
       final refreshed = await service.refreshCatalog();
       if (!mounted) return;
-      setState(() => _catalogItems = refreshed);
+      _updateUi((state) => state.copyWith(catalogItems: refreshed));
     } catch (_) {
       // Keep working with local cache if network refresh fails.
     }
@@ -98,10 +159,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     final normalized = query.trim().toLowerCase();
     if (normalized.length < 3) return const [];
 
-    final prefixMatches = _catalogItems
+    final prefixMatches = _ui.catalogItems
         .where((item) => item.toLowerCase().startsWith(normalized))
         .toList();
-    final containsMatches = _catalogItems
+    final containsMatches = _ui.catalogItems
         .where(
           (item) =>
               !item.toLowerCase().startsWith(normalized) &&
@@ -116,32 +177,36 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     _searchDebounce?.cancel();
     final query = value.trim().toLowerCase();
     if (query.length < 3) {
-      setState(() {
-        _itemSuggestions = const [];
-        _loadingSuggestions = false;
-      });
+      _updateUi(
+        (state) => state.copyWith(
+          itemSuggestions: const [],
+          loadingSuggestions: false,
+        ),
+      );
       return;
     }
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
       final local = _searchLocalCatalog(query);
       if (local.length >= 5) {
         if (!mounted) return;
-        setState(() {
-          _itemSuggestions = local;
-          _loadingSuggestions = false;
-        });
+        _updateUi(
+          (state) => state.copyWith(
+            itemSuggestions: local,
+            loadingSuggestions: false,
+          ),
+        );
         return;
       }
 
       final cachedRemote = _prefixSuggestionCache[query];
       if (cachedRemote != null) {
         if (!mounted) return;
-        setState(() => _itemSuggestions = cachedRemote);
+        _updateUi((state) => state.copyWith(itemSuggestions: cachedRemote));
         return;
       }
 
       if (mounted) {
-        setState(() => _loadingSuggestions = true);
+        _updateUi((state) => state.copyWith(loadingSuggestions: true));
       }
       try {
         final remote = await ref
@@ -150,56 +215,22 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         final merged = {...local, ...remote}.toList();
         _prefixSuggestionCache[query] = merged;
         if (!mounted) return;
-        setState(() => _itemSuggestions = merged);
+        _updateUi((state) => state.copyWith(itemSuggestions: merged));
       } catch (_) {
         if (!mounted) return;
-        setState(() => _itemSuggestions = local);
+        _updateUi((state) => state.copyWith(itemSuggestions: local));
       } finally {
         if (mounted) {
-          setState(() => _loadingSuggestions = false);
+          _updateUi((state) => state.copyWith(loadingSuggestions: false));
         }
       }
     });
   }
 
   void _selectSuggestion(String value) {
-    setState(() {
-      _itemController.text = value;
-      _itemSuggestions = const [];
-      _inlineError = null;
-    });
-  }
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDate: _scheduledDate ?? DateTime.now(),
-    );
-    if (picked != null) {
-      setState(() => _scheduledDate = picked);
-    }
-  }
-
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _scheduledTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() => _scheduledTime = picked);
-    }
-  }
-
-  DateTime? _composeSchedule() {
-    if (_scheduledDate == null || _scheduledTime == null) return null;
-    return DateTime(
-      _scheduledDate!.year,
-      _scheduledDate!.month,
-      _scheduledDate!.day,
-      _scheduledTime!.hour,
-      _scheduledTime!.minute,
+    _itemController.text = value;
+    _updateUi(
+      (state) => state.copyWith(itemSuggestions: const [], inlineError: null),
     );
   }
 
@@ -251,42 +282,62 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     _quantityController.text = '1';
     _packSizeController.clear();
     _itemNoteController.clear();
-    _itemUnit = QuantityUnit.piece;
-    _editingItemIndex = null;
+    _updateUi(
+      (state) => state.copyWith(
+        itemAttachmentsDraft: const [],
+        itemUnit: QuantityUnit.piece,
+        editingItemIndex: null,
+      ),
+    );
   }
 
   void _addOrUpdateItem() {
     final title = _itemController.text.trim();
     final quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
     if (title.isEmpty || quantity <= 0) {
-      setState(() => _inlineError = 'Add a valid item name and quantity.');
+      _updateUi(
+        (state) =>
+            state.copyWith(inlineError: 'Add a valid item name and quantity.'),
+      );
       return;
     }
     final item = OrderItem(
       title: title,
       quantity: quantity,
-      unit: _itemUnit,
+      unit: _ui.itemUnit,
       packSize: _packSizeController.text.trim().isEmpty
           ? null
           : _packSizeController.text.trim(),
       note: _itemNoteController.text.trim().isEmpty
           ? null
           : _itemNoteController.text.trim(),
+      attachments: List<OrderAttachment>.from(_ui.itemAttachmentsDraft),
       unitPrice: null,
       gstIncluded: false,
       isIncluded: true,
       unavailableReason: null,
     );
-    setState(() {
-      if (_editingItemIndex == null) {
-        _items.add(item);
-      } else {
-        _items[_editingItemIndex!] = item;
-      }
-      _clearItemForm();
-      _itemSuggestions = const [];
-      _inlineError = null;
-    });
+    final current = _ui;
+    final nextItems = [...current.items];
+    if (current.editingItemIndex == null) {
+      nextItems.add(item);
+    } else {
+      nextItems[current.editingItemIndex!] = item;
+    }
+    _updateUi(
+      (state) => state.copyWith(
+        items: nextItems,
+        itemSuggestions: const [],
+        inlineError: null,
+        itemAttachmentsDraft: const [],
+        itemUnit: QuantityUnit.piece,
+        editingItemIndex: null,
+      ),
+    );
+    _itemController.clear();
+    _quantityController.text = '1';
+    _packSizeController.clear();
+    _itemNoteController.clear();
     unawaited(
       ref.read(itemCatalogServiceProvider).upsertItem(title).catchError((_) {
         // Best-effort catalog enrichment; ignore failures.
@@ -295,71 +346,28 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   }
 
   void _editItem(int index) {
-    final item = _items[index];
-    setState(() {
-      _editingItemIndex = index;
-      _itemController.text = item.title;
-      _quantityController.text = _formatQuantity(item.quantity);
-      _packSizeController.text = item.packSize ?? '';
-      _itemNoteController.text = item.note ?? '';
-      _itemUnit = item.unit;
-      _inlineError = null;
-    });
+    final item = _ui.items[index];
+    _itemController.text = item.title;
+    _quantityController.text = _formatQuantity(item.quantity);
+    _packSizeController.text = item.packSize ?? '';
+    _itemNoteController.text = item.note ?? '';
+    _updateUi(
+      (state) => state.copyWith(
+        editingItemIndex: index,
+        itemAttachmentsDraft: List<OrderAttachment>.from(item.attachments),
+        itemUnit: item.unit,
+        inlineError: null,
+      ),
+    );
   }
 
-  void _addAttachment() {
-    final name = _attachmentNameController.text.trim();
-    final url = _attachmentUrlController.text.trim();
-    if (name.isEmpty || url.isEmpty) {
-      setState(() => _inlineError = 'Add attachment name and URL.');
-      return;
-    }
-    setState(() {
-      _attachments.add(OrderAttachment(name: name, url: url));
-      _attachmentNameController.clear();
-      _attachmentUrlController.clear();
-      _inlineError = null;
-    });
-  }
-
-  Future<void> _uploadAttachmentFile() async {
-    setState(() {
-      _inlineError = null;
-      _uploadingAttachment = true;
-    });
-    try {
-      final picked = await FilePicker.platform.pickFiles(
-        withData: true,
-        allowMultiple: false,
-      );
-      if (picked == null || picked.files.isEmpty) return;
-      final file = picked.files.single;
-      if (file.bytes == null) {
-        setState(() => _inlineError = 'Unable to read file bytes.');
-        return;
-      }
-      final uploaded = await ref
-          .read(storageServiceProvider)
-          .uploadOrderAttachment(
-            orderId: _draftOrderId,
-            fileName: file.name,
-            bytes: file.bytes!,
-          );
-      setState(() => _attachments.add(uploaded));
-    } catch (err) {
-      setState(() => _inlineError = 'Attachment upload failed: $err');
-    } finally {
-      if (mounted) {
-        setState(() => _uploadingAttachment = false);
-      }
-    }
-  }
-
-  Future<void> _pickItemImage(ImageSource source) async {
-    setState(() {
-      _inlineError = null;
-      _uploadingAttachment = true;
-    });
+  Future<void> _pickSingleItemImage(ImageSource source) async {
+    _updateUi(
+      (state) => state.copyWith(
+        inlineError: null,
+        uploadingItemImage: true,
+      ),
+    );
     try {
       final picked = await _imagePicker.pickImage(
         source: source,
@@ -369,7 +377,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       if (picked == null) return;
       final Uint8List bytes = await picked.readAsBytes();
       if (bytes.isEmpty) {
-        setState(() => _inlineError = 'Unable to read image bytes.');
+        _updateUi(
+          (state) => state.copyWith(inlineError: 'Unable to read image bytes.'),
+        );
         return;
       }
       final fileName = picked.name.trim().isEmpty
@@ -382,26 +392,115 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
             fileName: fileName,
             bytes: bytes,
           );
-      setState(() => _attachments.add(uploaded));
+      _updateUi(
+        (state) => state.copyWith(
+          itemAttachmentsDraft: [...state.itemAttachmentsDraft, uploaded],
+        ),
+      );
     } catch (err) {
-      setState(() => _inlineError = 'Image upload failed: $err');
+      _updateUi(
+        (state) => state.copyWith(inlineError: 'Image upload failed: $err'),
+      );
     } finally {
       if (mounted) {
-        setState(() => _uploadingAttachment = false);
+        _updateUi((state) => state.copyWith(uploadingItemImage: false));
       }
     }
   }
 
+  Future<void> _pickMultipleItemImagesFromGallery() async {
+    _updateUi(
+      (state) => state.copyWith(
+        inlineError: null,
+        uploadingItemImage: true,
+      ),
+    );
+    try {
+      final picked = await _imagePicker.pickMultiImage(
+        imageQuality: 75,
+        maxWidth: 1800,
+      );
+      if (picked.isEmpty) return;
+      for (final image in picked) {
+        final bytes = await image.readAsBytes();
+        if (bytes.isEmpty) continue;
+        final fileName = image.name.trim().isEmpty
+            ? 'item_${DateTime.now().millisecondsSinceEpoch}.jpg'
+            : image.name;
+        final uploaded = await ref
+            .read(storageServiceProvider)
+            .uploadOrderAttachment(
+              orderId: _draftOrderId,
+              fileName: fileName,
+              bytes: bytes,
+            );
+        if (!mounted) return;
+        _updateUi(
+          (state) => state.copyWith(
+            itemAttachmentsDraft: [...state.itemAttachmentsDraft, uploaded],
+          ),
+        );
+      }
+    } catch (err) {
+      _updateUi(
+        (state) => state.copyWith(inlineError: 'Image upload failed: $err'),
+      );
+    } finally {
+      if (mounted) {
+        _updateUi((state) => state.copyWith(uploadingItemImage: false));
+      }
+    }
+  }
+
+  Future<void> _showItemImageSourceSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Camera (single image)'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickSingleItemImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_outlined),
+                title: const Text('Gallery (single image)'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickSingleItemImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.collections_outlined),
+                title: const Text('Gallery (multiple images)'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickMultipleItemImagesFromGallery();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_items.isEmpty) {
-      setState(() => _inlineError = 'At least one item is required.');
+    if (_ui.items.isEmpty) {
+      _updateUi(
+        (state) =>
+            state.copyWith(inlineError: 'At least one item is required.'),
+      );
       return;
     }
-    setState(() {
-      _loading = true;
-      _inlineError = null;
-    });
+    _updateUi((state) => state.copyWith(loading: true, inlineError: null));
 
     final firestore = ref.read(firestoreServiceProvider);
     final requesterBusiness = widget.requesterBusiness;
@@ -416,17 +515,17 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
           : OrderRequesterType.businessOwner,
       requesterBusinessId: requesterBusiness?.id,
       requesterBusinessName: requesterBusiness?.name,
-      priority: _priority,
+      priority: _ui.priority,
       status: OrderStatus.pending,
       payment: PaymentInfo(
         status: PaymentStatus.pending,
-        method: _paymentMethod,
+        method: _ui.paymentMethod,
         amount: null,
         remark: _paymentRemarkController.text.trim().isEmpty
             ? null
             : _paymentRemarkController.text.trim(),
-        confirmedByCustomer: _paymentMethod == PaymentMethod.onlineTransfer
-            ? _confirmedOnline
+        confirmedByCustomer: _ui.paymentMethod == PaymentMethod.onlineTransfer
+            ? _ui.confirmedOnline
             : null,
         updatedAt: DateTime.now(),
       ),
@@ -434,13 +533,12 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         status: DeliveryStatus.pending,
         updatedAt: DateTime.now(),
       ),
-      items: _items,
-      attachments: _attachments,
+      items: _ui.items,
+      attachments: const [],
       packedItemIndexes: const [],
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
-      scheduledAt: _composeSchedule(),
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -450,16 +548,19 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         Navigator.of(context).pop();
       }
     } catch (err) {
-      setState(() => _inlineError = 'Failed to place order: $err');
+      _updateUi(
+        (state) => state.copyWith(inlineError: 'Failed to place order: $err'),
+      );
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_createOrderUiProvider(_draftOrderId));
     return Scaffold(
       appBar: AppBar(title: Text('Order ${widget.business.name}')),
       body: ListView(
@@ -486,11 +587,11 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                         labelText: 'Item / Service',
                       ),
                     ),
-                    if (_loadingSuggestions) ...[
+                    if (ui.loadingSuggestions) ...[
                       const SizedBox(height: 8),
                       const LinearProgressIndicator(minHeight: 2),
                     ],
-                    if (_itemSuggestions.isNotEmpty) ...[
+                    if (ui.itemSuggestions.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
                         constraints: const BoxConstraints(maxHeight: 220),
@@ -502,9 +603,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                         ),
                         child: ListView.builder(
                           shrinkWrap: true,
-                          itemCount: _itemSuggestions.length,
+                          itemCount: ui.itemSuggestions.length,
                           itemBuilder: (context, index) {
-                            final suggestion = _itemSuggestions[index];
+                            final suggestion = ui.itemSuggestions[index];
                             return ListTile(
                               dense: true,
                               title: Text(suggestion),
@@ -532,7 +633,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<QuantityUnit>(
-                      initialValue: _itemUnit,
+                      initialValue: ui.itemUnit,
                       decoration: const InputDecoration(labelText: 'Unit'),
                       items: const [
                         DropdownMenuItem(
@@ -554,7 +655,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       ],
                       onChanged: (value) {
                         if (value == null) return;
-                        setState(() => _itemUnit = value);
+                        _updateUi((state) => state.copyWith(itemUnit: value));
                       },
                     ),
                     const SizedBox(height: 12),
@@ -565,21 +666,77 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: ui.uploadingItemImage
+                          ? null
+                          : _showItemImageSourceSheet,
+                      icon: const Icon(Icons.add_a_photo_outlined),
+                      label: Text(
+                        ui.uploadingItemImage
+                            ? 'Uploading...'
+                            : 'Upload Item Image',
+                      ),
+                    ),
+                    if (ui.itemAttachmentsDraft.isNotEmpty)
+                      Column(
+                        children: ui.itemAttachmentsDraft.asMap().entries.map((
+                          entry,
+                        ) {
+                          final index = entry.key;
+                          final attachment = entry.value;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                attachment.url,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const Icon(
+                                  Icons.image_not_supported_outlined,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              attachment.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () {
+                                final updated = [
+                                  ...ui.itemAttachmentsDraft,
+                                ]..removeAt(index);
+                                _updateUi(
+                                  (state) => state.copyWith(
+                                    itemAttachmentsDraft: updated,
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    const SizedBox(height: 8),
                     FilledButton.tonal(
                       onPressed: _addOrUpdateItem,
                       child: Text(
-                        _editingItemIndex == null ? 'Add Item' : 'Update Item',
+                        ui.editingItemIndex == null
+                            ? 'Add Item'
+                            : 'Update Item',
                       ),
                     ),
-                    if (_editingItemIndex != null)
+                    if (ui.editingItemIndex != null)
                       TextButton(
-                        onPressed: () => setState(_clearItemForm),
+                        onPressed: _clearItemForm,
                         child: const Text('Cancel Edit'),
                       ),
                     const SizedBox(height: 8),
-                    if (_items.isNotEmpty)
+                    if (ui.items.isNotEmpty)
                       Column(
-                        children: _items.asMap().entries.map((entry) {
+                        children: ui.items.asMap().entries.map((entry) {
                           final index = entry.key;
                           final item = entry.value;
                           final conversion = _conversionHint(item);
@@ -596,6 +753,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                 if (item.note != null && item.note!.isNotEmpty)
                                   item.note!,
                                 if (conversion != null) '~ $conversion',
+                                if (item.attachments.isNotEmpty)
+                                  'Images: ${item.attachments.length}',
                               ].join('  '),
                             ),
                             trailing: Wrap(
@@ -608,16 +767,25 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline),
                                   onPressed: () {
-                                    setState(() {
-                                      _items.removeAt(index);
-                                      if (_editingItemIndex == index) {
-                                        _clearItemForm();
-                                      } else if (_editingItemIndex != null &&
-                                          _editingItemIndex! > index) {
-                                        _editingItemIndex =
-                                            _editingItemIndex! - 1;
-                                      }
-                                    });
+                                    final updatedItems = [...ui.items]
+                                      ..removeAt(index);
+                                    final currentEditing = ui.editingItemIndex;
+                                    int? nextEditing = currentEditing;
+                                    if (currentEditing == index) {
+                                      nextEditing = null;
+                                    } else if (currentEditing != null &&
+                                        currentEditing > index) {
+                                      nextEditing = currentEditing - 1;
+                                    }
+                                    _updateUi(
+                                      (state) => state.copyWith(
+                                        items: updatedItems,
+                                        editingItemIndex: nextEditing,
+                                      ),
+                                    );
+                                    if (currentEditing == index) {
+                                      _clearItemForm();
+                                    }
                                   },
                                 ),
                               ],
@@ -627,7 +795,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<OrderPriority>(
-                      initialValue: _priority,
+                      initialValue: ui.priority,
                       decoration: const InputDecoration(labelText: 'Priority'),
                       items: OrderPriority.values
                           .map(
@@ -637,43 +805,14 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                             ),
                           )
                           .toList(),
-                      onChanged: (value) => setState(() => _priority = value!),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _pickDate,
-                            icon: const Icon(Icons.calendar_today),
-                            label: Text(
-                              _scheduledDate == null
-                                  ? 'Pick date'
-                                  : _scheduledDate!
-                                        .toLocal()
-                                        .toString()
-                                        .split(' ')
-                                        .first,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _pickTime,
-                            icon: const Icon(Icons.schedule),
-                            label: Text(
-                              _scheduledTime == null
-                                  ? 'Pick time'
-                                  : _scheduledTime!.format(context),
-                            ),
-                          ),
-                        ),
-                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _updateUi((state) => state.copyWith(priority: value));
+                      },
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<PaymentMethod>(
-                      initialValue: _paymentMethod,
+                      initialValue: ui.paymentMethod,
                       decoration: const InputDecoration(
                         labelText: 'Payment Method',
                       ),
@@ -685,10 +824,14 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                             ),
                           )
                           .toList(),
-                      onChanged: (value) =>
-                          setState(() => _paymentMethod = value!),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _updateUi(
+                          (state) => state.copyWith(paymentMethod: value),
+                        );
+                      },
                     ),
-                    if (_paymentMethod == PaymentMethod.onlineTransfer) ...[
+                    if (ui.paymentMethod == PaymentMethod.onlineTransfer) ...[
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _paymentRemarkController,
@@ -699,92 +842,25 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       ),
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
-                        value: _confirmedOnline,
-                        onChanged: (value) =>
-                            setState(() => _confirmedOnline = value ?? false),
+                        value: ui.confirmedOnline,
+                        onChanged: (value) => _updateUi(
+                          (state) => state.copyWith(
+                            confirmedOnline: value ?? false,
+                          ),
+                        ),
                         title: const Text('Customer confirmed payment'),
                       ),
                     ],
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _attachmentNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Attachment Name',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _attachmentUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Attachment URL',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.tonal(
-                      onPressed: _addAttachment,
-                      child: const Text('Add Manual URL Attachment'),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.tonalIcon(
-                      onPressed: _uploadingAttachment
-                          ? null
-                          : _uploadAttachmentFile,
-                      icon: const Icon(Icons.upload_file),
-                      label: Text(
-                        _uploadingAttachment ? 'Uploading...' : 'Upload File',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: _uploadingAttachment
-                                ? null
-                                : () => _pickItemImage(ImageSource.gallery),
-                            icon: const Icon(Icons.photo_library_outlined),
-                            label: const Text('Item Image (Gallery)'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: _uploadingAttachment
-                                ? null
-                                : () => _pickItemImage(ImageSource.camera),
-                            icon: const Icon(Icons.camera_alt_outlined),
-                            label: const Text('Camera'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_attachments.isNotEmpty)
-                      Column(
-                        children: _attachments.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final attachment = entry.value;
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(attachment.name),
-                            subtitle: Text(attachment.url),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () =>
-                                  setState(() => _attachments.removeAt(index)),
-                            ),
-                          );
-                        }).toList(),
-                      ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _notesController,
                       decoration: const InputDecoration(labelText: 'Notes'),
                       maxLines: 2,
                     ),
-                    if (_inlineError != null) ...[
+                    if (ui.inlineError != null) ...[
                       const SizedBox(height: 10),
                       Text(
-                        _inlineError!,
+                        ui.inlineError!,
                         style: const TextStyle(color: Colors.red),
                       ),
                     ],
@@ -792,8 +868,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
+                        onPressed: ui.loading ? null : _submit,
+                        child: ui.loading
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,

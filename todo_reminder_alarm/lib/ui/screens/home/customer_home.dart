@@ -12,6 +12,22 @@ import '../orders/create_order_screen.dart';
 import '../orders/customer_order_detail_screen.dart';
 import '../orders/order_history_report_screen.dart';
 
+final _customerStoreSearchProvider = StateProvider.autoDispose<String>(
+  (ref) => '',
+);
+final _customerOrderSearchProvider = StateProvider.autoDispose<String>(
+  (ref) => '',
+);
+final _customerCategoryFilterProvider = StateProvider.autoDispose<String>(
+  (ref) => 'All',
+);
+final _customerCityFilterProvider = StateProvider.autoDispose<String>(
+  (ref) => 'All',
+);
+final _customerOrderFilterProvider = StateProvider.autoDispose<String>(
+  (ref) => 'All',
+);
+
 class CustomerHomeScreen extends ConsumerWidget {
   const CustomerHomeScreen({super.key});
 
@@ -46,25 +62,17 @@ class _CustomerHomeBody extends ConsumerStatefulWidget {
 }
 
 class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
-  final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _orderSearchController = TextEditingController();
-  String _categoryFilter = 'All';
-  String _cityFilter = 'All';
-  String _orderFilter = 'All';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _orderSearchController.dispose();
-    super.dispose();
-  }
-
-  List<BusinessProfile> _applyFilters(List<BusinessProfile> businesses) {
-    final query = _searchController.text.trim().toLowerCase();
+  List<BusinessProfile> _applyFilters(
+    List<BusinessProfile> businesses, {
+    required String queryText,
+    required String categoryFilter,
+    required String cityFilter,
+  }) {
+    final query = queryText.trim().toLowerCase();
     return businesses.where((business) {
       final categoryOk =
-          _categoryFilter == 'All' || business.category == _categoryFilter;
-      final cityOk = _cityFilter == 'All' || business.city == _cityFilter;
+          categoryFilter == 'All' || business.category == categoryFilter;
+      final cityOk = cityFilter == 'All' || business.city == cityFilter;
       final matchesQuery =
           query.isEmpty ||
           business.name.toLowerCase().contains(query) ||
@@ -81,12 +89,16 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     return order.status;
   }
 
-  List<Order> _applyOrderFilters(List<Order> orders) {
-    final query = _orderSearchController.text.trim().toLowerCase();
+  List<Order> _applyOrderFilters(
+    List<Order> orders, {
+    required String queryText,
+    required String orderFilter,
+  }) {
+    final query = queryText.trim().toLowerCase();
     return orders.where((order) {
       final effectiveStatus = _effectiveStatus(order);
       final paymentPending = order.payment.status == PaymentStatus.pending;
-      final matchesFilter = switch (_orderFilter) {
+      final matchesFilter = switch (orderFilter) {
         'Pending' => effectiveStatus == OrderStatus.pending,
         'Processing' =>
           effectiveStatus == OrderStatus.approved ||
@@ -160,7 +172,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
   }
 
   List<OrderAttachment> _imageAttachments(Order order) {
-    return order.attachments
+    final itemLevel = order.items.expand((item) => item.attachments);
+    return [...order.attachments, ...itemLevel]
         .where(
           (attachment) =>
               _looksLikeImage(attachment.name) ||
@@ -222,11 +235,19 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
   }
 
   Widget _buildStoresTab(AsyncValue<List<BusinessProfile>> businessesAsync) {
+    final storeSearch = ref.watch(_customerStoreSearchProvider);
+    final categoryFilter = ref.watch(_customerCategoryFilterProvider);
+    final cityFilter = ref.watch(_customerCityFilterProvider);
     return businessesAsync.when(
       data: (businesses) {
         final categories = <String>{'All', ...businesses.map((e) => e.category)};
         final cities = <String>{'All', ...businesses.map((e) => e.city)};
-        final filtered = _applyFilters(businesses);
+        final filtered = _applyFilters(
+          businesses,
+          queryText: storeSearch,
+          categoryFilter: categoryFilter,
+          cityFilter: cityFilter,
+        );
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -239,34 +260,37 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   return Column(
                     children: [
                       TextField(
-                        controller: _searchController,
                         decoration: const InputDecoration(
                           labelText: 'Search by business/category/city',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (value) => ref
+                            .read(_customerStoreSearchProvider.notifier)
+                            .state = value,
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
-                        initialValue: _categoryFilter,
+                        initialValue: categoryFilter,
                         decoration: const InputDecoration(labelText: 'Category'),
                         items: categories
                             .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                             .toList(),
-                        onChanged: (value) =>
-                            setState(() => _categoryFilter = value ?? 'All'),
+                        onChanged: (value) => ref
+                            .read(_customerCategoryFilterProvider.notifier)
+                            .state = value ?? 'All',
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
-                        initialValue: _cityFilter,
+                        initialValue: cityFilter,
                         decoration: const InputDecoration(labelText: 'City'),
                         items: cities
                             .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                             .toList(),
-                        onChanged: (value) =>
-                            setState(() => _cityFilter = value ?? 'All'),
+                        onChanged: (value) => ref
+                            .read(_customerCityFilterProvider.notifier)
+                            .state = value ?? 'All',
                       ),
                     ],
                   );
@@ -276,38 +300,41 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     Expanded(
                       flex: 3,
                       child: TextField(
-                        controller: _searchController,
                         decoration: const InputDecoration(
                           labelText: 'Search by business/category/city',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (value) => ref
+                            .read(_customerStoreSearchProvider.notifier)
+                            .state = value,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         isExpanded: true,
-                        initialValue: _categoryFilter,
+                        initialValue: categoryFilter,
                         decoration: const InputDecoration(labelText: 'Category'),
                         items: categories
                             .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                             .toList(),
-                        onChanged: (value) =>
-                            setState(() => _categoryFilter = value ?? 'All'),
+                        onChanged: (value) => ref
+                            .read(_customerCategoryFilterProvider.notifier)
+                            .state = value ?? 'All',
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         isExpanded: true,
-                        initialValue: _cityFilter,
+                        initialValue: cityFilter,
                         decoration: const InputDecoration(labelText: 'City'),
                         items: cities
                             .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                             .toList(),
-                        onChanged: (value) =>
-                            setState(() => _cityFilter = value ?? 'All'),
+                        onChanged: (value) => ref
+                            .read(_customerCityFilterProvider.notifier)
+                            .state = value ?? 'All',
                       ),
                     ),
                   ],
@@ -382,9 +409,15 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
   }
 
   Widget _buildOrdersTab(AsyncValue<List<Order>> ordersAsync) {
+    final orderSearch = ref.watch(_customerOrderSearchProvider);
+    final orderFilter = ref.watch(_customerOrderFilterProvider);
     return ordersAsync.when(
       data: (orders) {
-        final filteredOrders = _applyOrderFilters(orders);
+        final filteredOrders = _applyOrderFilters(
+          orders,
+          queryText: orderSearch,
+          orderFilter: orderFilter,
+        );
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -409,16 +442,16 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: _orderSearchController,
               decoration: const InputDecoration(
                 labelText: 'Search by store/order/item',
                 prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (value) =>
+                  ref.read(_customerOrderSearchProvider.notifier).state = value,
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: _orderFilter,
+              initialValue: orderFilter,
               decoration: const InputDecoration(labelText: 'Order Filter'),
               items: const [
                 DropdownMenuItem(value: 'All', child: Text('All')),
@@ -430,7 +463,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   child: Text('Payment Pending'),
                 ),
               ],
-              onChanged: (value) => setState(() => _orderFilter = value ?? 'All'),
+              onChanged: (value) =>
+                  ref.read(_customerOrderFilterProvider.notifier).state =
+                      value ?? 'All',
             ),
             const SizedBox(height: 12),
             if (filteredOrders.isEmpty)
@@ -458,9 +493,6 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   .map((item) => item.title)
                   .toList();
               final imageAttachments = _imageAttachments(order);
-              final firstImageUrl = imageAttachments.isEmpty
-                  ? null
-                  : imageAttachments.first.url;
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
@@ -506,21 +538,6 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     '${imageAttachments.isEmpty ? '' : '\nItem Images: ${imageAttachments.length}'}',
                   ),
                   isThreeLine: true,
-                  leading: firstImageUrl == null
-                      ? null
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            firstImageUrl,
-                            width: 44,
-                            height: 44,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(
-                              Icons.image_not_supported_outlined,
-                              size: 22,
-                            ),
-                          ),
-                        ),
                 ),
               );
             }),

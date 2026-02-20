@@ -8,6 +8,65 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../providers.dart';
 
+final _loginUiProvider = StateProvider.autoDispose<_LoginUiState>(
+  (ref) => _LoginUiState(
+    selectedCountry: Country.parse('IN'),
+    usePhoneLogin: !kIsWeb,
+  ),
+);
+
+class _LoginUiState {
+  const _LoginUiState({
+    required this.selectedCountry,
+    required this.usePhoneLogin,
+    this.loading = false,
+    this.otpSent = false,
+    this.verificationId,
+    this.resendToken,
+    this.webConfirmationResult,
+    this.error,
+  });
+
+  final Country selectedCountry;
+  final bool usePhoneLogin;
+  final bool loading;
+  final bool otpSent;
+  final String? verificationId;
+  final int? resendToken;
+  final ConfirmationResult? webConfirmationResult;
+  final String? error;
+
+  _LoginUiState copyWith({
+    Country? selectedCountry,
+    bool? usePhoneLogin,
+    bool? loading,
+    bool? otpSent,
+    Object? verificationId = _loginUnset,
+    Object? resendToken = _loginUnset,
+    Object? webConfirmationResult = _loginUnset,
+    Object? error = _loginUnset,
+  }) {
+    return _LoginUiState(
+      selectedCountry: selectedCountry ?? this.selectedCountry,
+      usePhoneLogin: usePhoneLogin ?? this.usePhoneLogin,
+      loading: loading ?? this.loading,
+      otpSent: otpSent ?? this.otpSent,
+      verificationId: verificationId == _loginUnset
+          ? this.verificationId
+          : verificationId as String?,
+      resendToken: resendToken == _loginUnset
+          ? this.resendToken
+          : resendToken as int?,
+      webConfirmationResult: webConfirmationResult == _loginUnset
+          ? this.webConfirmationResult
+          : webConfirmationResult as ConfirmationResult?,
+      error: error == _loginUnset ? this.error : error as String?,
+    );
+  }
+}
+
+const _loginUnset = Object();
+
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -24,14 +83,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
-  Country _selectedCountry = Country.parse('IN');
-  bool _usePhoneLogin = !kIsWeb;
-  bool _loading = false;
-  bool _otpSent = false;
-  String? _verificationId;
-  int? _resendToken;
-  ConfirmationResult? _webConfirmationResult;
-  String? _error;
+  _LoginUiState get _ui => ref.read(_loginUiProvider);
+  void _updateUi(_LoginUiState Function(_LoginUiState state) update) {
+    final notifier = ref.read(_loginUiProvider.notifier);
+    notifier.state = update(notifier.state);
+  }
 
   @override
   void initState() {
@@ -39,7 +95,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final localeCountryCode = ui.PlatformDispatcher.instance.locale.countryCode;
     if (localeCountryCode != null && localeCountryCode.trim().isNotEmpty) {
       try {
-        _selectedCountry = Country.parse(localeCountryCode.toUpperCase());
+        _updateUi(
+          (state) => state.copyWith(
+            selectedCountry: Country.parse(localeCountryCode.toUpperCase()),
+          ),
+        );
       } catch (_) {
         // Keep default country if locale code is not supported.
       }
@@ -57,10 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submitEmailLogin() async {
     if (!_emailFormKey.currentState!.validate()) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _updateUi((state) => state.copyWith(loading: true, error: null));
     try {
       await ref
           .read(authServiceProvider)
@@ -69,10 +126,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: _passwordController.text.trim(),
           );
     } catch (err) {
-      setState(() => _error = err.toString());
+      _updateUi((state) => state.copyWith(error: err.toString()));
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
       }
     }
   }
@@ -81,27 +138,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final raw = value.trim().replaceAll(RegExp(r'[\s-]'), '');
     if (raw.startsWith('+')) return raw;
     if (raw.startsWith('00') && raw.length > 2) return '+${raw.substring(2)}';
-    if (RegExp(r'^\d+$').hasMatch(raw)) return '+${_selectedCountry.phoneCode}$raw';
+    if (RegExp(r'^\d+$').hasMatch(raw)) return '+${_ui.selectedCountry.phoneCode}$raw';
     return value.trim();
   }
 
   Future<void> _sendOtp() async {
     if (!_phoneFormKey.currentState!.validate()) return;
     final phone = _normalizePhoneNumber(_phoneController.text);
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _updateUi((state) => state.copyWith(loading: true, error: null));
     try {
       if (kIsWeb) {
         final confirmation = await ref
             .read(authServiceProvider)
             .signInWithPhoneNumberWeb(phone);
         if (!mounted) return;
-        setState(() {
-          _webConfirmationResult = confirmation;
-          _otpSent = true;
-        });
+        _updateUi(
+          (state) => state.copyWith(
+            webConfirmationResult: confirmation,
+            otpSent: true,
+          ),
+        );
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('OTP sent to $phone')));
@@ -110,14 +166,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             .read(authServiceProvider)
             .verifyPhoneNumber(
               phoneNumber: phone,
-              forceResendingToken: _resendToken,
+              forceResendingToken: _ui.resendToken,
               codeSent: (verificationId, resendToken) {
                 if (!mounted) return;
-                setState(() {
-                  _verificationId = verificationId;
-                  _resendToken = resendToken;
-                  _otpSent = true;
-                });
+                _updateUi(
+                  (state) => state.copyWith(
+                    verificationId: verificationId,
+                    resendToken: resendToken,
+                    otpSent: true,
+                  ),
+                );
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(SnackBar(content: Text('OTP sent to $phone')));
@@ -129,41 +187,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               },
               verificationFailed: (e) {
                 if (!mounted) return;
-                setState(() => _error = e.message ?? e.code);
+                _updateUi(
+                  (state) => state.copyWith(error: e.message ?? e.code),
+                );
               },
               codeAutoRetrievalTimeout: (verificationId) {
                 if (!mounted) return;
-                setState(() => _verificationId = verificationId);
+                _updateUi(
+                  (state) => state.copyWith(verificationId: verificationId),
+                );
               },
             );
       }
     } catch (err) {
-      setState(() => _error = err.toString());
+      _updateUi((state) => state.copyWith(error: err.toString()));
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
       }
     }
   }
 
   Future<void> _verifyOtp() async {
     if (!_phoneFormKey.currentState!.validate()) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _updateUi((state) => state.copyWith(loading: true, error: null));
     try {
       if (kIsWeb) {
-        final confirmation = _webConfirmationResult;
+        final confirmation = _ui.webConfirmationResult;
         if (confirmation == null) {
-          setState(() => _error = 'Please send OTP first.');
+          _updateUi(
+            (state) => state.copyWith(error: 'Please send OTP first.'),
+          );
           return;
         }
         await confirmation.confirm(_otpController.text.trim());
       } else {
-        final verificationId = _verificationId;
+        final verificationId = _ui.verificationId;
         if (verificationId == null) {
-          setState(() => _error = 'Please send OTP first.');
+          _updateUi(
+            (state) => state.copyWith(error: 'Please send OTP first.'),
+          );
           return;
         }
         await ref
@@ -174,16 +237,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             );
       }
     } catch (err) {
-      setState(() => _error = err.toString());
+      _updateUi((state) => state.copyWith(error: err.toString()));
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final uiState = ref.watch(_loginUiProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
       body: Center(
@@ -201,8 +265,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 16),
-                  if (_error != null) ...[
-                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                  if (uiState.error != null) ...[
+                    Text(uiState.error!, style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 12),
                   ],
                   if (kIsWeb)
@@ -214,21 +278,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           label: Text('Mobile OTP'),
                         ),
                       ],
-                      selected: {_usePhoneLogin},
+                      selected: {uiState.usePhoneLogin},
                       onSelectionChanged: (selection) {
                         final usePhone = selection.first;
-                        setState(() {
-                          _usePhoneLogin = usePhone;
-                          _error = null;
-                          _otpSent = false;
-                          _verificationId = null;
-                          _webConfirmationResult = null;
-                          _otpController.clear();
-                        });
+                        _otpController.clear();
+                        _updateUi(
+                          (state) => state.copyWith(
+                            usePhoneLogin: usePhone,
+                            error: null,
+                            otpSent: false,
+                            verificationId: null,
+                            webConfirmationResult: null,
+                          ),
+                        );
                       },
                     ),
                   const SizedBox(height: 16),
-                  if (!_usePhoneLogin)
+                  if (!uiState.usePhoneLogin)
                     Form(
                       key: _emailFormKey,
                       child: Column(
@@ -258,8 +324,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _loading ? null : _submitEmailLogin,
-                              child: _loading
+                              onPressed: uiState.loading
+                                  ? null
+                                  : _submitEmailLogin,
+                              child: uiState.loading
                                   ? const SizedBox(
                                       height: 18,
                                       width: 18,
@@ -288,7 +356,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       context: context,
                                       showPhoneCode: true,
                                       onSelect: (country) {
-                                        setState(() => _selectedCountry = country);
+                                        _updateUi(
+                                          (state) => state.copyWith(
+                                            selectedCountry: country,
+                                          ),
+                                        );
                                       },
                                     );
                                   },
@@ -297,7 +369,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       labelText: 'Code',
                                     ),
                                     child: Text(
-                                      '${_selectedCountry.flagEmoji} +${_selectedCountry.phoneCode}',
+                                      '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
                                     ),
                                   ),
                                 ),
@@ -326,7 +398,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             ],
                           ),
-                          if (_otpSent) ...[
+                          if (uiState.otpSent) ...[
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _otpController,
@@ -335,7 +407,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 labelText: 'OTP Code',
                               ),
                               validator: (value) {
-                                if (!_otpSent) return null;
+                                if (!uiState.otpSent) return null;
                                 if (value == null || value.trim().isEmpty) {
                                   return 'Enter OTP';
                                 }
@@ -350,10 +422,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _loading
+                              onPressed: uiState.loading
                                   ? null
-                                  : (_otpSent ? _verifyOtp : _sendOtp),
-                              child: _loading
+                                  : (uiState.otpSent ? _verifyOtp : _sendOtp),
+                              child: uiState.loading
                                   ? const SizedBox(
                                       height: 18,
                                       width: 18,
@@ -361,13 +433,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
+                                  : Text(uiState.otpSent ? 'Verify OTP' : 'Send OTP'),
                             ),
                           ),
-                          if (_otpSent) ...[
+                          if (uiState.otpSent) ...[
                             const SizedBox(height: 8),
                             TextButton(
-                              onPressed: _loading ? null : _sendOtp,
+                              onPressed: uiState.loading ? null : _sendOtp,
                               child: const Text('Resend OTP'),
                             ),
                           ],

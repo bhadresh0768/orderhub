@@ -39,6 +39,11 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     };
   }
 
+  String? _clean(String? value) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? null : text;
+  }
+
   bool _looksLikeImage(String value) {
     final normalized = value.toLowerCase();
     return normalized.contains('.jpg') ||
@@ -52,37 +57,43 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     return _looksLikeImage(attachment.name) || _looksLikeImage(attachment.url);
   }
 
-  Future<void> _showImagePreview(
+  Future<void> _showImageGallery(
     BuildContext context,
-    OrderAttachment attachment,
+    List<OrderAttachment> attachments,
+    int initialIndex,
   ) async {
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return Dialog(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  attachment.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 10),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 420),
-                  child: InteractiveViewer(
-                    child: Image.network(
-                      attachment.url,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) =>
-                          const Text('Unable to load image'),
+        return Dialog.fullscreen(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: PageController(initialPage: initialIndex),
+                itemCount: attachments.length,
+                itemBuilder: (context, index) {
+                  final attachment = attachments[index];
+                  return Center(
+                    child: InteractiveViewer(
+                      child: Image.network(
+                        attachment.url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            const Text('Unable to load image'),
+                      ),
                     ),
-                  ),
+                  );
+                },
+              ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: IconButton.filledTonal(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -96,6 +107,12 @@ class CustomerOrderDetailScreen extends StatelessWidget {
         : order.status;
     final includedItems = order.items.where((e) => e.isIncluded ?? true).toList();
     final unavailableItems = order.items.where((e) => !(e.isIncluded ?? true)).toList();
+    final itemAttachments = order.items.expand((item) => item.attachments).toList();
+    final allAttachments = <OrderAttachment>[
+      ...order.attachments,
+      ...itemAttachments,
+    ];
+    final imageAttachments = allAttachments.where(_isImageAttachment).toList();
     final schedule = order.scheduledAt;
     final created = order.createdAt;
     final statusColor = switch (effectiveStatus) {
@@ -143,8 +160,16 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                   Text(
                     'Scheduled: ${schedule == null ? '-' : schedule.toLocal().toString()}',
                   ),
-                  if ((order.notes ?? '').trim().isNotEmpty)
-                    Text('Notes: ${order.notes!.trim()}'),
+                  if (_clean(order.notes) != null)
+                    Text('Order Remark: ${_clean(order.notes)}'),
+                  if (_clean(order.delivery.note) != null)
+                    Text('Delivery Remark: ${_clean(order.delivery.note)}'),
+                  if (_clean(order.payment.remark) != null)
+                    Text('Payment Remark: ${_clean(order.payment.remark)}'),
+                  if (_clean(order.payment.collectionNote) != null)
+                    Text(
+                      'Delivery Boy Remark: ${_clean(order.payment.collectionNote)}',
+                    ),
                 ],
               ),
             ),
@@ -223,44 +248,42 @@ class CustomerOrderDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-          if (order.attachments.isNotEmpty) ...[
+          if (imageAttachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
-              'Attachments',
+              'Item Images',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            ...order.attachments.map((attachment) {
-              final isImage = _isImageAttachment(attachment);
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: isImage
-                      ? () => _showImagePreview(context, attachment)
-                      : null,
-                  leading: isImage
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            attachment.url,
-                            width: 44,
-                            height: 44,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(
-                              Icons.image_not_supported_outlined,
-                            ),
-                          ),
-                        )
-                      : const Icon(Icons.attach_file),
-                  title: Text(attachment.name),
-                  subtitle: Text(
-                    attachment.url,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: imageAttachments.asMap().entries.map((entry) {
+                final index = entry.key;
+                final attachment = entry.value;
+                return InkWell(
+                  onTap: () =>
+                      _showImageGallery(context, imageAttachments, index),
+                  borderRadius: BorderRadius.circular(10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      attachment.url,
+                      width: 92,
+                      height: 92,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 92,
+                        height: 92,
+                        color: Colors.black12,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.image_not_supported_outlined),
+                      ),
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              }).toList(),
+            ),
           ],
         ],
       ),
