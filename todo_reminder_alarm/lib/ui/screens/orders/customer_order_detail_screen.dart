@@ -39,6 +39,56 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     };
   }
 
+  bool _looksLikeImage(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.contains('.jpg') ||
+        normalized.contains('.jpeg') ||
+        normalized.contains('.png') ||
+        normalized.contains('.webp') ||
+        normalized.contains('.gif');
+  }
+
+  bool _isImageAttachment(OrderAttachment attachment) {
+    return _looksLikeImage(attachment.name) || _looksLikeImage(attachment.url);
+  }
+
+  Future<void> _showImagePreview(
+    BuildContext context,
+    OrderAttachment attachment,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  attachment.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      attachment.url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) =>
+                          const Text('Unable to load image'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final effectiveStatus = order.delivery.status == DeliveryStatus.delivered
@@ -173,9 +223,47 @@ class CustomerOrderDetailScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (order.attachments.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Attachments',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            ...order.attachments.map((attachment) {
+              final isImage = _isImageAttachment(attachment);
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: isImage
+                      ? () => _showImagePreview(context, attachment)
+                      : null,
+                  leading: isImage
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            attachment.url,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.image_not_supported_outlined,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.attach_file),
+                  title: Text(attachment.name),
+                  subtitle: Text(
+                    attachment.url,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
   }
 }
-

@@ -45,6 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow camera access to capture item reference photos for orders.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow photo library access to attach item reference photos for orders.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

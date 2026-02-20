@@ -150,6 +150,25 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     };
   }
 
+  bool _looksLikeImage(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.contains('.jpg') ||
+        normalized.contains('.jpeg') ||
+        normalized.contains('.png') ||
+        normalized.contains('.webp') ||
+        normalized.contains('.gif');
+  }
+
+  List<OrderAttachment> _imageAttachments(Order order) {
+    return order.attachments
+        .where(
+          (attachment) =>
+              _looksLikeImage(attachment.name) ||
+              _looksLikeImage(attachment.url),
+        )
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Show all stores by default; search/filters are applied client-side.
@@ -438,6 +457,10 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   .where((item) => !(item.isIncluded ?? true))
                   .map((item) => item.title)
                   .toList();
+              final imageAttachments = _imageAttachments(order);
+              final firstImageUrl = imageAttachments.isEmpty
+                  ? null
+                  : imageAttachments.first.url;
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
@@ -479,9 +502,25 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     'Payment: ${order.payment.status.name}'
                     '${collectedByText == null ? '' : ' ($collectedByText)'}'
                     ' | Delivery: ${order.delivery.status.name}'
-                    '${unavailableItems.isEmpty ? '' : '\nUnavailable: ${unavailableItems.join(', ')}'}',
+                    '${unavailableItems.isEmpty ? '' : '\nUnavailable: ${unavailableItems.join(', ')}'}'
+                    '${imageAttachments.isEmpty ? '' : '\nItem Images: ${imageAttachments.length}'}',
                   ),
                   isThreeLine: true,
+                  leading: firstImageUrl == null
+                      ? null
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            firstImageUrl,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.image_not_supported_outlined,
+                              size: 22,
+                            ),
+                          ),
+                        ),
                 ),
               );
             }),

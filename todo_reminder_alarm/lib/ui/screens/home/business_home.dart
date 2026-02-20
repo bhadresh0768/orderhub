@@ -306,6 +306,25 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     return '$who ($whoName)';
   }
 
+  bool _looksLikeImage(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.contains('.jpg') ||
+        normalized.contains('.jpeg') ||
+        normalized.contains('.png') ||
+        normalized.contains('.webp') ||
+        normalized.contains('.gif');
+  }
+
+  List<OrderAttachment> _imageAttachments(Order order) {
+    return order.attachments
+        .where(
+          (attachment) =>
+              _looksLikeImage(attachment.name) ||
+              _looksLikeImage(attachment.url),
+        )
+        .toList();
+  }
+
   Widget? _buildPaymentBadge(Order order) {
     if (order.payment.status == PaymentStatus.pending) {
       return Container(
@@ -365,6 +384,10 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final paymentCollector = _paymentCollectorLabel(order);
     final paymentBadge = _buildPaymentBadge(order);
     final statusColor = _statusColor(effectiveStatus);
+    final imageAttachments = _imageAttachments(order);
+    final firstImageUrl = imageAttachments.isEmpty
+        ? null
+        : imageAttachments.first.url;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -404,10 +427,27 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               if (paymentCollector != null)
                 TextSpan(text: ' | Collected by: $paymentCollector'),
               TextSpan(text: ' | Items: $itemsSummary$unavailableSummary'),
+              if (imageAttachments.isNotEmpty)
+                TextSpan(text: '\nItem Images: ${imageAttachments.length}'),
             ],
           ),
         ),
         isThreeLine: true,
+        leading: firstImageUrl == null
+            ? null
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  firstImageUrl,
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const Icon(
+                    Icons.image_not_supported_outlined,
+                    size: 22,
+                  ),
+                ),
+              ),
         trailing: widget.allowActions
             ? PopupMenuButton<String>(
                 onSelected: (value) =>

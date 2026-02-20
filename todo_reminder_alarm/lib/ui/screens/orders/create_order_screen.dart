@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../models/app_user.dart';
@@ -56,6 +58,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   Timer? _searchDebounce;
   String? _inlineError;
   final String _draftOrderId = const Uuid().v4();
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -345,6 +348,43 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       setState(() => _attachments.add(uploaded));
     } catch (err) {
       setState(() => _inlineError = 'Attachment upload failed: $err');
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingAttachment = false);
+      }
+    }
+  }
+
+  Future<void> _pickItemImage(ImageSource source) async {
+    setState(() {
+      _inlineError = null;
+      _uploadingAttachment = true;
+    });
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 75,
+        maxWidth: 1800,
+      );
+      if (picked == null) return;
+      final Uint8List bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        setState(() => _inlineError = 'Unable to read image bytes.');
+        return;
+      }
+      final fileName = picked.name.trim().isEmpty
+          ? 'item_${DateTime.now().millisecondsSinceEpoch}.jpg'
+          : picked.name;
+      final uploaded = await ref
+          .read(storageServiceProvider)
+          .uploadOrderAttachment(
+            orderId: _draftOrderId,
+            fileName: fileName,
+            bytes: bytes,
+          );
+      setState(() => _attachments.add(uploaded));
+    } catch (err) {
+      setState(() => _inlineError = 'Image upload failed: $err');
     } finally {
       if (mounted) {
         setState(() => _uploadingAttachment = false);
@@ -693,6 +733,30 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       label: Text(
                         _uploadingAttachment ? 'Uploading...' : 'Upload File',
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: _uploadingAttachment
+                                ? null
+                                : () => _pickItemImage(ImageSource.gallery),
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Item Image (Gallery)'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: _uploadingAttachment
+                                ? null
+                                : () => _pickItemImage(ImageSource.camera),
+                            icon: const Icon(Icons.camera_alt_outlined),
+                            label: const Text('Camera'),
+                          ),
+                        ),
+                      ],
                     ),
                     if (_attachments.isNotEmpty)
                       Column(
