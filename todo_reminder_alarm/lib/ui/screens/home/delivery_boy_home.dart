@@ -1,12 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
 
 enum _DeliveryDateFilter { today, week, month, year }
+
+final _deliveryBoyUiProvider = StateProvider.autoDispose<_DeliveryBoyUiState>(
+  (ref) => const _DeliveryBoyUiState(),
+);
+
+class _DeliveryBoyUiState {
+  const _DeliveryBoyUiState({this.filter = _DeliveryDateFilter.month});
+
+  final _DeliveryDateFilter filter;
+
+  _DeliveryBoyUiState copyWith({_DeliveryDateFilter? filter}) {
+    return _DeliveryBoyUiState(filter: filter ?? this.filter);
+  }
+}
 
 class DeliveryBoyHomeScreen extends ConsumerWidget {
   const DeliveryBoyHomeScreen({super.key});
@@ -61,8 +76,6 @@ class _DeliveryBoyBody extends ConsumerStatefulWidget {
 }
 
 class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
-  _DeliveryDateFilter _filter = _DeliveryDateFilter.month;
-
   DateTime? _referenceDate(Order order, {required bool completedTab}) {
     if (completedTab) {
       return order.delivery.deliveredAt ??
@@ -77,10 +90,11 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
   }
 
   bool _matchesRange(Order order, {required bool completedTab}) {
+    final filter = ref.read(_deliveryBoyUiProvider).filter;
     final date = _referenceDate(order, completedTab: completedTab);
     if (date == null) return false;
     final now = DateTime.now();
-    switch (_filter) {
+    switch (filter) {
       case _DeliveryDateFilter.today:
         return date.year == now.year &&
             date.month == now.month &&
@@ -278,6 +292,7 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
 
   @override
   Widget build(BuildContext context) {
+    final uiState = ref.watch(_deliveryBoyUiProvider);
     final ordersAsync = ref.watch(
       ordersForDeliveryAgentByPhoneProvider(widget.phone),
     );
@@ -321,7 +336,7 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<_DeliveryDateFilter>(
-                          initialValue: _filter,
+                          initialValue: uiState.filter,
                           isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Filter',
@@ -336,7 +351,8 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                               .toList(),
                           onChanged: (value) {
                             if (value != null) {
-                              setState(() => _filter = value);
+                              ref.read(_deliveryBoyUiProvider.notifier).state =
+                                  uiState.copyWith(filter: value);
                             }
                           },
                         ),

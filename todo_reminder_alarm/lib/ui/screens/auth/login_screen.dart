@@ -4,6 +4,7 @@ import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../providers.dart';
@@ -92,18 +93,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    final localeCountryCode = ui.PlatformDispatcher.instance.locale.countryCode;
-    if (localeCountryCode != null && localeCountryCode.trim().isNotEmpty) {
-      try {
-        _updateUi(
-          (state) => state.copyWith(
-            selectedCountry: Country.parse(localeCountryCode.toUpperCase()),
-          ),
-        );
-      } catch (_) {
-        // Keep default country if locale code is not supported.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final localeCountryCode = ui.PlatformDispatcher.instance.locale.countryCode;
+      if (localeCountryCode != null && localeCountryCode.trim().isNotEmpty) {
+        try {
+          _updateUi(
+            (state) => state.copyWith(
+              selectedCountry: Country.parse(localeCountryCode.toUpperCase()),
+            ),
+          );
+        } catch (_) {
+          // Keep default country if locale code is not supported.
+        }
       }
-    }
+    });
   }
 
   @override

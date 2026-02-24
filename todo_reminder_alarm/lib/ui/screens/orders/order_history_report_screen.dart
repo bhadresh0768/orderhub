@@ -1,10 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 
-class OrderHistoryReportScreen extends StatefulWidget {
+final _orderHistoryUiProvider = StateProvider.autoDispose<_OrderHistoryUiState>(
+  (ref) => const _OrderHistoryUiState(),
+);
+
+class _OrderHistoryUiState {
+  const _OrderHistoryUiState({
+    this.statusFilter,
+    this.priorityFilter,
+    this.days = 30,
+  });
+
+  final OrderStatus? statusFilter;
+  final OrderPriority? priorityFilter;
+  final int days;
+
+  _OrderHistoryUiState copyWith({
+    Object? statusFilter = _orderHistoryUnset,
+    Object? priorityFilter = _orderHistoryUnset,
+    int? days,
+  }) {
+    return _OrderHistoryUiState(
+      statusFilter: statusFilter == _orderHistoryUnset
+          ? this.statusFilter
+          : statusFilter as OrderStatus?,
+      priorityFilter: priorityFilter == _orderHistoryUnset
+          ? this.priorityFilter
+          : priorityFilter as OrderPriority?,
+      days: days ?? this.days,
+    );
+  }
+}
+
+const _orderHistoryUnset = Object();
+
+class OrderHistoryReportScreen extends ConsumerStatefulWidget {
   const OrderHistoryReportScreen({
     super.key,
     required this.title,
@@ -15,25 +51,28 @@ class OrderHistoryReportScreen extends StatefulWidget {
   final List<Order> orders;
 
   @override
-  State<OrderHistoryReportScreen> createState() =>
+  ConsumerState<OrderHistoryReportScreen> createState() =>
       _OrderHistoryReportScreenState();
 }
 
-class _OrderHistoryReportScreenState extends State<OrderHistoryReportScreen> {
-  OrderStatus? _statusFilter;
-  OrderPriority? _priorityFilter;
-  int _days = 30;
+class _OrderHistoryReportScreenState
+    extends ConsumerState<OrderHistoryReportScreen> {
 
   List<Order> get _filtered {
+    final ui = ref.read(_orderHistoryUiProvider);
     final now = DateTime.now();
     return widget.orders.where((order) {
-      if (_statusFilter != null && order.status != _statusFilter) return false;
-      if (_priorityFilter != null && order.priority != _priorityFilter) {
+      if (ui.statusFilter != null && order.status != ui.statusFilter) {
         return false;
       }
-      if (_days > 0) {
+      if (ui.priorityFilter != null && order.priority != ui.priorityFilter) {
+        return false;
+      }
+      if (ui.days > 0) {
         final created = order.createdAt ?? now;
-        if (created.isBefore(now.subtract(Duration(days: _days)))) return false;
+        if (created.isBefore(now.subtract(Duration(days: ui.days)))) {
+          return false;
+        }
       }
       return true;
     }).toList();
@@ -62,6 +101,7 @@ class _OrderHistoryReportScreenState extends State<OrderHistoryReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_orderHistoryUiProvider);
     final filtered = _filtered;
     final total = filtered.length;
     final completed = filtered
@@ -109,7 +149,7 @@ class _OrderHistoryReportScreenState extends State<OrderHistoryReportScreen> {
               SizedBox(
                 width: 180,
                 child: DropdownButtonFormField<OrderStatus?>(
-                  initialValue: _statusFilter,
+                  initialValue: ui.statusFilter,
                   decoration: const InputDecoration(labelText: 'Status Filter'),
                   items: [
                     const DropdownMenuItem<OrderStatus?>(
@@ -123,13 +163,16 @@ class _OrderHistoryReportScreenState extends State<OrderHistoryReportScreen> {
                       ),
                     ),
                   ],
-                  onChanged: (value) => setState(() => _statusFilter = value),
+                  onChanged: (value) {
+                    ref.read(_orderHistoryUiProvider.notifier).state =
+                        ui.copyWith(statusFilter: value);
+                  },
                 ),
               ),
               SizedBox(
                 width: 180,
                 child: DropdownButtonFormField<OrderPriority?>(
-                  initialValue: _priorityFilter,
+                  initialValue: ui.priorityFilter,
                   decoration: const InputDecoration(
                     labelText: 'Priority Filter',
                   ),
@@ -145,13 +188,16 @@ class _OrderHistoryReportScreenState extends State<OrderHistoryReportScreen> {
                       ),
                     ),
                   ],
-                  onChanged: (value) => setState(() => _priorityFilter = value),
+                  onChanged: (value) {
+                    ref.read(_orderHistoryUiProvider.notifier).state =
+                        ui.copyWith(priorityFilter: value);
+                  },
                 ),
               ),
               SizedBox(
                 width: 180,
                 child: DropdownButtonFormField<int>(
-                  initialValue: _days,
+                  initialValue: ui.days,
                   decoration: const InputDecoration(labelText: 'Time Window'),
                   items: const [
                     DropdownMenuItem(value: 7, child: Text('Last 7 Days')),
@@ -159,7 +205,10 @@ class _OrderHistoryReportScreenState extends State<OrderHistoryReportScreen> {
                     DropdownMenuItem(value: 90, child: Text('Last 90 Days')),
                     DropdownMenuItem(value: 0, child: Text('All Time')),
                   ],
-                  onChanged: (value) => setState(() => _days = value ?? 30),
+                  onChanged: (value) {
+                    ref.read(_orderHistoryUiProvider.notifier).state =
+                        ui.copyWith(days: value ?? 30);
+                  },
                 ),
               ),
             ],

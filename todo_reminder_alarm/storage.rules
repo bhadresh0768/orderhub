@@ -1,19 +1,35 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return firestore.get(/databases/(default)/documents/users/$(uid));
+    }
+
+    function myBusinessId() {
+      return userDoc(request.auth.uid).data.businessId;
+    }
     match /orders/{orderId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if signedIn();
+      allow write: if signedIn();
     }
 
     match /users/{userId}/profile/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == userId;
     }
 
     match /businesses/{businessId}/logo/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /catalog/{businessId}/products/{productId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && myBusinessId() == businessId;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 
 import '../models/app_user.dart';
 import '../models/business.dart';
+import '../models/catalog.dart';
 import '../models/delivery_agent.dart';
 import '../models/enums.dart';
 import '../models/order.dart';
@@ -21,6 +22,12 @@ class FirestoreService {
       _db.collection('deliveryAgents');
   CollectionReference<Map<String, dynamic>> get _orderCounters =>
       _db.collection('orderCounters');
+  CollectionReference<Map<String, dynamic>> get _catalogCategories =>
+      _db.collection('catalogCategories');
+  CollectionReference<Map<String, dynamic>> get _catalogProducts =>
+      _db.collection('catalogProducts');
+  CollectionReference<Map<String, dynamic>> get _catalogVariants =>
+      _db.collection('catalogVariants');
 
   Stream<AppUser?> userStream(String uid) {
     return _users.doc(uid).snapshots().map((doc) {
@@ -173,6 +180,100 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(DeliveryAgent.fromDoc).toList());
+  }
+
+  Stream<List<CatalogCategory>> catalogCategoriesStream(String businessId) {
+    return _catalogCategories
+        .where('businessId', isEqualTo: businessId)
+        .orderBy('sortOrder')
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(CatalogCategory.fromDoc).toList(),
+        );
+  }
+
+  Stream<List<CatalogProduct>> catalogProductsStream(String businessId) {
+    return _catalogProducts
+        .where('businessId', isEqualTo: businessId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map(CatalogProduct.fromDoc).toList(),
+        );
+  }
+
+  Stream<List<CatalogVariant>> catalogVariantsStream(String productId) {
+    return _catalogVariants
+        .where('productId', isEqualTo: productId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map(CatalogVariant.fromDoc).toList(),
+        );
+  }
+
+  Future<void> createCatalogCategory(CatalogCategory category) async {
+    await _catalogCategories.doc(category.id).set(
+          category.toMap(),
+          SetOptions(merge: true),
+        );
+  }
+
+  Future<void> updateCatalogCategory(
+    String categoryId,
+    Map<String, dynamic> data,
+  ) async {
+    await _catalogCategories.doc(categoryId).update({
+      ...data,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deleteCatalogCategory(String categoryId) async {
+    await _catalogCategories.doc(categoryId).delete();
+  }
+
+  Future<void> createCatalogProduct(CatalogProduct product) async {
+    await _catalogProducts.doc(product.id).set(
+          product.toMap(),
+          SetOptions(merge: true),
+        );
+  }
+
+  Future<void> updateCatalogProduct(
+    String productId,
+    Map<String, dynamic> data,
+  ) async {
+    await _catalogProducts.doc(productId).update({
+      ...data,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deleteCatalogProduct(String productId) async {
+    await _catalogProducts.doc(productId).delete();
+  }
+
+  Future<void> createCatalogVariant(CatalogVariant variant) async {
+    await _catalogVariants.doc(variant.id).set(
+          variant.toMap(),
+          SetOptions(merge: true),
+        );
+  }
+
+  Future<void> updateCatalogVariant(
+    String variantId,
+    Map<String, dynamic> data,
+  ) async {
+    await _catalogVariants.doc(variantId).update({
+      ...data,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deleteCatalogVariant(String variantId) async {
+    await _catalogVariants.doc(variantId).delete();
   }
 
   Future<void> createDeliveryAgent(DeliveryAgent agent) async {

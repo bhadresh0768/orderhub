@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../models/app_user.dart';
 import '../models/business.dart';
@@ -30,11 +31,63 @@ class MyApp extends ConsumerWidget {
       themeMode: themeMode,
       theme: lightTheme(),
       darkTheme: darkTheme(),
+      builder: (context, child) {
+        return _InternetStatusOverlay(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       routes: {
         '/': (_) => const OrderStatusListener(child: AuthGate()),
         LoginScreen.routeName: (_) => const LoginScreen(),
         SignUpScreen.routeName: (_) => const SignUpScreen(),
       },
+    );
+  }
+}
+
+class _InternetStatusOverlay extends ConsumerWidget {
+  const _InternetStatusOverlay({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final internetAsync = ref.watch(internetConnectedProvider);
+    final isOnline = internetAsync.value ?? true;
+    return Stack(
+      children: [
+        child,
+        if (!isOnline)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Material(
+                color: Colors.red.shade700,
+                elevation: 4,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'No internet connection',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -155,27 +208,31 @@ class _AutoProvisionDeliveryBoyProfile extends ConsumerStatefulWidget {
 
 class _AutoProvisionDeliveryBoyProfileState
     extends ConsumerState<_AutoProvisionDeliveryBoyProfile> {
-  bool _loading = true;
-  bool _matchedDeliveryBoy = false;
-  String? _error;
+  void _updateUi(_AutoProvisionUiState Function(_AutoProvisionUiState state) update) {
+    final notifier = ref.read(_autoProvisionUiProvider(widget.user.uid).notifier);
+    notifier.state = update(notifier.state);
+  }
 
   @override
   void initState() {
     super.initState();
-    _provisionIfDeliveryBoy();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _provisionIfDeliveryBoy();
+    });
   }
 
   Future<void> _provisionIfDeliveryBoy() async {
     try {
       final phone = widget.user.phoneNumber?.trim() ?? '';
       if (phone.isEmpty) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
         return;
       }
       final firestore = ref.read(firestoreServiceProvider);
       final agent = await firestore.findActiveDeliveryAgentByPhone(phone);
       if (agent == null) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
         return;
       }
       final profile = AppUser(
@@ -190,28 +247,28 @@ class _AutoProvisionDeliveryBoyProfileState
       );
       await firestore.createUserProfile(profile);
       if (!mounted) return;
-      setState(() {
-        _matchedDeliveryBoy = true;
-        _loading = false;
-      });
+      _updateUi(
+        (state) => state.copyWith(
+          matchedDeliveryBoy: true,
+          loading: false,
+        ),
+      );
     } catch (err) {
       if (!mounted) return;
-      setState(() {
-        _error = err.toString();
-        _loading = false;
-      });
+      _updateUi((state) => state.copyWith(error: err.toString(), loading: false));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    final ui = ref.watch(_autoProvisionUiProvider(widget.user.uid));
+    if (ui.loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_error != null) {
-      return Scaffold(body: Center(child: Text('Error: $_error')));
+    if (ui.error != null) {
+      return Scaffold(body: Center(child: Text('Error: ${ui.error}')));
     }
-    if (_matchedDeliveryBoy) {
+    if (ui.matchedDeliveryBoy) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -219,6 +276,37 @@ class _AutoProvisionDeliveryBoyProfileState
     return const SignUpScreen();
   }
 }
+
+final _autoProvisionUiProvider =
+    StateProvider.autoDispose.family<_AutoProvisionUiState, String>(
+  (ref, _) => const _AutoProvisionUiState(),
+);
+
+class _AutoProvisionUiState {
+  const _AutoProvisionUiState({
+    this.loading = true,
+    this.matchedDeliveryBoy = false,
+    this.error,
+  });
+
+  final bool loading;
+  final bool matchedDeliveryBoy;
+  final String? error;
+
+  _AutoProvisionUiState copyWith({
+    bool? loading,
+    bool? matchedDeliveryBoy,
+    Object? error = _autoProvisionUnset,
+  }) {
+    return _AutoProvisionUiState(
+      loading: loading ?? this.loading,
+      matchedDeliveryBoy: matchedDeliveryBoy ?? this.matchedDeliveryBoy,
+      error: error == _autoProvisionUnset ? this.error : error as String?,
+    );
+  }
+}
+
+const _autoProvisionUnset = Object();
 
 class _BlockedUserScreen extends ConsumerWidget {
   const _BlockedUserScreen();

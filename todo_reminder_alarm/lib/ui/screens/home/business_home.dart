@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:uuid/uuid.dart';
 
 import '../../../models/app_user.dart';
@@ -16,6 +17,8 @@ import '../profile/public_business_profile_screen.dart';
 import '../orders/business_order_detail_screen.dart';
 import '../orders/create_order_screen.dart';
 import '../orders/order_history_report_screen.dart';
+import '../catalog/business_catalog_screen.dart';
+import '../catalog/customer_catalog_screen.dart';
 
 final _businessOrdersUiProvider =
     StateProvider.autoDispose.family<_BusinessOrdersUiState, String>(
@@ -134,7 +137,7 @@ class _BusinessHomeBody extends ConsumerWidget {
     }
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Dashboard'),
@@ -146,6 +149,7 @@ class _BusinessHomeBody extends ConsumerWidget {
               Tab(text: 'Completed'),
               Tab(text: 'Place Orders'),
               Tab(text: 'Delivery Team'),
+              Tab(text: 'Catalog'),
             ],
           ),
           actions: [
@@ -207,6 +211,7 @@ class _BusinessHomeBody extends ConsumerWidget {
             ),
             _PlaceOrdersTab(profile: profile, ownBusiness: ownBusiness),
             _DeliveryTeamTab(profile: profile),
+            BusinessCatalogScreen(businessId: profile.businessId!),
           ],
         ),
       ),
@@ -269,11 +274,18 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   }
 
   String _itemSummary(OrderItem item) {
-    final base =
-        '${item.title} ${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
     final pack = item.packSize?.trim();
-    if (pack == null || pack.isEmpty) return base;
-    return '$base ($pack)';
+    if (pack != null && pack.isNotEmpty) {
+      final qty = _formatQuantity(item.quantity);
+      final suffix = item.quantity == 1 ? 'pack' : 'packs';
+      return '${item.title} $qty $suffix ($pack)';
+    }
+    return '${item.title} ${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
+  }
+
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
   }
 
   @override
@@ -405,45 +417,6 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         .toList();
   }
 
-  Widget? _buildPaymentBadge(Order order) {
-    if (order.payment.status == PaymentStatus.pending) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.red.shade100,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          'Payment Pending',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.red.shade800,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-    if (order.payment.status == PaymentStatus.done &&
-        order.payment.collectedBy == PaymentCollectedBy.deliveryBoy) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.green.shade100,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          'Collected by Delivery',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.green.shade800,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-    return null;
-  }
-
   Widget _buildOrderCard(BuildContext context, Order order) {
     final effectiveStatus = _effectiveOrderStatus(order);
     final isBusinessOrder =
@@ -462,12 +435,18 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         ? ''
         : ' | Unavailable: ${unavailableItems.map((e) => e.title).join(', ')}';
     final paymentCollector = _paymentCollectorLabel(order);
-    final paymentBadge = _buildPaymentBadge(order);
     final statusColor = _statusColor(effectiveStatus);
+    final paymentColor = order.payment.status == PaymentStatus.done
+        ? Colors.green
+        : Colors.red;
     final imageAttachments = _imageAttachments(order);
+    final lineStyle = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(fontSize: 16);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -475,59 +454,102 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
             ),
           );
         },
-        title: Row(
-          children: [
-            Expanded(child: Text('Order ${order.displayOrderNumber} • $sourceLabel')),
-            if (paymentBadge != null) ...[
-              const SizedBox(width: 8),
-              paymentBadge,
-            ],
-          ],
-        ),
-        subtitle: Text.rich(
-          TextSpan(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextSpan(text: 'Requested by: $requestedBy\n'),
-              TextSpan(text: 'Priority: ${order.priority.name} | Status: '),
-              TextSpan(
-                text: _statusLabel(effectiveStatus),
-                style: TextStyle(
-                  color: statusColor,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Order ${order.displayOrderNumber} • $sourceLabel',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  widget.allowActions
+                      ? PopupMenuButton<String>(
+                          onSelected: (value) =>
+                              _handleOrderAction(context, order, value),
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'approve',
+                              child: Text('Approve Order'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'mark_delivered',
+                              child: Text('Mark Delivered'),
+                            ),
+                            if (order.payment.status != PaymentStatus.done)
+                              const PopupMenuItem(
+                                value: 'payment_done',
+                                child: Text('Set Payment Done'),
+                              ),
+                          ],
+                        )
+                      : const Icon(Icons.chevron_right),
+                ],
               ),
-              TextSpan(text: ' | Delivery: ${order.delivery.status.name}\n'),
-              TextSpan(
-                text:
-                    'Payment: ${_paymentStatusLabel(order.payment.status)} | Amount: ${_paymentAmountLabel(order.payment.amount)}',
+              const SizedBox(height: 4),
+              Text('Requested by: $requestedBy', style: lineStyle),
+              const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Priority: ${_capitalize(order.priority.name)} | Status: ',
+                    ),
+                    TextSpan(
+                      text: _statusLabel(effectiveStatus),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' | Delivery: ${_capitalize(order.delivery.status.name)}',
+                    ),
+                  ],
+                ),
+                style: lineStyle,
+              ),
+              const SizedBox(height: 2),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'Payment: '),
+                    TextSpan(
+                      text: _paymentStatusLabel(order.payment.status),
+                      style: TextStyle(
+                        color: paymentColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const TextSpan(text: ' | Amount: '),
+                    TextSpan(
+                      text: _paymentAmountLabel(order.payment.amount),
+                      style: TextStyle(
+                        color: paymentColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                style: lineStyle,
               ),
               if (paymentCollector != null)
-                TextSpan(text: ' | Collected by: $paymentCollector'),
-              TextSpan(text: ' | Items: $itemsSummary$unavailableSummary'),
+                Text('Collected by: $paymentCollector', style: lineStyle),
+              const SizedBox(height: 2),
+              Text('Items: $itemsSummary$unavailableSummary', style: lineStyle),
               if (imageAttachments.isNotEmpty)
-                TextSpan(text: '\nItem Images: ${imageAttachments.length}'),
+                Text('Item Images: ${imageAttachments.length}', style: lineStyle),
             ],
           ),
         ),
-        isThreeLine: true,
-        trailing: widget.allowActions
-            ? PopupMenuButton<String>(
-                onSelected: (value) =>
-                    _handleOrderAction(context, order, value),
-                itemBuilder: (context) => [
-                  PopupMenuItem(value: 'approve', child: Text('Approve Order')),
-                  PopupMenuItem(
-                    value: 'mark_delivered',
-                    child: Text('Mark Delivered'),
-                  ),
-                  if (order.payment.status != PaymentStatus.done)
-                    const PopupMenuItem(
-                      value: 'payment_done',
-                      child: Text('Set Payment Done'),
-                    ),
-                ],
-              )
-            : const Icon(Icons.chevron_right),
       ),
     );
   }
@@ -723,6 +745,11 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
           business.city.toLowerCase().contains(query);
       return categoryOk && matchesQuery;
     }).toList();
+  }
+
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
   }
 
   @override
@@ -962,7 +989,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                         );
                                                       },
                                                 child: const Text(
-                                                  'Place B2B Order',
+                                                  'Place Order',
                                                 ),
                                               ),
                                             ),
@@ -973,14 +1000,37 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                   Navigator.of(context).push(
                                                     MaterialPageRoute(
                                                       builder: (_) =>
+                                                          CustomerCatalogScreen(
+                                                            business: business,
+                                                            customer:
+                                                                widget.profile,
+                                                            requesterBusiness:
+                                                                widget
+                                                                    .ownBusiness,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: const Text('Catalog'),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            SizedBox(
+                                              width: 52,
+                                              child: IconButton(
+                                                onPressed: () {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (_) =>
                                                           PublicBusinessProfileScreen(
                                                             business: business,
                                                           ),
                                                     ),
                                                   );
                                                 },
-                                                child: const Text(
-                                                  'View Profile',
+                                                iconSize: 30,
+                                                icon: const Icon(
+                                                  Icons.storefront_outlined,
                                                 ),
                                               ),
                                             ),
@@ -1038,8 +1088,8 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                               ),
                               subtitle: Text(
                                 'Order ${order.displayOrderNumber}\n'
-                                'Priority: ${order.priority.name} | Payment: ${order.payment.status.name} | '
-                                'Delivery: ${order.delivery.status.name}',
+                                'Priority: ${_capitalize(order.priority.name)} | Payment: ${order.payment.status.name} | '
+                                'Delivery: ${_capitalize(order.delivery.status.name)}',
                               ),
                               isThreeLine: true,
                               trailing: Column(

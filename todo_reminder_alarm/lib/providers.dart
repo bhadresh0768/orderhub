@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:app_links/app_links.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'models/app_user.dart';
 import 'models/business.dart';
+import 'models/catalog.dart';
 import 'models/delivery_agent.dart';
 import 'models/order.dart';
 import 'services/auth_service.dart';
@@ -44,6 +46,7 @@ final firebaseMessagingProvider = Provider<FirebaseMessaging>(
   (ref) => FirebaseMessaging.instance,
 );
 final appLinksProvider = Provider<AppLinks>((ref) => AppLinks());
+final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(ref.read(firebaseAuthProvider));
@@ -83,6 +86,15 @@ final deepLinkServiceProvider = Provider<DeepLinkService>((ref) {
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.read(authServiceProvider).authStateChanges();
+});
+
+final internetConnectedProvider = StreamProvider<bool>((ref) async* {
+  final connectivity = ref.read(connectivityProvider);
+  final initial = await connectivity.checkConnectivity();
+  yield initial.any((result) => result != ConnectivityResult.none);
+  yield* connectivity.onConnectivityChanged
+      .map((results) => results.any((result) => result != ConnectivityResult.none))
+      .distinct();
 });
 
 final userProfileProvider = StreamProvider.family<AppUser?, String>((ref, uid) {
@@ -136,6 +148,23 @@ final ordersForDeliveryAgentByPhoneProvider =
       return ref
           .read(firestoreServiceProvider)
           .ordersForDeliveryAgentByPhoneStream(phone);
+    });
+
+final catalogCategoriesProvider =
+    StreamProvider.family<List<CatalogCategory>, String>((ref, businessId) {
+      return ref
+          .read(firestoreServiceProvider)
+          .catalogCategoriesStream(businessId);
+    });
+
+final catalogProductsProvider =
+    StreamProvider.family<List<CatalogProduct>, String>((ref, businessId) {
+      return ref.read(firestoreServiceProvider).catalogProductsStream(businessId);
+    });
+
+final catalogVariantsProvider =
+    StreamProvider.family<List<CatalogVariant>, String>((ref, productId) {
+      return ref.read(firestoreServiceProvider).catalogVariantsStream(productId);
     });
 
 final allOrdersProvider = StreamProvider<List<Order>>((ref) {

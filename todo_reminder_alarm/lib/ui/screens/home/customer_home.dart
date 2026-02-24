@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/app_user.dart';
 import '../../../models/business.dart';
@@ -11,6 +12,7 @@ import '../profile/public_business_profile_screen.dart';
 import '../orders/create_order_screen.dart';
 import '../orders/customer_order_detail_screen.dart';
 import '../orders/order_history_report_screen.dart';
+import '../catalog/customer_catalog_screen.dart';
 
 final _customerStoreSearchProvider = StateProvider.autoDispose<String>(
   (ref) => '',
@@ -62,6 +64,11 @@ class _CustomerHomeBody extends ConsumerStatefulWidget {
 }
 
 class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+
   List<BusinessProfile> _applyFilters(
     List<BusinessProfile> businesses, {
     required String queryText,
@@ -384,13 +391,31 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
+                                    builder: (_) => CustomerCatalogScreen(
+                                      business: business,
+                                      customer: widget.profile,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: const Text('Catalog'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 52,
+                            child: IconButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
                                     builder: (_) => PublicBusinessProfileScreen(
                                       business: business,
                                     ),
                                   ),
                                 );
                               },
-                              child: const Text('View Profile'),
+                              iconSize: 30,
+                              icon: const Icon(Icons.storefront_outlined),
                             ),
                           ),
                         ],
@@ -493,6 +518,30 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   .map((item) => item.title)
                   .toList();
               final imageAttachments = _imageAttachments(order);
+              final includedItems = order.items.where((item) => item.isIncluded ?? true);
+              final itemSummary = includedItems
+                  .take(3)
+                  .map((item) {
+                    final pack = (item.packSize ?? '').trim();
+                    if (pack.isNotEmpty) {
+                      final qty = item.quantity == item.quantity.truncateToDouble()
+                          ? item.quantity.toInt().toString()
+                          : item.quantity.toStringAsFixed(2);
+                      final suffix = item.quantity == 1 ? 'pack' : 'packs';
+                      return '${item.title} $qty $suffix ($pack)';
+                    }
+                    final qty = item.quantity == item.quantity.truncateToDouble()
+                        ? item.quantity.toInt().toString()
+                        : item.quantity.toStringAsFixed(2);
+                    final unit = switch (item.unit) {
+                      QuantityUnit.piece => 'pc',
+                      QuantityUnit.kilogram => 'kg',
+                      QuantityUnit.gram => 'g',
+                      QuantityUnit.liter => 'L',
+                    };
+                    return '${item.title} $qty $unit';
+                  })
+                  .join(', ');
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
@@ -512,7 +561,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                             children: [
                               TextSpan(text: '${order.businessName} • '),
                               TextSpan(
-                                text: effectiveStatus.name,
+                                text: _capitalize(effectiveStatus.name),
                                 style: TextStyle(
                                   color: statusColor,
                                   fontWeight: FontWeight.w700,
@@ -533,7 +582,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     '${showAmountToCustomer ? ' • Amount: $amountText' : ''}\n'
                     'Payment: ${order.payment.status.name}'
                     '${collectedByText == null ? '' : ' ($collectedByText)'}'
-                    ' | Delivery: ${order.delivery.status.name}'
+                    ' | Delivery: ${_capitalize(order.delivery.status.name)}'
+                    '${itemSummary.isEmpty ? '' : '\nItems: $itemSummary'}'
                     '${unavailableItems.isEmpty ? '' : '\nUnavailable: ${unavailableItems.join(', ')}'}'
                     '${imageAttachments.isEmpty ? '' : '\nItem Images: ${imageAttachments.length}'}',
                   ),

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/delivery_agent.dart';
 import '../../../models/enums.dart';
@@ -9,8 +10,17 @@ import '../../../models/payment.dart';
 import '../../../providers.dart';
 
 final _businessOrderUiProvider =
-    StateProvider.autoDispose.family<_BusinessOrderUiState, String>(
-  (ref, _) => throw UnimplementedError(),
+    StateProvider.autoDispose.family<_BusinessOrderUiState, Order>(
+  (ref, order) => _BusinessOrderUiState(
+    order: order,
+    selectedPaymentStatus: order.payment.status,
+    selectedPaymentMethod: order.payment.method,
+    selectedDeliveryAgentId: order.assignedDeliveryAgentId,
+    itemGstIncluded: order.items
+        .map((item) => item.gstIncluded ?? false)
+        .toList(),
+    itemIncluded: order.items.map((item) => item.isIncluded ?? true).toList(),
+  ),
 );
 
 class _BusinessOrderUiState {
@@ -85,11 +95,11 @@ class _BusinessOrderDetailScreenState
   late List<TextEditingController> _itemUnavailableReasonControllers;
   late final String _actorName;
   _BusinessOrderUiState get _ui =>
-      ref.read(_businessOrderUiProvider(widget.order.id));
+      ref.read(_businessOrderUiProvider(widget.order));
   void _updateUi(
     _BusinessOrderUiState Function(_BusinessOrderUiState state) update,
   ) {
-    final notifier = ref.read(_businessOrderUiProvider(widget.order.id).notifier);
+    final notifier = ref.read(_businessOrderUiProvider(widget.order).notifier);
     notifier.state = update(notifier.state);
   }
   Order get _order => _ui.order;
@@ -103,22 +113,12 @@ class _BusinessOrderDetailScreenState
   bool get _isLocked =>
       _order.status == OrderStatus.completed ||
       _order.delivery.status == DeliveryStatus.delivered;
+  bool get _isAccepted => _order.status != OrderStatus.pending;
 
   @override
   void initState() {
     super.initState();
     final order = widget.order;
-    ref.read(_businessOrderUiProvider(widget.order.id).notifier).state =
-        _BusinessOrderUiState(
-          order: order,
-          selectedPaymentStatus: order.payment.status,
-          selectedPaymentMethod: order.payment.method,
-          selectedDeliveryAgentId: order.assignedDeliveryAgentId,
-          itemGstIncluded: order.items
-              .map((item) => item.gstIncluded ?? false)
-              .toList(),
-          itemIncluded: order.items.map((item) => item.isIncluded ?? true).toList(),
-        );
     _actorName = ref.read(authStateProvider).value?.displayName?.trim().isNotEmpty == true
         ? ref.read(authStateProvider).value!.displayName!.trim()
         : 'Business Owner';
@@ -175,6 +175,21 @@ class _BusinessOrderDetailScreenState
       case QuantityUnit.liter:
         return 'L';
     }
+  }
+
+  String _itemQuantityLabel(OrderItem item) {
+    final pack = (item.packSize ?? '').trim();
+    if (pack.isNotEmpty) {
+      final qty = _formatQuantity(item.quantity);
+      final suffix = item.quantity == 1 ? 'pack' : 'packs';
+      return '$qty $suffix ($pack)';
+    }
+    return '${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
+  }
+
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
   }
 
   Future<void> _saveStatusUpdates() async {
@@ -396,6 +411,13 @@ class _BusinessOrderDetailScreenState
   }
 
   Future<void> _saveBilling() async {
+    if (!_isAccepted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Accept order first to add pricing')),
+      );
+      return;
+    }
     if (_isLocked) {
       _showLockedMessage();
       return;
@@ -504,13 +526,6 @@ class _BusinessOrderDetailScreenState
     }
     if (_saving) return;
     final billing = _billingPreview();
-    if (billing.total <= 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter item price before accepting order')),
-      );
-      return;
-    }
 
     _updateUi((state) => state.copyWith(saving: true));
     try {
@@ -684,6 +699,15 @@ class _BusinessOrderDetailScreenState
   }
 
   Future<void> _assignDeliveryAgent(List<DeliveryAgent> agents) async {
+    if (!_isAccepted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Accept order first to assign delivery agent'),
+        ),
+      );
+      return;
+    }
     if (_isLocked) {
       _showLockedMessage();
       return;
@@ -796,7 +820,7 @@ class _BusinessOrderDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(_businessOrderUiProvider(widget.order.id));
+    ref.watch(_businessOrderUiProvider(widget.order));
     final agentsAsync = ref.watch(
       deliveryAgentsForBusinessProvider(_order.businessId),
     );
@@ -814,6 +838,8 @@ class _BusinessOrderDetailScreenState
     final includedCount = _itemIncluded.where((value) => value).length;
     final billing = _billingPreview();
     final isLocked = _isLocked;
+    final isAccepted = _isAccepted;
+    final canEditAfterAccept = !isLocked && isAccepted;
     return Scaffold(
       appBar: AppBar(title: Text('Order ${_order.displayOrderNumber} Details')),
       body: ListView(
@@ -834,6 +860,11 @@ class _BusinessOrderDetailScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
+                    Text(
+                      'Accept this order first. Then you can add pricing and assign a delivery agent.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
                   ],
                   if (isLocked) ...[
                     Text(
@@ -854,7 +885,7 @@ class _BusinessOrderDetailScreenState
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
-                    'Priority: ${_order.priority.name}',
+                    'Priority: ${_capitalize(_order.priority.name)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
@@ -862,7 +893,7 @@ class _BusinessOrderDetailScreenState
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
-                    'Delivery: ${_order.delivery.status.name}',
+                    'Delivery: ${_capitalize(_order.delivery.status.name)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
@@ -940,7 +971,7 @@ class _BusinessOrderDetailScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${item.title} • Qty ${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}',
+                            '${item.title} • Qty ${_itemQuantityLabel(item)}',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           CheckboxListTile(
@@ -948,33 +979,33 @@ class _BusinessOrderDetailScreenState
                             dense: true,
                             controlAffinity: ListTileControlAffinity.leading,
                             value: included,
-                            onChanged: isLocked
-                                ? null
-                                : (value) => _updateUi((state) {
+                            onChanged: canEditAfterAccept
+                                ? (value) => _updateUi((state) {
                                     final updated = List<bool>.from(
                                       state.itemIncluded,
                                     );
                                     updated[index] = value ?? true;
                                     return state.copyWith(itemIncluded: updated);
-                                  }),
+                                  })
+                                : null,
                             title: const Text('Include in Delivery'),
                           ),
                           if (!included)
                             TextFormField(
                               controller:
                                   _itemUnavailableReasonControllers[index],
-                              enabled: !isLocked,
+                              enabled: canEditAfterAccept,
                               decoration: const InputDecoration(
                                 labelText: 'Unavailable Reason',
                                 hintText: 'Not available',
                               ),
-                              onChanged: isLocked
-                                  ? null
-                                  : (_) => _updateUi(
+                              onChanged: canEditAfterAccept
+                                  ? (_) => _updateUi(
                                       (state) => state.copyWith(
                                         refreshTick: state.refreshTick + 1,
                                       ),
-                                    ),
+                                    )
+                                  : null,
                             ),
                           const SizedBox(height: 8),
                           Row(
@@ -982,7 +1013,7 @@ class _BusinessOrderDetailScreenState
                               Expanded(
                                 child: TextFormField(
                                   controller: _itemPriceControllers[index],
-                                  enabled: included && !isLocked,
+                                  enabled: included && canEditAfterAccept,
                                   keyboardType:
                                       const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -990,13 +1021,13 @@ class _BusinessOrderDetailScreenState
                                   decoration: const InputDecoration(
                                     labelText: 'Unit Price',
                                   ),
-                                  onChanged: isLocked
-                                  ? null
-                                  : (_) => _updateUi(
+                                  onChanged: canEditAfterAccept
+                                      ? (_) => _updateUi(
                                       (state) => state.copyWith(
                                         refreshTick: state.refreshTick + 1,
                                       ),
-                                    ),
+                                    )
+                                      : null,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1007,7 +1038,7 @@ class _BusinessOrderDetailScreenState
                                   controlAffinity:
                                       ListTileControlAffinity.leading,
                                   value: _itemGstIncluded[index],
-                                  onChanged: (included && !isLocked)
+                                  onChanged: (included && canEditAfterAccept)
                                       ? (value) => _updateUi((state) {
                                           final updated = List<bool>.from(
                                             state.itemGstIncluded,
@@ -1037,7 +1068,7 @@ class _BusinessOrderDetailScreenState
                       Expanded(
                         child: TextFormField(
                           controller: _gstPercentController,
-                          enabled: !isLocked,
+                          enabled: canEditAfterAccept,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -1045,20 +1076,20 @@ class _BusinessOrderDetailScreenState
                             labelText: 'Common GST %',
                             hintText: 'e.g. 18',
                           ),
-                          onChanged: isLocked
-                                  ? null
-                                  : (_) => _updateUi(
+                          onChanged: canEditAfterAccept
+                                  ? (_) => _updateUi(
                                       (state) => state.copyWith(
                                         refreshTick: state.refreshTick + 1,
                                       ),
-                                    ),
+                                    )
+                                  : null,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
                           controller: _extraChargesController,
-                          enabled: !isLocked,
+                          enabled: canEditAfterAccept,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -1066,17 +1097,26 @@ class _BusinessOrderDetailScreenState
                             labelText: 'Extra Charges',
                             hintText: 'e.g. 50',
                           ),
-                          onChanged: isLocked
-                                  ? null
-                                  : (_) => _updateUi(
+                          onChanged: canEditAfterAccept
+                                  ? (_) => _updateUi(
                                       (state) => state.copyWith(
                                         refreshTick: state.refreshTick + 1,
                                       ),
-                                    ),
+                                    )
+                                  : null,
                         ),
                       ),
                     ],
                   ),
+                  if (!isAccepted) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Pricing is disabled until order is accepted.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.orange[800]),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Text('Subtotal: ${_formatAmount(billing.subtotal)}'),
                   Text('GST Amount: ${_formatAmount(billing.gstAmount)}'),
@@ -1088,7 +1128,9 @@ class _BusinessOrderDetailScreenState
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: (_saving || isLocked) ? null : _saveBilling,
+                      onPressed: (_saving || !canEditAfterAccept)
+                          ? null
+                          : _saveBilling,
                       child: Text(_saving ? 'Saving...' : 'Save Pricing'),
                     ),
                   ),
@@ -1150,13 +1192,13 @@ class _BusinessOrderDetailScreenState
                                 ),
                               ),
                             ],
-                            onChanged: isLocked
-                                ? null
-                                : (value) => _updateUi(
+                            onChanged: canEditAfterAccept
+                                ? (value) => _updateUi(
                                     (state) => state.copyWith(
                                       selectedDeliveryAgentId: value,
                                     ),
-                                  ),
+                                  )
+                                : null,
                           ),
                           const SizedBox(height: 6),
                           CheckboxListTile(
@@ -1164,13 +1206,13 @@ class _BusinessOrderDetailScreenState
                             dense: true,
                             value: _collectPaymentOnAssign,
                             title: const Text('Collect payment now (optional)'),
-                            onChanged: isLocked
-                                ? null
-                                : (value) => _updateUi(
+                            onChanged: canEditAfterAccept
+                                ? (value) => _updateUi(
                                     (state) => state.copyWith(
                                       collectPaymentOnAssign: value ?? false,
                                     ),
-                                  ),
+                                  )
+                                : null,
                           ),
                           const SizedBox(height: 8),
                           SizedBox(
@@ -1178,7 +1220,7 @@ class _BusinessOrderDetailScreenState
                             child: OutlinedButton(
                               onPressed: _saving
                                   ? null
-                                  : isLocked
+                                  : !canEditAfterAccept
                                   ? null
                                   : () => _assignDeliveryAgent(activeAgents),
                               child: const Text('Save Delivery Agent'),
@@ -1208,15 +1250,15 @@ class _BusinessOrderDetailScreenState
                           ),
                         )
                         .toList(),
-                    onChanged: isLocked
-                        ? null
-                        : (value) {
+                    onChanged: canEditAfterAccept
+                        ? (value) {
                             if (value == null) return;
                             _updateUi(
                               (state) =>
                                   state.copyWith(selectedPaymentStatus: value),
                             );
-                          },
+                          }
+                        : null,
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<PaymentMethod>(
@@ -1233,20 +1275,20 @@ class _BusinessOrderDetailScreenState
                           ),
                         )
                         .toList(),
-                    onChanged: isLocked
-                        ? null
-                        : (value) {
+                    onChanged: canEditAfterAccept
+                        ? (value) {
                             if (value == null) return;
                             _updateUi(
                               (state) =>
                                   state.copyWith(selectedPaymentMethod: value),
                             );
-                          },
+                          }
+                        : null,
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _paymentAmountController,
-                    enabled: !isLocked,
+                    enabled: canEditAfterAccept,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
@@ -1260,7 +1302,9 @@ class _BusinessOrderDetailScreenState
                     width: double.infinity,
                     child: FilledButton(
                       onPressed:
-                          (_saving || isLocked) ? null : _saveStatusUpdates,
+                          (_saving || !canEditAfterAccept)
+                              ? null
+                              : _saveStatusUpdates,
                       child: Text(_saving ? 'Saving...' : 'Update Payment'),
                     ),
                   ),

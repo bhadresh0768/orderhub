@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
@@ -94,11 +95,13 @@ class CreateOrderScreen extends ConsumerStatefulWidget {
     required this.business,
     required this.customer,
     this.requesterBusiness,
+    this.initialItems = const [],
   });
 
   final BusinessProfile business;
   final AppUser customer;
   final BusinessProfile? requesterBusiness;
+  final List<OrderItem> initialItems;
 
   @override
   ConsumerState<CreateOrderScreen> createState() => _CreateOrderScreenState();
@@ -127,6 +130,12 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   void initState() {
     super.initState();
     unawaited(_initializeItemCatalog());
+    if (widget.initialItems.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _updateUi((state) => state.copyWith(items: widget.initialItems));
+      });
+    }
   }
 
   @override
@@ -253,6 +262,16 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     }
   }
 
+  String _itemQuantityLabel(OrderItem item) {
+    final hasPack = (item.packSize ?? '').trim().isNotEmpty;
+    if (hasPack) {
+      final qty = _formatQuantity(item.quantity);
+      final suffix = item.quantity == 1 ? 'pack' : 'packs';
+      return '$qty $suffix';
+    }
+    return '${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
+  }
+
   String _paymentMethodLabel(PaymentMethod method) {
     switch (method) {
       case PaymentMethod.cash:
@@ -265,6 +284,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   }
 
   String? _conversionHint(OrderItem item) {
+    if ((item.packSize ?? '').trim().isNotEmpty) {
+      return null;
+    }
     switch (item.unit) {
       case QuantityUnit.kilogram:
         return '${_formatQuantity(item.quantity * 1000)} g';
@@ -743,7 +765,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             title: Text(
-                              '${item.title} ${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}',
+                              '${item.title} ${_itemQuantityLabel(item)}',
                             ),
                             subtitle: Text(
                               [

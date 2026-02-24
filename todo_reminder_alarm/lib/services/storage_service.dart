@@ -59,4 +59,22 @@ class StorageService {
       bytes: bytes,
     );
   }
+
+  Future<String> uploadCatalogImage({
+    required String businessId,
+    required String productId,
+    String? variantId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    final sanitizedName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final basePath = variantId == null || variantId.isEmpty
+        ? 'catalog/$businessId/products/$productId'
+        : 'catalog/$businessId/products/$productId/variants/$variantId';
+    return _uploadBytes(
+      path:
+          '$basePath/${DateTime.now().millisecondsSinceEpoch}_$sanitizedName',
+      bytes: bytes,
+    );
+  }
 }

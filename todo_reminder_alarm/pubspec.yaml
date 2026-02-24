@@ -55,6 +55,7 @@ dependencies:
   hive_flutter: ^1.1.0
   app_links: ^6.4.1
   country_picker: ^2.0.27
+  connectivity_plus: ^6.1.5
 
 dev_dependencies:
   flutter_test:

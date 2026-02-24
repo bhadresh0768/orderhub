@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/app_user.dart';
 import '../../../models/business.dart';
@@ -9,6 +10,10 @@ import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
 import '../orders/order_history_report_screen.dart';
+
+final _adminSearchProvider = StateProvider.autoDispose.family<String, String>(
+  (ref, _) => '',
+);
 
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
@@ -74,6 +79,13 @@ class _UsersTab extends ConsumerStatefulWidget {
 
 class _UsersTabState extends ConsumerState<_UsersTab> {
   final _searchController = TextEditingController();
+  static const _searchKey = 'users';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = ref.read(_adminSearchProvider(_searchKey));
+  }
 
   @override
   void dispose() {
@@ -157,10 +169,11 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final search = ref.watch(_adminSearchProvider(_searchKey));
     final usersAsync = ref.watch(allUsersProvider);
     return usersAsync.when(
       data: (users) {
-        final query = _searchController.text.trim().toLowerCase();
+        final query = search.trim().toLowerCase();
         final filtered = users.where((u) {
           if (query.isEmpty) return true;
           return u.name.toLowerCase().contains(query) ||
@@ -181,7 +194,9 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
                 labelText: 'Search users',
                 prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (value) {
+                ref.read(_adminSearchProvider(_searchKey).notifier).state = value;
+              },
             ),
             const SizedBox(height: 12),
             ...filtered.map((user) {
@@ -226,6 +241,13 @@ class _BusinessesTab extends ConsumerStatefulWidget {
 
 class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
   final _searchController = TextEditingController();
+  static const _searchKey = 'businesses';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = ref.read(_adminSearchProvider(_searchKey));
+  }
 
   @override
   void dispose() {
@@ -337,6 +359,7 @@ class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final search = ref.watch(_adminSearchProvider(_searchKey));
     final businessesAsync = ref.watch(businessesProvider);
     final ordersAsync = ref.watch(allOrdersProvider);
     return businessesAsync.when(
@@ -362,7 +385,7 @@ class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
               }
             }
 
-            final query = _searchController.text.trim().toLowerCase();
+            final query = search.trim().toLowerCase();
             final filtered = businesses.where((b) {
               if (query.isEmpty) return true;
               return b.name.toLowerCase().contains(query) ||
@@ -382,7 +405,10 @@ class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
                           labelText: 'Search businesses',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (value) {
+                          ref.read(_adminSearchProvider(_searchKey).notifier).state =
+                              value;
+                        },
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -447,6 +473,13 @@ class _OrdersTab extends ConsumerStatefulWidget {
 
 class _OrdersTabState extends ConsumerState<_OrdersTab> {
   final _searchController = TextEditingController();
+  static const _searchKey = 'orders';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = ref.read(_adminSearchProvider(_searchKey));
+  }
 
   @override
   void dispose() {
@@ -548,10 +581,11 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final search = ref.watch(_adminSearchProvider(_searchKey));
     final ordersAsync = ref.watch(allOrdersProvider);
     return ordersAsync.when(
       data: (orders) {
-        final query = _searchController.text.trim().toLowerCase();
+        final query = search.trim().toLowerCase();
         final filtered = orders.where((o) {
           if (query.isEmpty) return true;
           return o.displayOrderNumber.toLowerCase().contains(query) ||
@@ -567,7 +601,9 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                 labelText: 'Search orders',
                 prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (value) {
+                ref.read(_adminSearchProvider(_searchKey).notifier).state = value;
+              },
             ),
             const SizedBox(height: 12),
             ...filtered.map((order) {
@@ -613,6 +649,13 @@ class _DeliveryAgentsTab extends ConsumerStatefulWidget {
 
 class _DeliveryAgentsTabState extends ConsumerState<_DeliveryAgentsTab> {
   final _searchController = TextEditingController();
+  static const _searchKey = 'delivery_agents';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = ref.read(_adminSearchProvider(_searchKey));
+  }
 
   @override
   void dispose() {
@@ -703,6 +746,7 @@ class _DeliveryAgentsTabState extends ConsumerState<_DeliveryAgentsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final search = ref.watch(_adminSearchProvider(_searchKey));
     final agentsAsync = ref.watch(allDeliveryAgentsProvider);
     final businessesAsync = ref.watch(businessesProvider);
     return businessesAsync.when(
@@ -710,7 +754,7 @@ class _DeliveryAgentsTabState extends ConsumerState<_DeliveryAgentsTab> {
         final businessMap = {for (final b in businesses) b.id: b.name};
         return agentsAsync.when(
           data: (agents) {
-            final query = _searchController.text.trim().toLowerCase();
+            final query = search.trim().toLowerCase();
             final filtered = agents.where((a) {
               if (query.isEmpty) return true;
               return a.name.toLowerCase().contains(query) ||
@@ -729,7 +773,10 @@ class _DeliveryAgentsTabState extends ConsumerState<_DeliveryAgentsTab> {
                           labelText: 'Search delivery agents',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (value) {
+                          ref.read(_adminSearchProvider(_searchKey).notifier).state =
+                              value;
+                        },
                       ),
                     ),
                     const SizedBox(width: 8),

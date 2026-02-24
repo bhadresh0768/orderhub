@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -9,6 +10,44 @@ import '../../../models/business.dart';
 import '../../../models/enums.dart';
 import '../../../providers.dart';
 import 'login_screen.dart';
+
+final _signUpUiProvider = StateProvider.autoDispose<_SignUpUiState>(
+  (ref) => _SignUpUiState(selectedCountry: Country.parse('IN')),
+);
+
+class _SignUpUiState {
+  const _SignUpUiState({
+    required this.selectedCountry,
+    this.role = UserRole.customer,
+    this.loading = false,
+    this.error,
+    this.profileOnlyMode = false,
+  });
+
+  final Country selectedCountry;
+  final UserRole role;
+  final bool loading;
+  final String? error;
+  final bool profileOnlyMode;
+
+  _SignUpUiState copyWith({
+    Country? selectedCountry,
+    UserRole? role,
+    bool? loading,
+    Object? error = _signUpUnset,
+    bool? profileOnlyMode,
+  }) {
+    return _SignUpUiState(
+      selectedCountry: selectedCountry ?? this.selectedCountry,
+      role: role ?? this.role,
+      loading: loading ?? this.loading,
+      error: error == _signUpUnset ? this.error : error as String?,
+      profileOnlyMode: profileOnlyMode ?? this.profileOnlyMode,
+    );
+  }
+}
+
+const _signUpUnset = Object();
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -32,18 +71,18 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _businessCityController = TextEditingController();
   final _businessAddressController = TextEditingController();
   final _businessGstController = TextEditingController();
-  Country _selectedCountry = Country.parse('IN');
-  UserRole _role = UserRole.customer;
-  bool _loading = false;
-  String? _error;
-  bool _profileOnlyMode = false;
+  _SignUpUiState get _ui => ref.read(_signUpUiProvider);
+  void _updateUi(_SignUpUiState Function(_SignUpUiState state) update) {
+    final notifier = ref.read(_signUpUiProvider.notifier);
+    notifier.state = update(notifier.state);
+  }
 
   @override
   void initState() {
     super.initState();
     final existingUser = ref.read(firebaseAuthProvider).currentUser;
     if (existingUser != null) {
-      _profileOnlyMode = true;
+      _updateUi((state) => state.copyWith(profileOnlyMode: true));
       _nameController.text = existingUser.displayName ?? '';
       _emailController.text = existingUser.email ?? '';
       _mobileController.text = existingUser.phoneNumber ?? '';
@@ -68,15 +107,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _updateUi((state) => state.copyWith(loading: true, error: null));
     try {
       final auth = ref.read(authServiceProvider);
       final firestore = ref.read(firestoreServiceProvider);
       final existingUser = ref.read(firebaseAuthProvider).currentUser;
-      final roleToSave = _role == UserRole.admin ? UserRole.customer : _role;
+      final roleToSave =
+          _ui.role == UserRole.admin ? UserRole.customer : _ui.role;
       final isCustomer = roleToSave == UserRole.customer;
       UserCredential? credential;
       String uid;
@@ -144,10 +181,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         ).pushNamedAndRemoveUntil(LoginScreen.routeName, (route) => false);
       }
     } catch (err) {
-      setState(() => _error = err.toString());
+      _updateUi((state) => state.copyWith(error: err.toString()));
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _updateUi((state) => state.copyWith(loading: false));
       }
     }
   }
@@ -157,23 +194,24 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (raw.isEmpty) return '';
     if (raw.startsWith('+')) return raw;
     if (RegExp(r'^\d+$').hasMatch(raw)) {
-      return '+${_selectedCountry.phoneCode}$raw';
+      return '+${_ui.selectedCountry.phoneCode}$raw';
     }
     return value.trim();
   }
 
   @override
   Widget build(BuildContext context) {
+    final uiState = ref.watch(_signUpUiProvider);
     final allowedRoles = UserRole.values
         .where((role) => role != UserRole.admin && role != UserRole.deliveryBoy)
         .toList();
-    final selectedRole = allowedRoles.contains(_role)
-        ? _role
+    final selectedRole = allowedRoles.contains(uiState.role)
+        ? uiState.role
         : UserRole.customer;
     final isBusiness = selectedRole == UserRole.businessOwner;
     final isCustomer = selectedRole == UserRole.customer;
     final existingUser = ref.watch(firebaseAuthProvider).currentUser;
-    final profileOnlyMode = _profileOnlyMode || existingUser != null;
+    final profileOnlyMode = uiState.profileOnlyMode || existingUser != null;
     return Scaffold(
       appBar: AppBar(title: const Text('Create Account')),
       body: Center(
@@ -194,9 +232,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 16),
-                      if (_error != null) ...[
+                      if (uiState.error != null) ...[
                         Text(
-                          _error!,
+                          uiState.error!,
                           style: const TextStyle(color: Colors.red),
                         ),
                         const SizedBox(height: 12),
@@ -266,8 +304,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                     context: context,
                                     showPhoneCode: true,
                                     onSelect: (country) {
-                                      setState(
-                                        () => _selectedCountry = country,
+                                      _updateUi(
+                                        (state) => state.copyWith(
+                                          selectedCountry: country,
+                                        ),
                                       );
                                     },
                                   );
@@ -277,7 +317,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                     labelText: 'Code',
                                   ),
                                   child: Text(
-                                    '${_selectedCountry.flagEmoji} +${_selectedCountry.phoneCode}',
+                                    '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
                                   ),
                                 ),
                               ),
@@ -333,7 +373,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             .toList(),
                         onChanged: (value) {
                           if (value != null) {
-                            setState(() => _role = value);
+                            _updateUi((state) => state.copyWith(role: value));
                           }
                         },
                       ),
@@ -423,8 +463,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: _loading ? null : _submit,
-                          child: _loading
+                          onPressed: uiState.loading ? null : _submit,
+                          child: uiState.loading
                               ? const SizedBox(
                                   height: 18,
                                   width: 18,

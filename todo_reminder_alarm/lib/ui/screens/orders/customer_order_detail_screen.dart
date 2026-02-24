@@ -23,6 +23,16 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     };
   }
 
+  String _itemQuantityLabel(OrderItem item) {
+    final pack = (item.packSize ?? '').trim();
+    if (pack.isNotEmpty) {
+      final qty = _formatQty(item.quantity);
+      final suffix = item.quantity == 1 ? 'pack' : 'packs';
+      return '$qty $suffix ($pack)';
+    }
+    return '${_formatQty(item.quantity)} ${_unitLabel(item.unit)}';
+  }
+
   String _money(double? value) {
     if (value == null) return 'Not set';
     return value == value.truncateToDouble()
@@ -42,6 +52,11 @@ class CustomerOrderDetailScreen extends StatelessWidget {
   String? _clean(String? value) {
     final text = value?.trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
   }
 
   bool _looksLikeImage(String value) {
@@ -152,7 +167,7 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                     ),
                   ),
                   Text('Payment: ${order.payment.status.name}'),
-                  Text('Delivery: ${order.delivery.status.name}'),
+                  Text('Delivery: ${_capitalize(order.delivery.status.name)}'),
                   Text('Amount: ${_money(order.payment.amount)}'),
                   Text(
                     'Created: ${created == null ? '-' : created.toLocal().toString()}',
@@ -190,12 +205,10 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   title: Text(
-                    '${item.title} ${_formatQty(item.quantity)} ${_unitLabel(item.unit)}',
+                    '${item.title} ${_itemQuantityLabel(item)}',
                   ),
                   subtitle: Text(
                     [
-                      if ((item.packSize ?? '').trim().isNotEmpty)
-                        'Pack: ${item.packSize!.trim()}',
                       if ((item.note ?? '').trim().isNotEmpty) item.note!.trim(),
                       if (item.unitPrice != null)
                         'Price: ${_money(item.unitPrice)} • Line: ${_money(lineTotal)}',
