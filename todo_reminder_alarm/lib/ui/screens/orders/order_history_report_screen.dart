@@ -57,6 +57,10 @@ class OrderHistoryReportScreen extends ConsumerStatefulWidget {
 
 class _OrderHistoryReportScreenState
     extends ConsumerState<OrderHistoryReportScreen> {
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
 
   List<Order> get _filtered {
     final ui = ref.read(_orderHistoryUiProvider);
@@ -87,8 +91,8 @@ class _OrderHistoryReportScreenState
       final created = order.createdAt?.toIso8601String() ?? '';
       buffer.writeln(
         '${order.displayOrderNumber},${_escape(order.businessName)},${_escape(order.customerName)},'
-        '${order.priority.name},${order.status.name},${order.payment.status.name},'
-        '${order.delivery.status.name},$created',
+        '${_capitalize(order.priority.name)},${_capitalize(order.status.name)},${_capitalize(order.payment.status.name)},'
+        '${_capitalize(order.delivery.status.name)},$created',
       );
     }
     return buffer.toString();
@@ -159,7 +163,7 @@ class _OrderHistoryReportScreenState
                     ...OrderStatus.values.map(
                       (value) => DropdownMenuItem<OrderStatus?>(
                         value: value,
-                        child: Text(value.name),
+                        child: Text(_capitalize(value.name)),
                       ),
                     ),
                   ],
@@ -184,7 +188,7 @@ class _OrderHistoryReportScreenState
                     ...OrderPriority.values.map(
                       (value) => DropdownMenuItem<OrderPriority?>(
                         value: value,
-                        child: Text(value.name),
+                        child: Text(_capitalize(value.name)),
                       ),
                     ),
                   ],
@@ -260,10 +264,12 @@ class _OrderHistoryReportScreenState
           ...filtered.map(
             (order) => Card(
               child: ListTile(
-                title: Text('${order.businessName} • ${order.status.name}'),
+                title: Text(
+                  '${order.businessName} • ${_capitalize(order.status.name)}',
+                ),
                 subtitle: Text(
-                  'Priority: ${order.priority.name} | Items: ${order.items.length} | '
-                  'Payment: ${order.payment.status.name} | Delivery: ${order.delivery.status.name}',
+                  'Priority: ${_capitalize(order.priority.name)} | Items: ${order.items.length} | '
+                  'Payment: ${_capitalize(order.payment.status.name)} | Delivery: ${_capitalize(order.delivery.status.name)}',
                 ),
                 trailing: Text(
                   order.createdAt == null

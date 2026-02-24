@@ -76,6 +76,11 @@ class _DeliveryBoyBody extends ConsumerStatefulWidget {
 }
 
 class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+
   DateTime? _referenceDate(Order order, {required bool completedTab}) {
     if (completedTab) {
       return order.delivery.deliveredAt ??
@@ -409,7 +414,6 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
       itemBuilder: (context, index) {
         final order = orders[index];
         final items = order.items.map(_itemSummary).join(', ');
-        final paymentPending = order.payment.status == PaymentStatus.pending;
         final amount = order.payment.amount;
         final amountText = amount == null
             ? 'Not set'
@@ -423,32 +427,17 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (paymentPending)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.deepOrange,
-                          size: 16,
-                        ),
-                        SizedBox(width: 6),
-                        Text('Payment Remaining'),
-                      ],
-                    ),
-                  ),
                 Text(
                   '${order.businessName} → ${order.customerName}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Order ${order.displayOrderNumber} • ${order.delivery.status.name}',
+                  'Order ${order.displayOrderNumber} • ${_capitalize(order.delivery.status.name)}',
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Payment: ${order.payment.status.name} • Amount: $amountText',
+                  'Payment: ${_capitalize(order.payment.status.name)} • Amount: $amountText',
                 ),
                 if (order.payment.collectedBy != null)
                   Padding(

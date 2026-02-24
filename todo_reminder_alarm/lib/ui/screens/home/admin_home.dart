@@ -81,6 +81,11 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
   final _searchController = TextEditingController();
   static const _searchKey = 'users';
 
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -204,7 +209,7 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
                 child: ListTile(
                   title: Text(user.name.isEmpty ? 'Unknown' : user.name),
                   subtitle: Text(
-                    '${user.email.isEmpty ? (user.phoneNumber ?? '-') : user.email}\nRole: ${user.role.name} • ${user.isActive ? 'Active' : 'Inactive'}',
+                    '${user.email.isEmpty ? (user.phoneNumber ?? '-') : user.email}\nRole: ${_capitalize(user.role.name)} • ${user.isActive ? 'Active' : 'Inactive'}',
                   ),
                   isThreeLine: true,
                   trailing: PopupMenuButton<String>(
@@ -242,6 +247,11 @@ class _BusinessesTab extends ConsumerStatefulWidget {
 class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
   final _searchController = TextEditingController();
   static const _searchKey = 'businesses';
+
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
 
   @override
   void initState() {
@@ -291,7 +301,12 @@ class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
                 DropdownButtonFormField<BusinessStatus>(
                   initialValue: status,
                   items: BusinessStatus.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(_capitalize(e.name)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setLocal(() => status = v ?? status),
                   decoration: const InputDecoration(labelText: 'Status'),
@@ -429,7 +444,7 @@ class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
                       title: Text(business.name),
                       subtitle: Text(
                         '${business.category} • ${business.city}\n'
-                        'Status: ${business.status.name}\n'
+                        'Status: ${_capitalize(business.status.name)}\n'
                         'Completed Orders: $completed • Created by Users: $userCreated • Total: $total',
                       ),
                       isThreeLine: true,
@@ -475,6 +490,11 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
   final _searchController = TextEditingController();
   static const _searchKey = 'orders';
 
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -507,7 +527,12 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                 DropdownButtonFormField<OrderStatus>(
                   initialValue: status,
                   items: OrderStatus.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(_capitalize(e.name)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setLocal(() => status = v ?? status),
                   decoration: const InputDecoration(labelText: 'Order Status'),
@@ -516,7 +541,12 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                 DropdownButtonFormField<DeliveryStatus>(
                   initialValue: delivery,
                   items: DeliveryStatus.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(_capitalize(e.name)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setLocal(() => delivery = v ?? delivery),
                   decoration: const InputDecoration(labelText: 'Delivery Status'),
@@ -525,7 +555,12 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                 DropdownButtonFormField<PaymentStatus>(
                   initialValue: paymentStatus,
                   items: PaymentStatus.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(_capitalize(e.name)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setLocal(() => paymentStatus = v ?? paymentStatus),
                   decoration: const InputDecoration(labelText: 'Payment Status'),
@@ -534,7 +569,12 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                 DropdownButtonFormField<PaymentMethod>(
                   initialValue: paymentMethod,
                   items: PaymentMethod.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(_capitalize(e.name)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setLocal(() => paymentMethod = v ?? paymentMethod),
                   decoration: const InputDecoration(labelText: 'Payment Method'),
@@ -612,7 +652,7 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                   title: Text('Order ${order.displayOrderNumber} • ${order.businessName}'),
                   subtitle: Text(
                     'Customer: ${order.customerName}\n'
-                    'Status: ${order.status.name} • Payment: ${order.payment.status.name} • Delivery: ${order.delivery.status.name}',
+                    'Status: ${_capitalize(order.status.name)} • Payment: ${_capitalize(order.payment.status.name)} • Delivery: ${_capitalize(order.delivery.status.name)}',
                   ),
                   isThreeLine: true,
                   trailing: PopupMenuButton<String>(

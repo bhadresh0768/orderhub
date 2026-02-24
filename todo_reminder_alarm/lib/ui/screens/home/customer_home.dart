@@ -580,7 +580,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   subtitle: Text(
                     'Order ${order.displayOrderNumber}'
                     '${showAmountToCustomer ? ' • Amount: $amountText' : ''}\n'
-                    'Payment: ${order.payment.status.name}'
+                    'Payment: ${_capitalize(order.payment.status.name)}'
                     '${collectedByText == null ? '' : ' ($collectedByText)'}'
                     ' | Delivery: ${_capitalize(order.delivery.status.name)}'
                     '${itemSummary.isEmpty ? '' : '\nItems: $itemSummary'}'

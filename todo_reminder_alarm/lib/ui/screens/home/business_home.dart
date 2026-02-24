@@ -1078,30 +1078,21 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                             OrderStatus.inProgress => Colors.yellow.shade700,
                             _ => Colors.red,
                           };
-                          final paymentPending =
-                              order.payment.status == PaymentStatus.pending;
                           return Card(
                             margin: const EdgeInsets.only(bottom: 10),
                             child: ListTile(
                               title: Text(
-                                '${order.businessName} • ${effectiveStatus.name}',
+                                '${order.businessName} • ${_capitalize(effectiveStatus.name)}',
                               ),
                               subtitle: Text(
                                 'Order ${order.displayOrderNumber}\n'
-                                'Priority: ${_capitalize(order.priority.name)} | Payment: ${order.payment.status.name} | '
+                                'Priority: ${_capitalize(order.priority.name)} | Payment: ${_capitalize(order.payment.status.name)} | '
                                 'Delivery: ${_capitalize(order.delivery.status.name)}',
                               ),
                               isThreeLine: true,
                               trailing: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (paymentPending)
-                                    const Icon(
-                                      Icons.warning_amber_rounded,
-                                      color: Colors.deepOrange,
-                                      size: 16,
-                                    ),
-                                  if (paymentPending) const SizedBox(height: 6),
                                   Container(
                                     width: 14,
                                     height: 14,

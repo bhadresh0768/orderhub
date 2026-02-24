@@ -166,7 +166,7 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Text('Payment: ${order.payment.status.name}'),
+                  Text('Payment: ${_capitalize(order.payment.status.name)}'),
                   Text('Delivery: ${_capitalize(order.delivery.status.name)}'),
                   Text('Amount: ${_money(order.payment.amount)}'),
                   Text(
