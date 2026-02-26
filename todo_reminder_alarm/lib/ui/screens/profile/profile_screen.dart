@@ -12,6 +12,7 @@ import '../../../models/enums.dart';
 import '../../../providers.dart';
 import '../../../app/deep_link_utils.dart';
 import 'public_business_profile_screen.dart';
+import '../support/support_tickets_screen.dart';
 
 final _profileUiProvider =
     StateProvider.autoDispose.family<_ProfileUiState, String>(
@@ -137,9 +138,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _emailController.text = user.email;
     _phoneController.text = user.phoneNumber ?? '';
     _appShareLinkController.text = user.appShareLink ?? '';
-    _updateUi(
-      (state) => state.copyWith(didInitUser: true, userPhotoUrl: user.photoUrl),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateUi(
+        (state) =>
+            state.copyWith(didInitUser: true, userPhotoUrl: user.photoUrl),
+      );
+    });
   }
 
   void _initBusiness(BusinessProfile? business) {
@@ -152,12 +157,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _businessPhoneController.text = business.phone ?? '';
     _businessDescriptionController.text = business.description ?? '';
     _businessShareLinkController.text = business.shareLink ?? '';
-    _updateUi(
-      (state) => state.copyWith(
-        didInitBusiness: true,
-        businessLogoUrl: business.logoUrl,
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateUi(
+        (state) => state.copyWith(
+          didInitBusiness: true,
+          businessLogoUrl: business.logoUrl,
+        ),
+      );
+    });
   }
 
   Future<void> _pickAndUploadUserImage() async {
@@ -748,6 +756,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Save Profile'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SupportTicketsScreen(
+                              user: widget.user,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.support_agent),
+                      label: const Text('Help & Support'),
                     ),
                   ),
                 ],

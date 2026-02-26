@@ -77,4 +77,22 @@ class StorageService {
       bytes: bytes,
     );
   }
+
+  Future<OrderAttachment> uploadSupportTicketAttachment({
+    required String userId,
+    required String ticketId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    final sanitizedName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final ref = _storage
+        .ref()
+        .child('support')
+        .child(userId)
+        .child(ticketId)
+        .child('${DateTime.now().millisecondsSinceEpoch}_$sanitizedName');
+    final result = await ref.putData(bytes);
+    final url = await result.ref.getDownloadURL();
+    return OrderAttachment(name: fileName, url: url);
+  }
 }

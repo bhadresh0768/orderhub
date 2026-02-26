@@ -312,6 +312,47 @@ class _BusinessOrderDetailScreenState
         : value.toStringAsFixed(2);
   }
 
+  Color _orderStatusColor(OrderStatus status) {
+    return switch (status) {
+      OrderStatus.completed => Colors.green,
+      OrderStatus.pending => Colors.red,
+      _ => Colors.orange,
+    };
+  }
+
+  Color _deliveryStatusColor(DeliveryStatus status) {
+    return switch (status) {
+      DeliveryStatus.delivered => Colors.green,
+      DeliveryStatus.pending => Colors.red,
+      _ => Colors.orange,
+    };
+  }
+
+  Color _paymentStatusColor(PaymentStatus status) {
+    return status == PaymentStatus.done ? Colors.green : Colors.red;
+  }
+
+  String _requestedByAddress() {
+    if (_order.requesterType == OrderRequesterType.businessOwner) {
+      final requesterBusinessId = _order.requesterBusinessId;
+      if (requesterBusinessId == null || requesterBusinessId.isEmpty) {
+        return '-';
+      }
+      final businessAsync = ref.watch(businessByIdProvider(requesterBusinessId));
+      final business = businessAsync.asData?.value;
+      final address = (business?.address ?? '').trim();
+      final city = (business?.city ?? '').trim();
+      if (address.isEmpty && city.isEmpty) return '-';
+      if (address.isEmpty) return city;
+      if (city.isEmpty) return address;
+      return '$address, $city';
+    }
+    final customerAsync = ref.watch(userProfileProvider(_order.customerId));
+    final customer = customerAsync.asData?.value;
+    final address = (customer?.address ?? '').trim();
+    return address.isEmpty ? '-' : address;
+  }
+
   void _showLockedMessage() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -829,12 +870,7 @@ class _BusinessOrderDetailScreenState
     final requester = isBusinessOrder
         ? (_order.requesterBusinessName ?? _order.customerName)
         : _order.customerName;
-    final itemAttachments = _order.items.expand((item) => item.attachments).toList();
-    final allAttachments = <OrderAttachment>[
-      ..._order.attachments,
-      ...itemAttachments,
-    ];
-    final imageAttachments = allAttachments.where(_isImageAttachment).toList();
+    final requestedAddress = _requestedByAddress();
     final includedCount = _itemIncluded.where((value) => value).length;
     final billing = _billingPreview();
     final isLocked = _isLocked;
@@ -862,7 +898,9 @@ class _BusinessOrderDetailScreenState
                     const SizedBox(height: 12),
                     Text(
                       'Accept this order first. Then you can add pricing and assign a delivery agent.',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.red.shade300,
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -885,19 +923,65 @@ class _BusinessOrderDetailScreenState
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
+                    'Address: $requestedAddress',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(
                     'Priority: ${_capitalize(_order.priority.name)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text(
-                    'Status: ${_statusLabel(_order.status)}',
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(text: 'Status: '),
+                        TextSpan(
+                          text: _statusLabel(_order.status),
+                          style: TextStyle(
+                            color: _orderStatusColor(_order.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text(
-                    'Delivery: ${_capitalize(_order.delivery.status.name)}',
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(text: 'Delivery: '),
+                        TextSpan(
+                          text: _capitalize(_order.delivery.status.name),
+                          style: TextStyle(
+                            color: _deliveryStatusColor(_order.delivery.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text(
-                    'Payment: ${_paymentStatusLabel(_order.payment.status)} (${_paymentMethodLabel(_order.payment.method)}) • Amount: ${_formatAmount(_order.payment.amount)}',
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(text: 'Payment: '),
+                        TextSpan(
+                          text:
+                              '${_paymentStatusLabel(_order.payment.status)} (${_paymentMethodLabel(_order.payment.method)})',
+                          style: TextStyle(
+                            color: _paymentStatusColor(_order.payment.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const TextSpan(text: ' • Amount: '),
+                        TextSpan(
+                          text: _formatAmount(_order.payment.amount),
+                          style: TextStyle(
+                            color: _paymentStatusColor(_order.payment.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   if (_order.payment.collectedBy != null &&
@@ -914,7 +998,10 @@ class _BusinessOrderDetailScreenState
                   if (_clean(_order.notes) != null)
                     Text(
                       'Order Remark: ${_clean(_order.notes)}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.red.shade300,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   if (_clean(_order.delivery.note) != null)
                     Text(
@@ -955,6 +1042,9 @@ class _BusinessOrderDetailScreenState
                   ..._order.items.asMap().entries.map((entry) {
                     final index = entry.key;
                     final item = entry.value;
+                    final itemImageAttachments = item.attachments
+                        .where(_isImageAttachment)
+                        .toList();
                     final included = _itemIncluded[index];
                     final qty = item.quantity;
                     final unitPrice = _toDouble(_itemPriceControllers[index].text);
@@ -970,10 +1060,74 @@ class _BusinessOrderDetailScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${item.title} • Qty ${_itemQuantityLabel(item)}',
-                            style: Theme.of(context).textTheme.titleMedium,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${item.title} • Qty ${_itemQuantityLabel(item)}',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                              ),
+                              if (itemImageAttachments.isNotEmpty) ...[
+                                const SizedBox(width: 10),
+                                InkWell(
+                                  onTap: () =>
+                                      _showImageGallery(itemImageAttachments, 0),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Image.network(
+                                          itemImageAttachments.first.url,
+                                          width: 72,
+                                          height: 72,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => Container(
+                                            width: 72,
+                                            height: 72,
+                                            color: Colors.black12,
+                                            alignment: Alignment.center,
+                                            child: const Icon(
+                                              Icons.image_not_supported_outlined,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 5,
+                                        right: 5,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.70,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${itemImageAttachments.length}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
+                          const SizedBox(height: 4),
                           CheckboxListTile(
                             contentPadding: EdgeInsets.zero,
                             dense: true,
@@ -1312,42 +1466,6 @@ class _BusinessOrderDetailScreenState
               ),
             ),
           ),
-          if (imageAttachments.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Item Images',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: imageAttachments.asMap().entries.map((entry) {
-                final index = entry.key;
-                final attachment = entry.value;
-                return InkWell(
-                  onTap: () => _showImageGallery(imageAttachments, index),
-                  borderRadius: BorderRadius.circular(10),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      attachment.url,
-                      width: 92,
-                      height: 92,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        width: 92,
-                        height: 92,
-                        color: Colors.black12,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.image_not_supported_outlined),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
         ],
       ),
     );

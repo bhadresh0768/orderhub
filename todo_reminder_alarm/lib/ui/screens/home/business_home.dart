@@ -16,6 +16,7 @@ import '../profile/profile_screen.dart';
 import '../profile/public_business_profile_screen.dart';
 import '../orders/business_order_detail_screen.dart';
 import '../orders/create_order_screen.dart';
+import '../orders/customer_order_detail_screen.dart';
 import '../orders/order_history_report_screen.dart';
 import '../catalog/business_catalog_screen.dart';
 import '../catalog/customer_catalog_screen.dart';
@@ -25,11 +26,23 @@ final _businessOrdersUiProvider =
       (ref, _) => const _BusinessOrdersUiState(),
     );
 
+enum _CompletedDateFilter { all, today, thisWeek, thisMonth, thisYear }
+
 class _BusinessOrdersUiState {
-  const _BusinessOrdersUiState({this.searchQuery = ''});
+  const _BusinessOrdersUiState({
+    this.searchQuery = '',
+    this.completedDateFilter = _CompletedDateFilter.all,
+  });
   final String searchQuery;
-  _BusinessOrdersUiState copyWith({String? searchQuery}) {
-    return _BusinessOrdersUiState(searchQuery: searchQuery ?? this.searchQuery);
+  final _CompletedDateFilter completedDateFilter;
+  _BusinessOrdersUiState copyWith({
+    String? searchQuery,
+    _CompletedDateFilter? completedDateFilter,
+  }) {
+    return _BusinessOrdersUiState(
+      searchQuery: searchQuery ?? this.searchQuery,
+      completedDateFilter: completedDateFilter ?? this.completedDateFilter,
+    );
   }
 }
 
@@ -254,38 +267,50 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     super.dispose();
   }
 
-  String _formatQuantity(double value) {
-    return value == value.truncateToDouble()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(2);
+  bool get _isCompletedTab {
+    return widget.allowedStatuses.length == 1 &&
+        widget.allowedStatuses.first == OrderStatus.completed;
   }
 
-  String _shortUnit(QuantityUnit unit) {
-    switch (unit) {
-      case QuantityUnit.piece:
-        return 'pc';
-      case QuantityUnit.kilogram:
-        return 'kg';
-      case QuantityUnit.gram:
-        return 'g';
-      case QuantityUnit.liter:
-        return 'L';
+  String _completedDateFilterLabel(_CompletedDateFilter filter) {
+    return switch (filter) {
+      _CompletedDateFilter.all => 'All',
+      _CompletedDateFilter.today => 'Today',
+      _CompletedDateFilter.thisWeek => 'This Week',
+      _CompletedDateFilter.thisMonth => 'This Month',
+      _CompletedDateFilter.thisYear => 'This Year',
+    };
+  }
+
+  DateTime _effectiveCompletedAt(Order order) {
+    return order.delivery.deliveredAt ?? order.updatedAt ?? order.createdAt ?? DateTime.now();
+  }
+
+  bool _matchesCompletedDateFilter(
+    Order order,
+    _CompletedDateFilter filter,
+    DateTime now,
+  ) {
+    if (filter == _CompletedDateFilter.all) return true;
+    final effectiveDate = _effectiveCompletedAt(order);
+    switch (filter) {
+      case _CompletedDateFilter.all:
+        return true;
+      case _CompletedDateFilter.today:
+        return effectiveDate.year == now.year &&
+            effectiveDate.month == now.month &&
+            effectiveDate.day == now.day;
+      case _CompletedDateFilter.thisWeek:
+        final startOfToday = DateTime(now.year, now.month, now.day);
+        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
+        final endOfWeek = startOfWeek.add(const Duration(days: 7));
+        return !effectiveDate.isBefore(startOfWeek) &&
+            effectiveDate.isBefore(endOfWeek);
+      case _CompletedDateFilter.thisMonth:
+        return effectiveDate.year == now.year && effectiveDate.month == now.month;
+      case _CompletedDateFilter.thisYear:
+        return effectiveDate.year == now.year;
     }
-  }
-
-  String _itemSummary(OrderItem item) {
-    final pack = item.packSize?.trim();
-    if (pack != null && pack.isNotEmpty) {
-      final qty = _formatQuantity(item.quantity);
-      final suffix = item.quantity == 1 ? 'pack' : 'packs';
-      return '${item.title} $qty $suffix ($pack)';
-    }
-    return '${item.title} ${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
-  }
-
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return value[0].toUpperCase() + value.substring(1);
   }
 
   @override
@@ -296,10 +321,19 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     );
     return ordersAsync.when(
       data: (orders) {
+        final now = DateTime.now();
         final query = ui.searchQuery.trim().toLowerCase();
         final tabOrders = orders.where((order) {
           final effectiveStatus = _effectiveOrderStatus(order);
           if (!widget.allowedStatuses.contains(effectiveStatus)) return false;
+          if (_isCompletedTab &&
+              !_matchesCompletedDateFilter(
+                order,
+                ui.completedDateFilter,
+                now,
+              )) {
+            return false;
+          }
           if (query.isEmpty) return true;
           final itemText = order.items
               .map(
@@ -314,9 +348,6 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               order.id.toLowerCase().contains(query) ||
               itemText.contains(query);
         }).toList();
-        if (tabOrders.isEmpty) {
-          return Center(child: Text(widget.emptyMessage));
-        }
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -336,8 +367,35 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                 );
               },
             ),
+            if (_isCompletedTab) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<_CompletedDateFilter>(
+                initialValue: ui.completedDateFilter,
+                decoration: const InputDecoration(labelText: 'Date Filter'),
+                items: _CompletedDateFilter.values
+                    .map(
+                      (filter) => DropdownMenuItem(
+                        value: filter,
+                        child: Text(_completedDateFilterLabel(filter)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(_businessOrdersUiProvider(_uiKey).notifier)
+                      .state = ui.copyWith(completedDateFilter: value);
+                },
+              ),
+            ],
             const SizedBox(height: 12),
-            ...tabOrders.map((order) => _buildOrderCard(context, order)),
+            if (tabOrders.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: Center(child: Text(widget.emptyMessage)),
+              )
+            else
+              ...tabOrders.map((order) => _buildOrderCard(context, order)),
           ],
         );
       },
@@ -356,15 +414,6 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     return order.status;
   }
 
-  String _statusLabel(OrderStatus status) {
-    return switch (status) {
-      OrderStatus.pending => 'New',
-      OrderStatus.inProgress || OrderStatus.approved => 'Processing',
-      OrderStatus.completed => 'Completed',
-      OrderStatus.cancelled => 'Cancelled',
-    };
-  }
-
   String _paymentStatusLabel(PaymentStatus status) {
     return status == PaymentStatus.done ? 'Done' : 'Remaining';
   }
@@ -376,12 +425,25 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         : value.toStringAsFixed(2);
   }
 
-  Color _statusColor(OrderStatus status) {
-    return switch (status) {
-      OrderStatus.completed => Colors.green,
-      OrderStatus.pending => Colors.red,
-      _ => Colors.yellow.shade800,
-    };
+  String _requestedByAddress(Order order) {
+    if (order.requesterType == OrderRequesterType.businessOwner) {
+      final requesterBusinessId = order.requesterBusinessId;
+      if (requesterBusinessId == null || requesterBusinessId.isEmpty) {
+        return '-';
+      }
+      final businessAsync = ref.watch(businessByIdProvider(requesterBusinessId));
+      final business = businessAsync.asData?.value;
+      final address = (business?.address ?? '').trim();
+      final city = (business?.city ?? '').trim();
+      if (address.isEmpty && city.isEmpty) return '-';
+      if (address.isEmpty) return city;
+      if (city.isEmpty) return address;
+      return '$address, $city';
+    }
+    final customerAsync = ref.watch(userProfileProvider(order.customerId));
+    final customer = customerAsync.asData?.value;
+    final address = (customer?.address ?? '').trim();
+    return address.isEmpty ? '-' : address;
   }
 
   String? _paymentCollectorLabel(Order order) {
@@ -397,49 +459,18 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     return '$who ($whoName)';
   }
 
-  bool _looksLikeImage(String value) {
-    final normalized = value.toLowerCase();
-    return normalized.contains('.jpg') ||
-        normalized.contains('.jpeg') ||
-        normalized.contains('.png') ||
-        normalized.contains('.webp') ||
-        normalized.contains('.gif');
-  }
-
-  List<OrderAttachment> _imageAttachments(Order order) {
-    final itemLevel = order.items.expand((item) => item.attachments);
-    return [...order.attachments, ...itemLevel]
-        .where(
-          (attachment) =>
-              _looksLikeImage(attachment.name) ||
-              _looksLikeImage(attachment.url),
-        )
-        .toList();
-  }
-
   Widget _buildOrderCard(BuildContext context, Order order) {
-    final effectiveStatus = _effectiveOrderStatus(order);
     final isBusinessOrder =
         order.requesterType == OrderRequesterType.businessOwner;
     final sourceLabel = isBusinessOrder ? 'Business Order' : 'Customer Order';
     final requestedBy = isBusinessOrder
         ? (order.requesterBusinessName ?? order.customerName)
         : order.customerName;
-    final includedItems = order.items.where((item) => item.isIncluded ?? true).toList();
-    final unavailableItems = order.items.where((item) => !(item.isIncluded ?? true)).toList();
-    final previewItems = includedItems.take(3).map(_itemSummary).join(', ');
-    final itemsSummary = includedItems.length > 3
-        ? '$previewItems +${includedItems.length - 3} more'
-        : (previewItems.isEmpty ? '-' : previewItems);
-    final unavailableSummary = unavailableItems.isEmpty
-        ? ''
-        : ' | Unavailable: ${unavailableItems.map((e) => e.title).join(', ')}';
+    final requestedAddress = _requestedByAddress(order);
     final paymentCollector = _paymentCollectorLabel(order);
-    final statusColor = _statusColor(effectiveStatus);
     final paymentColor = order.payment.status == PaymentStatus.done
         ? Colors.green
         : Colors.red;
-    final imageAttachments = _imageAttachments(order);
     final lineStyle = Theme.of(
       context,
     ).textTheme.bodyLarge?.copyWith(fontSize: 16);
@@ -475,21 +506,30 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                       ? PopupMenuButton<String>(
                           onSelected: (value) =>
                               _handleOrderAction(context, order, value),
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'approve',
-                              child: Text('Approve Order'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'mark_delivered',
-                              child: Text('Mark Delivered'),
-                            ),
-                            if (order.payment.status != PaymentStatus.done)
-                              const PopupMenuItem(
-                                value: 'payment_done',
-                                child: Text('Set Payment Done'),
-                              ),
-                          ],
+                          itemBuilder: (context) {
+                            final canApprove = order.status == OrderStatus.pending;
+                            final canUpdateAfterAccept =
+                                order.status == OrderStatus.approved ||
+                                order.status == OrderStatus.inProgress;
+                            return [
+                              if (canApprove)
+                                const PopupMenuItem(
+                                  value: 'approve',
+                                  child: Text('Approve Order'),
+                                ),
+                              if (canUpdateAfterAccept)
+                                const PopupMenuItem(
+                                  value: 'mark_delivered',
+                                  child: Text('Mark Delivered'),
+                                ),
+                              if (canUpdateAfterAccept &&
+                                  order.payment.status != PaymentStatus.done)
+                                const PopupMenuItem(
+                                  value: 'payment_done',
+                                  child: Text('Set Payment Done'),
+                                ),
+                            ];
+                          },
                         )
                       : const Icon(Icons.chevron_right),
                 ],
@@ -497,27 +537,8 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               const SizedBox(height: 4),
               Text('Requested by: $requestedBy', style: lineStyle),
               const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Priority: ${_capitalize(order.priority.name)} | Status: ',
-                    ),
-                    TextSpan(
-                      text: _statusLabel(effectiveStatus),
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextSpan(
-                      text: ' | Delivery: ${_capitalize(order.delivery.status.name)}',
-                    ),
-                  ],
-                ),
-                style: lineStyle,
-              ),
-              const SizedBox(height: 2),
+              Text('Address: $requestedAddress', style: lineStyle),
+              const SizedBox(height: 4),
               Text.rich(
                 TextSpan(
                   children: [
@@ -543,10 +564,16 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               ),
               if (paymentCollector != null)
                 Text('Collected by: $paymentCollector', style: lineStyle),
-              const SizedBox(height: 2),
-              Text('Items: $itemsSummary$unavailableSummary', style: lineStyle),
-              if (imageAttachments.isNotEmpty)
-                Text('Item Images: ${imageAttachments.length}', style: lineStyle),
+              if ((order.notes ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Remark: ${order.notes!.trim()}',
+                  style: lineStyle?.copyWith(
+                    color: Colors.red.shade300,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -639,12 +666,14 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   ) async {
     final firestore = ref.read(firestoreServiceProvider);
     if (value == 'approve') {
+      if (order.status != OrderStatus.pending) return;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BusinessOrderDetailScreen(order: order),
         ),
       );
     } else if (value == 'mark_delivered') {
+      if (order.status == OrderStatus.pending) return;
       final paymentChoice = await _askPaymentOnDelivery(context, order);
       if (paymentChoice == null) return;
       await firestore.updateOrder(order.id, {
@@ -675,6 +704,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         },
       });
     } else if (value == 'payment_done') {
+      if (order.status == OrderStatus.pending) return;
       final payment = PaymentInfo(
         status: PaymentStatus.done,
         method: order.payment.method,
@@ -1081,6 +1111,14 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 10),
                             child: ListTile(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        CustomerOrderDetailScreen(order: order),
+                                  ),
+                                );
+                              },
                               title: Text(
                                 '${order.businessName} • ${_capitalize(effectiveStatus.name)}',
                               ),

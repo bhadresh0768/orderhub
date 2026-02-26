@@ -31,5 +31,10 @@ service firebase.storage {
       allow read: if signedIn();
       allow write: if signedIn() && myBusinessId() == businessId;
     }
+
+    match /support/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == userId;
+    }
   }
 }

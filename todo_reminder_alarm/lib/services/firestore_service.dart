@@ -6,6 +6,7 @@ import '../models/catalog.dart';
 import '../models/delivery_agent.dart';
 import '../models/enums.dart';
 import '../models/order.dart';
+import '../models/support_ticket.dart';
 
 class FirestoreService {
   FirestoreService(this._db);
@@ -28,6 +29,8 @@ class FirestoreService {
       _db.collection('catalogProducts');
   CollectionReference<Map<String, dynamic>> get _catalogVariants =>
       _db.collection('catalogVariants');
+  CollectionReference<Map<String, dynamic>> get _supportTickets =>
+      _db.collection('supportTickets');
 
   Stream<AppUser?> userStream(String uid) {
     return _users.doc(uid).snapshots().map((doc) {
@@ -113,6 +116,21 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Order.fromDoc).toList());
+  }
+
+  Stream<List<SupportTicket>> supportTicketsForUserStream(String userId) {
+    return _supportTickets
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(SupportTicket.fromDoc).toList());
+  }
+
+  Stream<List<SupportTicket>> allSupportTicketsStream() {
+    return _supportTickets
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(SupportTicket.fromDoc).toList());
   }
 
   Stream<List<Order>> ordersForDeliveryAgentByPhoneStream(String phone) {
@@ -351,6 +369,23 @@ class FirestoreService {
 
   Future<void> deleteOrder(String orderId) async {
     await _orders.doc(orderId).delete();
+  }
+
+  Future<void> createSupportTicket(SupportTicket ticket) async {
+    await _supportTickets.doc(ticket.id).set(
+      ticket.toMap(),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> updateSupportTicket(
+    String ticketId,
+    Map<String, dynamic> data,
+  ) async {
+    await _supportTickets.doc(ticketId).update({
+      ...data,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
   }
 
   Future<void> deleteUser(String uid) async {

@@ -122,12 +122,6 @@ class CustomerOrderDetailScreen extends StatelessWidget {
         : order.status;
     final includedItems = order.items.where((e) => e.isIncluded ?? true).toList();
     final unavailableItems = order.items.where((e) => !(e.isIncluded ?? true)).toList();
-    final itemAttachments = order.items.expand((item) => item.attachments).toList();
-    final allAttachments = <OrderAttachment>[
-      ...order.attachments,
-      ...itemAttachments,
-    ];
-    final imageAttachments = allAttachments.where(_isImageAttachment).toList();
     final schedule = order.scheduledAt;
     final created = order.createdAt;
     final statusColor = switch (effectiveStatus) {
@@ -196,25 +190,95 @@ class CustomerOrderDetailScreen extends StatelessWidget {
             const Text('No items included for delivery.')
           else
             ...includedItems.map((item) {
+              final itemImageAttachments = item.attachments
+                  .where(_isImageAttachment)
+                  .toList();
               final lineSubtotal = (item.unitPrice ?? 0) * item.quantity;
               final lineGst = (item.gstIncluded ?? false) && (order.gstPercent ?? 0) > 0
                   ? lineSubtotal * (order.gstPercent! / 100)
                   : 0.0;
               final lineTotal = lineSubtotal + lineGst;
+              final subtitleParts = [
+                if ((item.note ?? '').trim().isNotEmpty) item.note!.trim(),
+                if (item.unitPrice != null)
+                  'Price: ${_money(item.unitPrice)} • Line: ${_money(lineTotal)}',
+              ];
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(
-                    '${item.title} ${_itemQuantityLabel(item)}',
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${item.title} ${_itemQuantityLabel(item)}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            if (subtitleParts.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(subtitleParts.join('\n')),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (itemImageAttachments.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        InkWell(
+                          onTap: () =>
+                              _showImageGallery(context, itemImageAttachments, 0),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  itemImageAttachments.first.url,
+                                  width: 72,
+                                  height: 72,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(
+                                    width: 72,
+                                    height: 72,
+                                    color: Colors.black12,
+                                    alignment: Alignment.center,
+                                    child: const Icon(
+                                      Icons.image_not_supported_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 5,
+                                right: 5,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.7),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    '${itemImageAttachments.length}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  subtitle: Text(
-                    [
-                      if ((item.note ?? '').trim().isNotEmpty) item.note!.trim(),
-                      if (item.unitPrice != null)
-                        'Price: ${_money(item.unitPrice)} • Line: ${_money(lineTotal)}',
-                    ].join('\n'),
-                  ),
-                  isThreeLine: true,
                 ),
               );
             }),
@@ -261,43 +325,6 @@ class CustomerOrderDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-          if (imageAttachments.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Item Images',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: imageAttachments.asMap().entries.map((entry) {
-                final index = entry.key;
-                final attachment = entry.value;
-                return InkWell(
-                  onTap: () =>
-                      _showImageGallery(context, imageAttachments, index),
-                  borderRadius: BorderRadius.circular(10),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      attachment.url,
-                      width: 92,
-                      height: 92,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        width: 92,
-                        height: 92,
-                        color: Colors.black12,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.image_not_supported_outlined),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
         ],
       ),
     );

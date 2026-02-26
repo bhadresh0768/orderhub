@@ -12,6 +12,7 @@ import 'models/business.dart';
 import 'models/catalog.dart';
 import 'models/delivery_agent.dart';
 import 'models/order.dart';
+import 'models/support_ticket.dart';
 import 'services/auth_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/firestore_service.dart';
@@ -169,6 +170,17 @@ final catalogVariantsProvider =
 
 final allOrdersProvider = StreamProvider<List<Order>>((ref) {
   return ref.read(firestoreServiceProvider).allOrdersStream();
+});
+
+final supportTicketsForUserProvider =
+    StreamProvider.family<List<SupportTicket>, String>((ref, userId) {
+      return ref
+          .read(firestoreServiceProvider)
+          .supportTicketsForUserStream(userId);
+    });
+
+final allSupportTicketsProvider = StreamProvider<List<SupportTicket>>((ref) {
+  return ref.read(firestoreServiceProvider).allSupportTicketsStream();
 });
 
 final deliveryAgentsForBusinessProvider =

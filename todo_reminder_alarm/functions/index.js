@@ -43,6 +43,33 @@ async function sendToCustomer(customerId, title, body, data = {}) {
   }
 }
 
+async function sendToAdmins(title, body, data = {}) {
+  const adminsSnapshot = await db.collection("users")
+      .where("role", "==", "admin")
+      .get();
+  if (adminsSnapshot.empty) return;
+
+  const allTokens = [];
+  adminsSnapshot.docs.forEach((doc) => {
+    const tokens = doc.get("fcmTokens") || [];
+    if (Array.isArray(tokens) && tokens.length > 0) {
+      allTokens.push(...tokens);
+    }
+  });
+
+  const uniqueTokens = [...new Set(allTokens)].filter((token) => !!token);
+  if (uniqueTokens.length === 0) return;
+
+  await messaging.sendEachForMulticast({
+    tokens: uniqueTokens,
+    notification: {title, body},
+    data: Object.entries(data).reduce((acc, [key, value]) => {
+      acc[key] = String(value);
+      return acc;
+    }, {}),
+  });
+}
+
 exports.notifyOrderPlaced = onDocumentCreated("orders/{orderId}", async (event) => {
   const order = event.data && event.data.data();
   if (!order) return;
@@ -80,3 +107,36 @@ exports.notifyOrderStatusChanged = onDocumentUpdated("orders/{orderId}", async (
       {orderId: event.params.orderId, type: "order_updated"},
   );
 });
+
+exports.notifySupportTicketCreated = onDocumentCreated(
+    "supportTickets/{ticketId}",
+    async (event) => {
+      const ticket = event.data && event.data.data();
+      if (!ticket) return;
+
+      const userName = (ticket.userName || "User").toString();
+      const issueType = (ticket.issueType || "other").toString();
+      await sendToAdmins(
+          "New Support Ticket",
+          `${userName} raised ${issueType} issue`,
+          {ticketId: event.params.ticketId, type: "support_ticket_created"},
+      );
+    },
+);
+
+exports.notifySupportTicketStatusChanged = onDocumentUpdated(
+    "supportTickets/{ticketId}",
+    async (event) => {
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+      if (!before || !after) return;
+      if (before.status === after.status) return;
+
+      await sendToCustomer(
+          after.userId,
+          "Support Ticket Updated",
+          `Ticket status: ${after.status}`,
+          {ticketId: event.params.ticketId, type: "support_ticket_updated"},
+      );
+    },
+);

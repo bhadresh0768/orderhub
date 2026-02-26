@@ -5,26 +5,29 @@ import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
+import 'customer_order_detail_screen.dart';
 
 final _orderHistoryUiProvider = StateProvider.autoDispose<_OrderHistoryUiState>(
   (ref) => const _OrderHistoryUiState(),
 );
 
+enum _ReportDateFilter { all, today, thisWeek, thisMonth, thisYear }
+
 class _OrderHistoryUiState {
   const _OrderHistoryUiState({
     this.statusFilter,
     this.priorityFilter,
-    this.days = 30,
+    this.dateFilter = _ReportDateFilter.all,
   });
 
   final OrderStatus? statusFilter;
   final OrderPriority? priorityFilter;
-  final int days;
+  final _ReportDateFilter dateFilter;
 
   _OrderHistoryUiState copyWith({
     Object? statusFilter = _orderHistoryUnset,
     Object? priorityFilter = _orderHistoryUnset,
-    int? days,
+    _ReportDateFilter? dateFilter,
   }) {
     return _OrderHistoryUiState(
       statusFilter: statusFilter == _orderHistoryUnset
@@ -33,7 +36,7 @@ class _OrderHistoryUiState {
       priorityFilter: priorityFilter == _orderHistoryUnset
           ? this.priorityFilter
           : priorityFilter as OrderPriority?,
-      days: days ?? this.days,
+      dateFilter: dateFilter ?? this.dateFilter,
     );
   }
 }
@@ -62,6 +65,36 @@ class _OrderHistoryReportScreenState
     return value[0].toUpperCase() + value.substring(1);
   }
 
+  String _dateFilterLabel(_ReportDateFilter filter) {
+    return switch (filter) {
+      _ReportDateFilter.all => 'All',
+      _ReportDateFilter.today => 'Today',
+      _ReportDateFilter.thisWeek => 'This Week',
+      _ReportDateFilter.thisMonth => 'This Month',
+      _ReportDateFilter.thisYear => 'This Year',
+    };
+  }
+
+  bool _matchesDateFilter(DateTime date, _ReportDateFilter filter, DateTime now) {
+    switch (filter) {
+      case _ReportDateFilter.all:
+        return true;
+      case _ReportDateFilter.today:
+        return date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day;
+      case _ReportDateFilter.thisWeek:
+        final startOfToday = DateTime(now.year, now.month, now.day);
+        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
+        final endOfWeek = startOfWeek.add(const Duration(days: 7));
+        return !date.isBefore(startOfWeek) && date.isBefore(endOfWeek);
+      case _ReportDateFilter.thisMonth:
+        return date.year == now.year && date.month == now.month;
+      case _ReportDateFilter.thisYear:
+        return date.year == now.year;
+    }
+  }
+
   List<Order> get _filtered {
     final ui = ref.read(_orderHistoryUiProvider);
     final now = DateTime.now();
@@ -72,11 +105,9 @@ class _OrderHistoryReportScreenState
       if (ui.priorityFilter != null && order.priority != ui.priorityFilter) {
         return false;
       }
-      if (ui.days > 0) {
-        final created = order.createdAt ?? now;
-        if (created.isBefore(now.subtract(Duration(days: ui.days)))) {
-          return false;
-        }
+      final created = order.createdAt ?? now;
+      if (!_matchesDateFilter(created, ui.dateFilter, now)) {
+        return false;
       }
       return true;
     }).toList();
@@ -200,18 +231,20 @@ class _OrderHistoryReportScreenState
               ),
               SizedBox(
                 width: 180,
-                child: DropdownButtonFormField<int>(
-                  initialValue: ui.days,
+                child: DropdownButtonFormField<_ReportDateFilter>(
+                  initialValue: ui.dateFilter,
                   decoration: const InputDecoration(labelText: 'Time Window'),
-                  items: const [
-                    DropdownMenuItem(value: 7, child: Text('Last 7 Days')),
-                    DropdownMenuItem(value: 30, child: Text('Last 30 Days')),
-                    DropdownMenuItem(value: 90, child: Text('Last 90 Days')),
-                    DropdownMenuItem(value: 0, child: Text('All Time')),
-                  ],
+                  items: _ReportDateFilter.values
+                      .map(
+                        (value) => DropdownMenuItem<_ReportDateFilter>(
+                          value: value,
+                          child: Text(_dateFilterLabel(value)),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (value) {
                     ref.read(_orderHistoryUiProvider.notifier).state =
-                        ui.copyWith(days: value ?? 30);
+                        ui.copyWith(dateFilter: value ?? _ReportDateFilter.all);
                   },
                 ),
               ),
@@ -263,18 +296,28 @@ class _OrderHistoryReportScreenState
           if (filtered.isEmpty) const Text('No orders match current filters.'),
           ...filtered.map(
             (order) => Card(
-              child: ListTile(
-                title: Text(
-                  '${order.businessName} • ${_capitalize(order.status.name)}',
-                ),
-                subtitle: Text(
-                  'Priority: ${_capitalize(order.priority.name)} | Items: ${order.items.length} | '
-                  'Payment: ${_capitalize(order.payment.status.name)} | Delivery: ${_capitalize(order.delivery.status.name)}',
-                ),
-                trailing: Text(
-                  order.createdAt == null
-                      ? '-'
-                      : order.createdAt!.toLocal().toString().split('.').first,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CustomerOrderDetailScreen(order: order),
+                    ),
+                  );
+                },
+                child: ListTile(
+                  title: Text(
+                    '${order.businessName} • ${_capitalize(order.status.name)}',
+                  ),
+                  subtitle: Text(
+                    'Priority: ${_capitalize(order.priority.name)} | Items: ${order.items.length} | '
+                    'Payment: ${_capitalize(order.payment.status.name)} | Delivery: ${_capitalize(order.delivery.status.name)}',
+                  ),
+                  trailing: Text(
+                    order.createdAt == null
+                        ? '-'
+                        : order.createdAt!.toLocal().toString().split('.').first,
+                  ),
                 ),
               ),
             ),
