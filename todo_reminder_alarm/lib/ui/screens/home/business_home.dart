@@ -440,10 +440,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       if (city.isEmpty) return address;
       return '$address, $city';
     }
-    final customerAsync = ref.watch(userProfileProvider(order.customerId));
-    final customer = customerAsync.asData?.value;
-    final address = (customer?.address ?? '').trim();
-    return address.isEmpty ? '-' : address;
+    return '-';
   }
 
   String? _paymentCollectorLabel(Order order) {

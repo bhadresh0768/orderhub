@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
+import '../../../models/business.dart';
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
@@ -301,6 +302,17 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
     final ordersAsync = ref.watch(
       ordersForDeliveryAgentByPhoneProvider(widget.phone),
     );
+    final businessesAsync = ref.watch(businessesProvider);
+    final businessAddressById = <String, String>{};
+    final businessList = businessesAsync.asData?.value ?? const <BusinessProfile>[];
+    for (final business in businessList) {
+      final address = (business.address ?? '').trim();
+      final city = business.city.trim();
+      final text = address.isEmpty
+          ? (city.isEmpty ? '-' : city)
+          : (city.isEmpty ? address : '$address, $city');
+      businessAddressById[business.id] = text;
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text('Delivery Dashboard • ${widget.name}'),
@@ -377,12 +389,14 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                       _buildOrdersList(
                         context,
                         upcomingOrders,
+                        businessAddressById: businessAddressById,
                         allowActions: true,
                         emptyText: 'No upcoming deliveries in this range.',
                       ),
                       _buildOrdersList(
                         context,
                         completedOrders,
+                        businessAddressById: businessAddressById,
                         allowActions: false,
                         emptyText: 'No completed deliveries in this range.',
                       ),
@@ -402,6 +416,7 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
   Widget _buildOrdersList(
     BuildContext context,
     List<Order> orders, {
+    required Map<String, String> businessAddressById,
     required bool allowActions,
     required String emptyText,
   }) {
@@ -420,6 +435,9 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
             : (amount == amount.truncateToDouble()
                   ? amount.toInt().toString()
                   : amount.toStringAsFixed(2));
+        final deliveryAddress = order.requesterType == OrderRequesterType.businessOwner
+            ? businessAddressById[order.requesterBusinessId] ?? '-'
+            : '-';
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
@@ -439,6 +457,8 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                 Text(
                   'Payment: ${_capitalize(order.payment.status.name)} • Amount: $amountText',
                 ),
+                const SizedBox(height: 4),
+                Text('Address: $deliveryAddress'),
                 if (order.payment.collectedBy != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
