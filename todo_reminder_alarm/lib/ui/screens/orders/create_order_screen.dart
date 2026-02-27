@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../models/app_user.dart';
 import '../../../models/business.dart';
+import '../../../models/delivery_address.dart';
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../models/payment.dart';
@@ -33,6 +34,7 @@ class _CreateOrderUiState {
     this.loadingSuggestions = false,
     this.catalogItems = const [],
     this.itemSuggestions = const [],
+    this.deliveryAddressRef = _profileAddressRef,
     this.inlineError,
   });
 
@@ -48,6 +50,7 @@ class _CreateOrderUiState {
   final bool loadingSuggestions;
   final List<String> catalogItems;
   final List<String> itemSuggestions;
+  final String deliveryAddressRef;
   final String? inlineError;
 
   _CreateOrderUiState copyWith({
@@ -63,6 +66,7 @@ class _CreateOrderUiState {
     bool? loadingSuggestions,
     List<String>? catalogItems,
     List<String>? itemSuggestions,
+    String? deliveryAddressRef,
     Object? inlineError = _createOrderUnset,
   }) {
     return _CreateOrderUiState(
@@ -80,6 +84,7 @@ class _CreateOrderUiState {
       loadingSuggestions: loadingSuggestions ?? this.loadingSuggestions,
       catalogItems: catalogItems ?? this.catalogItems,
       itemSuggestions: itemSuggestions ?? this.itemSuggestions,
+      deliveryAddressRef: deliveryAddressRef ?? this.deliveryAddressRef,
       inlineError: inlineError == _createOrderUnset
           ? this.inlineError
           : inlineError as String?,
@@ -88,6 +93,7 @@ class _CreateOrderUiState {
 }
 
 const _createOrderUnset = Object();
+const _profileAddressRef = '__profile__';
 
 class CreateOrderScreen extends ConsumerStatefulWidget {
   const CreateOrderScreen({
@@ -281,6 +287,34 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       case PaymentMethod.onlineTransfer:
         return 'Online Transfer';
     }
+  }
+
+  String _composeAddress(String? address, String? city) {
+    final addressText = (address ?? '').trim();
+    final cityText = (city ?? '').trim();
+    if (addressText.isEmpty && cityText.isEmpty) return '-';
+    if (addressText.isEmpty) return cityText;
+    if (cityText.isEmpty) return addressText;
+    return '$addressText, $cityText';
+  }
+
+  String _defaultAddressLabel() {
+    if (widget.requesterBusiness != null) {
+      return '${widget.requesterBusiness!.name} (Default)';
+    }
+    final shopName = (widget.customer.shopName ?? '').trim();
+    if (shopName.isNotEmpty) return '$shopName (Default)';
+    return 'Default Address';
+  }
+
+  String _defaultAddressText() {
+    if (widget.requesterBusiness != null) {
+      return _composeAddress(
+        widget.requesterBusiness!.address,
+        widget.requesterBusiness!.city,
+      );
+    }
+    return _composeAddress(widget.customer.address, null);
   }
 
   String? _conversionHint(OrderItem item) {
@@ -513,6 +547,325 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     );
   }
 
+  Future<void> _showItemImageGallery(
+    List<OrderAttachment> attachments, {
+    int initialIndex = 0,
+  }) async {
+    final pageNotifier = ValueNotifier<int>(initialIndex);
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog.fullscreen(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: PageController(initialPage: initialIndex),
+                itemCount: attachments.length,
+                onPageChanged: (index) => pageNotifier.value = index,
+                itemBuilder: (context, index) {
+                  final attachment = attachments[index];
+                  return Center(
+                    child: InteractiveViewer(
+                      child: Image.network(
+                        attachment.url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            const Text('Unable to load image'),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: IconButton.filledTonal(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              if (attachments.length > 1)
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: pageNotifier,
+                    builder: (context, page, _) {
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            '${page + 1}/${attachments.length}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    pageNotifier.dispose();
+  }
+  Future<void> _showDeliveryAddressBottomSheet({
+    DeliveryAddressEntry? existing,
+    required bool hasAnySavedAddress,
+  }) async {
+    String label = existing?.label ?? '';
+    String address = existing?.address ?? '';
+    String city = existing?.city ?? '';
+    String contactPerson = existing?.contactPerson ?? '';
+    String contactPhone = existing?.contactPhone ?? '';
+    bool isDefault = existing?.isDefault ?? !hasAnySavedAddress;
+    bool saving = false;
+    String? errorText;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 8,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        existing == null
+                            ? 'Add Delivery Address'
+                            : 'Edit Delivery Address',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: label,
+                        onChanged: (value) => label = value,
+                        decoration: const InputDecoration(
+                          labelText: 'Label',
+                          hintText: 'Example: Office A',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        initialValue: address,
+                        onChanged: (value) => address = value,
+                        decoration: const InputDecoration(
+                          labelText: 'Address',
+                          hintText: 'Example: 123 Main Road',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        initialValue: city,
+                        onChanged: (value) => city = value,
+                        decoration: const InputDecoration(
+                          labelText: 'City (optional)',
+                          hintText: 'Example: Surat',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        initialValue: contactPerson,
+                        onChanged: (value) => contactPerson = value,
+                        decoration: const InputDecoration(
+                          labelText: 'Contact Person (optional)',
+                          hintText: 'Example: Ramesh',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        initialValue: contactPhone,
+                        keyboardType: TextInputType.phone,
+                        onChanged: (value) => contactPhone = value,
+                        decoration: const InputDecoration(
+                          labelText: 'Mobile Number (optional)',
+                          hintText: 'Example: +91 9876543210',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        value: isDefault,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Set as default'),
+                        onChanged: saving
+                            ? null
+                            : (next) => setModalState(
+                                  () => isDefault = next ?? false,
+                                ),
+                      ),
+                      if (errorText != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            errorText!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: saving
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: saving
+                                ? null
+                                : () async {
+                                    final cleanLabel = label.trim();
+                                    final cleanAddress = address.trim();
+                                    final cleanCity = city.trim();
+                                    final cleanContactPerson =
+                                        contactPerson.trim();
+                                    final cleanContactPhone = contactPhone.trim();
+                                    if (cleanLabel.isEmpty ||
+                                        cleanAddress.isEmpty) {
+                                      setModalState(() {
+                                        errorText =
+                                            'Label and address are required.';
+                                      });
+                                      return;
+                                    }
+                                    setModalState(() {
+                                      saving = true;
+                                      errorText = null;
+                                    });
+                                    try {
+                                      final service = ref.read(
+                                        firestoreServiceProvider,
+                                      );
+                                      final entry = DeliveryAddressEntry(
+                                        id: existing?.id ?? const Uuid().v4(),
+                                        userId: widget.customer.id,
+                                        label: cleanLabel,
+                                        address: cleanAddress,
+                                        city: cleanCity.isEmpty
+                                            ? null
+                                            : cleanCity,
+                                        contactPerson: cleanContactPerson.isEmpty
+                                            ? null
+                                            : cleanContactPerson,
+                                        contactPhone: cleanContactPhone.isEmpty
+                                            ? null
+                                            : cleanContactPhone,
+                                        isDefault: isDefault,
+                                        createdAt:
+                                            existing?.createdAt ??
+                                            DateTime.now(),
+                                        updatedAt: DateTime.now(),
+                                      );
+                                      if (existing == null) {
+                                        await service.createDeliveryAddress(
+                                          entry,
+                                        );
+                                      } else {
+                                        await service.updateDeliveryAddress(
+                                          existing.id,
+                                          entry,
+                                        );
+                                      }
+                                      if (!mounted || !sheetContext.mounted) {
+                                        return;
+                                      }
+                                      _updateUi(
+                                        (state) => state.copyWith(
+                                          deliveryAddressRef: entry.id,
+                                          inlineError: null,
+                                        ),
+                                      );
+                                      Navigator.of(sheetContext).pop(true);
+                                    } catch (err) {
+                                      setModalState(() {
+                                        errorText =
+                                            'Failed to save address: $err';
+                                        saving = false;
+                                      });
+                                    }
+                                  },
+                            child: const Text('Save'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Delivery address saved')),
+      );
+    }
+  }
+
+  Future<void> _deleteDeliveryAddress(DeliveryAddressEntry address) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Address'),
+          content: Text('Delete "${address.label}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true) return;
+    try {
+      await ref.read(firestoreServiceProvider).deleteDeliveryAddress(address.id);
+      if (!mounted) return;
+      if (_ui.deliveryAddressRef == address.id) {
+        _updateUi(
+          (state) => state.copyWith(deliveryAddressRef: _profileAddressRef),
+        );
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Address deleted')));
+    } catch (err) {
+      if (!mounted) return;
+      _updateUi(
+        (state) => state.copyWith(inlineError: 'Failed to delete address: $err'),
+      );
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_ui.items.isEmpty) {
@@ -523,6 +876,29 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       return;
     }
     _updateUi((state) => state.copyWith(loading: true, inlineError: null));
+
+    final savedAddresses =
+        ref.read(deliveryAddressesProvider(widget.customer.id)).asData?.value ??
+        const <DeliveryAddressEntry>[];
+    DeliveryAddressEntry? selectedDeliveryAddress;
+    for (final entry in savedAddresses) {
+      if (entry.id == _ui.deliveryAddressRef) {
+        selectedDeliveryAddress = entry;
+        break;
+      }
+    }
+    final deliveryAddressLabel = _ui.deliveryAddressRef == _profileAddressRef
+        ? _defaultAddressLabel()
+        : selectedDeliveryAddress?.label;
+    final deliveryAddress = _ui.deliveryAddressRef == _profileAddressRef
+        ? _defaultAddressText()
+        : selectedDeliveryAddress?.fullAddress;
+    final deliveryContactName = _ui.deliveryAddressRef == _profileAddressRef
+        ? null
+        : selectedDeliveryAddress?.contactPerson;
+    final deliveryContactPhone = _ui.deliveryAddressRef == _profileAddressRef
+        ? null
+        : selectedDeliveryAddress?.contactPhone;
 
     final firestore = ref.read(firestoreServiceProvider);
     final requesterBusiness = widget.requesterBusiness;
@@ -537,6 +913,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
           : OrderRequesterType.businessOwner,
       requesterBusinessId: requesterBusiness?.id,
       requesterBusinessName: requesterBusiness?.name,
+      deliveryAddressLabel: deliveryAddressLabel,
+      deliveryAddress: deliveryAddress,
+      deliveryContactName: deliveryContactName,
+      deliveryContactPhone: deliveryContactPhone,
       priority: _ui.priority,
       status: OrderStatus.pending,
       payment: PaymentInfo(
@@ -583,6 +963,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(_createOrderUiProvider(_draftOrderId));
+    final deliveryAddressesAsync = ref.watch(
+      deliveryAddressesProvider(widget.customer.id),
+    );
     return Scaffold(
       appBar: AppBar(title: Text('Order ${widget.business.name}')),
       body: ListView(
@@ -600,6 +983,131 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       widget.requesterBusiness == null
                           ? 'Requester: ${widget.customer.name}'
                           : 'Requester: ${widget.requesterBusiness!.name} (Business Owner)',
+                    ),
+                    const SizedBox(height: 12),
+                    deliveryAddressesAsync.when(
+                      data: (addresses) {
+                        DeliveryAddressEntry? defaultEntry;
+                        for (final entry in addresses) {
+                          if (entry.isDefault) {
+                            defaultEntry = entry;
+                            break;
+                          }
+                        }
+                        if (ui.deliveryAddressRef == _profileAddressRef &&
+                            defaultEntry != null) {
+                          final defaultEntryId = defaultEntry.id;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            _updateUi(
+                              (state) => state.copyWith(
+                                deliveryAddressRef: defaultEntryId,
+                              ),
+                            );
+                          });
+                        }
+                        final selectedRef = addresses.any(
+                          (entry) => entry.id == ui.deliveryAddressRef,
+                        )
+                            ? ui.deliveryAddressRef
+                            : _profileAddressRef;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            DropdownButtonFormField<String>(
+                              key: ValueKey(selectedRef),
+                              initialValue: selectedRef,
+                              decoration: const InputDecoration(
+                                labelText: 'Delivery Address',
+                              ),
+                              items: [
+                                DropdownMenuItem(
+                                  value: _profileAddressRef,
+                                  child: Text(
+                                    '${_defaultAddressLabel()} • ${_defaultAddressText()}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                ...addresses.map(
+                                  (entry) => DropdownMenuItem(
+                                    value: entry.id,
+                                    child: Text(
+                                      '${entry.label} • ${entry.fullAddress}',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) return;
+                                _updateUi(
+                                  (state) => state.copyWith(
+                                    deliveryAddressRef: value,
+                                    inlineError: null,
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () => _showDeliveryAddressBottomSheet(
+                                    hasAnySavedAddress: addresses.isNotEmpty,
+                                  ),
+                                  icon: const Icon(Icons.add_location_alt_outlined),
+                                  label: const Text('Add Address'),
+                                ),
+                                if (selectedRef != _profileAddressRef)
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      final editing = addresses.firstWhere(
+                                        (entry) => entry.id == selectedRef,
+                                      );
+                                      _showDeliveryAddressBottomSheet(
+                                        existing: editing,
+                                        hasAnySavedAddress: addresses.isNotEmpty,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.edit_location_alt_outlined),
+                                    label: const Text('Edit Selected'),
+                                  ),
+                                if (selectedRef != _profileAddressRef)
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      final deleting = addresses.firstWhere(
+                                        (entry) => entry.id == selectedRef,
+                                      );
+                                      _deleteDeliveryAddress(deleting);
+                                    },
+                                    icon: const Icon(Icons.delete_outline),
+                                    label: const Text('Delete Selected'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                      loading: () => const LinearProgressIndicator(minHeight: 2),
+                      error: (_, _) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Address book temporarily unavailable. Please retry.',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => ref.invalidate(
+                              deliveryAddressesProvider(widget.customer.id),
+                            ),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -762,8 +1270,73 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                           final index = entry.key;
                           final item = entry.value;
                           final conversion = _conversionHint(item);
+                          final imageCount = item.attachments.length;
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
+                            leading: imageCount == 0
+                                ? null
+                                : InkWell(
+                                    borderRadius: BorderRadius.circular(8),
+                                    onTap: () => _showItemImageGallery(
+                                      item.attachments,
+                                      initialIndex: 0,
+                                    ),
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Image.network(
+                                            item.attachments.first.url,
+                                            width: 48,
+                                            height: 48,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) => Container(
+                                              width: 48,
+                                              height: 48,
+                                              alignment: Alignment.center,
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .surfaceContainerHighest,
+                                              ),
+                                              child: const Icon(
+                                                Icons.image_not_supported_outlined,
+                                                size: 20,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (imageCount > 1)
+                                          Positioned(
+                                            right: -6,
+                                            top: -6,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 1,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black87,
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: Text(
+                                                '$imageCount',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
                             title: Text(
                               '${item.title} ${_itemQuantityLabel(item)}',
                             ),
@@ -775,8 +1348,6 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                 if (item.note != null && item.note!.isNotEmpty)
                                   item.note!,
                                 if (conversion != null) '~ $conversion',
-                                if (item.attachments.isNotEmpty)
-                                  'Images: ${item.attachments.length}',
                               ].join('  '),
                             ),
                             trailing: Wrap(

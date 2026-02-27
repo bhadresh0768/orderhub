@@ -106,7 +106,7 @@ class _CategoriesTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -201,8 +201,8 @@ class _ProductsTab extends ConsumerWidget {
                                 'Variants: ${variants.length}',
                               ),
                               loading: () => const Text('Variants: ...'),
-                              error: (err, _) =>
-                                  Text('Variants error: $err'),
+                              error: (_, _) =>
+                                  const Text('Variants unavailable'),
                             );
                           },
                         ),
@@ -216,7 +216,7 @@ class _ProductsTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -491,7 +491,7 @@ Future<void> _showVariantsSheet(
                     );
                   },
                   loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (err, _) => Center(child: Text('Error: $err')),
+                  error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
                 ),
               ),
             ],

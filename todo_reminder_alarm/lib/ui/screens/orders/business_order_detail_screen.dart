@@ -332,7 +332,24 @@ class _BusinessOrderDetailScreenState
     return status == PaymentStatus.done ? Colors.green : Colors.red;
   }
 
+  ({String address, String? contact}) _splitLegacyAddress(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty) return (address: '-', contact: null);
+    const marker = '• Contact:';
+    final idx = raw.indexOf(marker);
+    if (idx < 0) return (address: raw, contact: null);
+    final address = raw.substring(0, idx).trim();
+    final contact = raw.substring(idx + marker.length).trim();
+    return (
+      address: address.isEmpty ? '-' : address,
+      contact: contact.isEmpty ? null : contact,
+    );
+  }
+
   String _requestedByAddress() {
+    final direct = (_order.deliveryAddress ?? '').trim();
+    if (direct.isNotEmpty) return _splitLegacyAddress(direct).address;
+
     if (_order.requesterType == OrderRequesterType.businessOwner) {
       final requesterBusinessId = _order.requesterBusinessId;
       if (requesterBusinessId == null || requesterBusinessId.isEmpty) {
@@ -347,10 +364,18 @@ class _BusinessOrderDetailScreenState
       if (city.isEmpty) return address;
       return '$address, $city';
     }
-    final customerAsync = ref.watch(userProfileProvider(_order.customerId));
-    final customer = customerAsync.asData?.value;
-    final address = (customer?.address ?? '').trim();
-    return address.isEmpty ? '-' : address;
+    return '-';
+  }
+
+  String? _requestedByContact() {
+    final name = (_order.deliveryContactName ?? '').trim();
+    final phone = (_order.deliveryContactPhone ?? '').trim();
+    if (name.isNotEmpty && phone.isNotEmpty) return '$name ($phone)';
+    if (name.isNotEmpty) return name;
+    if (phone.isNotEmpty) return phone;
+    final direct = (_order.deliveryAddress ?? '').trim();
+    if (direct.isEmpty) return null;
+    return _splitLegacyAddress(direct).contact;
   }
 
   void _showLockedMessage() {
@@ -871,6 +896,7 @@ class _BusinessOrderDetailScreenState
         ? (_order.requesterBusinessName ?? _order.customerName)
         : _order.customerName;
     final requestedAddress = _requestedByAddress();
+    final requestedContact = _requestedByContact();
     final includedCount = _itemIncluded.where((value) => value).length;
     final billing = _billingPreview();
     final isLocked = _isLocked;
@@ -919,13 +945,18 @@ class _BusinessOrderDetailScreenState
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
-                    'Requested by: $requester',
+                    'Order by: $requester',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
                     'Address: $requestedAddress',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  if (requestedContact != null)
+                    Text(
+                      'Contact: $requestedContact',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   Text(
                     'Priority: ${_capitalize(_order.priority.name)}',
                     style: Theme.of(context).textTheme.titleMedium,

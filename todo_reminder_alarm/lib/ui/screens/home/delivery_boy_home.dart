@@ -8,21 +8,40 @@ import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
 
-enum _DeliveryDateFilter { today, week, month, year }
+enum _DeliveryDateFilter { today, week, month, year, custom }
 
 final _deliveryBoyUiProvider = StateProvider.autoDispose<_DeliveryBoyUiState>(
   (ref) => const _DeliveryBoyUiState(),
 );
 
 class _DeliveryBoyUiState {
-  const _DeliveryBoyUiState({this.filter = _DeliveryDateFilter.month});
+  const _DeliveryBoyUiState({
+    this.filter = _DeliveryDateFilter.month,
+    this.customFrom,
+    this.customTo,
+  });
 
   final _DeliveryDateFilter filter;
+  final DateTime? customFrom;
+  final DateTime? customTo;
 
-  _DeliveryBoyUiState copyWith({_DeliveryDateFilter? filter}) {
-    return _DeliveryBoyUiState(filter: filter ?? this.filter);
+  _DeliveryBoyUiState copyWith({
+    _DeliveryDateFilter? filter,
+    Object? customFrom = _deliveryDateUnset,
+    Object? customTo = _deliveryDateUnset,
+  }) {
+    return _DeliveryBoyUiState(
+      filter: filter ?? this.filter,
+      customFrom: customFrom == _deliveryDateUnset
+          ? this.customFrom
+          : customFrom as DateTime?,
+      customTo: customTo == _deliveryDateUnset
+          ? this.customTo
+          : customTo as DateTime?,
+    );
   }
 }
+const _deliveryDateUnset = Object();
 
 class DeliveryBoyHomeScreen extends ConsumerWidget {
   const DeliveryBoyHomeScreen({super.key});
@@ -61,7 +80,9 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+      error: (_, _) => Scaffold(
+        body: Center(child: Text('Something went wrong. Please retry.')),
+      ),
     );
   }
 }
@@ -80,6 +101,38 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
   String _capitalize(String value) {
     if (value.isEmpty) return value;
     return value[0].toUpperCase() + value.substring(1);
+  }
+
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
+    final start = DateTime(from.year, from.month, from.day);
+    final endExclusive = DateTime(to.year, to.month, to.day).add(
+      const Duration(days: 1),
+    );
+    return !date.isBefore(start) && date.isBefore(endExclusive);
+  }
+
+  Future<void> _pickCustomRange(_DeliveryBoyUiState uiState) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: (uiState.customFrom != null && uiState.customTo != null)
+          ? DateTimeRange(start: uiState.customFrom!, end: uiState.customTo!)
+          : null,
+    );
+    if (picked == null || !mounted) return;
+    ref.read(_deliveryBoyUiProvider.notifier).state = uiState.copyWith(
+      filter: _DeliveryDateFilter.custom,
+      customFrom: picked.start,
+      customTo: picked.end,
+    );
   }
 
   DateTime? _referenceDate(Order order, {required bool completedTab}) {
@@ -117,6 +170,11 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
         return date.year == now.year && date.month == now.month;
       case _DeliveryDateFilter.year:
         return date.year == now.year;
+      case _DeliveryDateFilter.custom:
+        final from = ref.read(_deliveryBoyUiProvider).customFrom;
+        final to = ref.read(_deliveryBoyUiProvider).customTo;
+        if (from == null || to == null) return false;
+        return _isInDateRange(date, from, to);
     }
   }
 
@@ -130,6 +188,8 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
         return 'This Month';
       case _DeliveryDateFilter.year:
         return 'This Year';
+      case _DeliveryDateFilter.custom:
+        return 'Custom Range';
     }
   }
 
@@ -370,6 +430,14 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                             if (value != null) {
                               ref.read(_deliveryBoyUiProvider.notifier).state =
                                   uiState.copyWith(filter: value);
+                              if (value == _DeliveryDateFilter.custom &&
+                                  (uiState.customFrom == null ||
+                                      uiState.customTo == null)) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (!mounted) return;
+                                  _pickCustomRange(ref.read(_deliveryBoyUiProvider));
+                                });
+                              }
                             }
                           },
                         ),
@@ -377,6 +445,36 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                     ],
                   ),
                 ),
+                if (uiState.filter == _DeliveryDateFilter.custom)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            (uiState.customFrom != null &&
+                                    uiState.customTo != null)
+                                ? '${_formatDate(uiState.customFrom!)} to ${_formatDate(uiState.customTo!)}'
+                                : 'No date range selected',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _pickCustomRange(uiState),
+                          child: const Text('Select'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            ref.read(_deliveryBoyUiProvider.notifier).state =
+                                uiState.copyWith(
+                                  customFrom: null,
+                                  customTo: null,
+                                );
+                          },
+                          child: const Text('Clear'),
+                        ),
+                      ],
+                    ),
+                  ),
                 const TabBar(
                   tabs: [
                     Tab(text: 'Upcoming Delivery'),
@@ -408,7 +506,8 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        error: (_, _) =>
+            const Center(child: Text('Something went wrong. Please retry.')),
       ),
     );
   }
@@ -435,9 +534,12 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
             : (amount == amount.truncateToDouble()
                   ? amount.toInt().toString()
                   : amount.toStringAsFixed(2));
-        final deliveryAddress = order.requesterType == OrderRequesterType.businessOwner
-            ? businessAddressById[order.requesterBusinessId] ?? '-'
-            : '-';
+        final directAddress = (order.deliveryAddress ?? '').trim();
+        final deliveryAddress = directAddress.isNotEmpty
+            ? directAddress
+            : (order.requesterType == OrderRequesterType.businessOwner
+                  ? businessAddressById[order.requesterBusinessId] ?? '-'
+                  : '-');
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: Padding(

@@ -11,6 +11,7 @@ import 'models/app_user.dart';
 import 'models/business.dart';
 import 'models/catalog.dart';
 import 'models/delivery_agent.dart';
+import 'models/delivery_address.dart';
 import 'models/order.dart';
 import 'models/support_ticket.dart';
 import 'services/auth_service.dart';
@@ -193,3 +194,10 @@ final deliveryAgentsForBusinessProvider =
 final allDeliveryAgentsProvider = StreamProvider<List<DeliveryAgent>>((ref) {
   return ref.read(firestoreServiceProvider).allDeliveryAgentsStream();
 });
+
+final deliveryAddressesProvider =
+    StreamProvider.family<List<DeliveryAddressEntry>, String>((ref, userId) {
+      return ref
+          .read(firestoreServiceProvider)
+          .deliveryAddressesForUserStream(userId);
+    });

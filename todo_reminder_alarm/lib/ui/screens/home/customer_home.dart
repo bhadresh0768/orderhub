@@ -49,7 +49,9 @@ class CustomerHomeScreen extends ConsumerWidget {
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+      error: (_, _) => Scaffold(
+        body: Center(child: Text('Something went wrong. Please retry.')),
+      ),
     );
   }
 }
@@ -429,7 +431,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error loading businesses: $err')),
+      error: (_, _) =>
+          const Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 
@@ -595,7 +598,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error loading orders: $err')),
+      error: (_, _) =>
+          const Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }

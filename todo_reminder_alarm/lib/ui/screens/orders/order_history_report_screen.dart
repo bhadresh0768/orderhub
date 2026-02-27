@@ -11,23 +11,29 @@ final _orderHistoryUiProvider = StateProvider.autoDispose<_OrderHistoryUiState>(
   (ref) => const _OrderHistoryUiState(),
 );
 
-enum _ReportDateFilter { all, today, thisWeek, thisMonth, thisYear }
+enum _ReportDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }
 
 class _OrderHistoryUiState {
   const _OrderHistoryUiState({
     this.statusFilter,
     this.priorityFilter,
     this.dateFilter = _ReportDateFilter.all,
+    this.customFromDate,
+    this.customToDate,
   });
 
   final OrderStatus? statusFilter;
   final OrderPriority? priorityFilter;
   final _ReportDateFilter dateFilter;
+  final DateTime? customFromDate;
+  final DateTime? customToDate;
 
   _OrderHistoryUiState copyWith({
     Object? statusFilter = _orderHistoryUnset,
     Object? priorityFilter = _orderHistoryUnset,
     _ReportDateFilter? dateFilter,
+    Object? customFromDate = _orderHistoryUnset,
+    Object? customToDate = _orderHistoryUnset,
   }) {
     return _OrderHistoryUiState(
       statusFilter: statusFilter == _orderHistoryUnset
@@ -37,6 +43,12 @@ class _OrderHistoryUiState {
           ? this.priorityFilter
           : priorityFilter as OrderPriority?,
       dateFilter: dateFilter ?? this.dateFilter,
+      customFromDate: customFromDate == _orderHistoryUnset
+          ? this.customFromDate
+          : customFromDate as DateTime?,
+      customToDate: customToDate == _orderHistoryUnset
+          ? this.customToDate
+          : customToDate as DateTime?,
     );
   }
 }
@@ -72,10 +84,31 @@ class _OrderHistoryReportScreenState
       _ReportDateFilter.thisWeek => 'This Week',
       _ReportDateFilter.thisMonth => 'This Month',
       _ReportDateFilter.thisYear => 'This Year',
+      _ReportDateFilter.custom => 'Custom Range',
     };
   }
 
-  bool _matchesDateFilter(DateTime date, _ReportDateFilter filter, DateTime now) {
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
+    final start = DateTime(from.year, from.month, from.day);
+    final endExclusive = DateTime(to.year, to.month, to.day).add(
+      const Duration(days: 1),
+    );
+    return !date.isBefore(start) && date.isBefore(endExclusive);
+  }
+
+  bool _matchesDateFilter(
+    DateTime date,
+    _ReportDateFilter filter,
+    DateTime now, {
+    DateTime? customFrom,
+    DateTime? customTo,
+  }) {
     switch (filter) {
       case _ReportDateFilter.all:
         return true;
@@ -92,7 +125,28 @@ class _OrderHistoryReportScreenState
         return date.year == now.year && date.month == now.month;
       case _ReportDateFilter.thisYear:
         return date.year == now.year;
+      case _ReportDateFilter.custom:
+        if (customFrom == null || customTo == null) return false;
+        return _isInDateRange(date, customFrom, customTo);
     }
+  }
+
+  Future<void> _pickCustomRange(_OrderHistoryUiState ui) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: (ui.customFromDate != null && ui.customToDate != null)
+          ? DateTimeRange(start: ui.customFromDate!, end: ui.customToDate!)
+          : null,
+    );
+    if (picked == null || !mounted) return;
+    ref.read(_orderHistoryUiProvider.notifier).state = ui.copyWith(
+      dateFilter: _ReportDateFilter.custom,
+      customFromDate: picked.start,
+      customToDate: picked.end,
+    );
   }
 
   List<Order> get _filtered {
@@ -106,7 +160,13 @@ class _OrderHistoryReportScreenState
         return false;
       }
       final created = order.createdAt ?? now;
-      if (!_matchesDateFilter(created, ui.dateFilter, now)) {
+      if (!_matchesDateFilter(
+        created,
+        ui.dateFilter,
+        now,
+        customFrom: ui.customFromDate,
+        customTo: ui.customToDate,
+      )) {
         return false;
       }
       return true;
@@ -245,9 +305,42 @@ class _OrderHistoryReportScreenState
                   onChanged: (value) {
                     ref.read(_orderHistoryUiProvider.notifier).state =
                         ui.copyWith(dateFilter: value ?? _ReportDateFilter.all);
+                    if (value == _ReportDateFilter.custom &&
+                        (ui.customFromDate == null || ui.customToDate == null)) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        _pickCustomRange(ref.read(_orderHistoryUiProvider));
+                      });
+                    }
                   },
                 ),
               ),
+              if (ui.dateFilter == _ReportDateFilter.custom)
+                SizedBox(
+                  width: 360,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          (ui.customFromDate != null && ui.customToDate != null)
+                              ? '${_formatDate(ui.customFromDate!)} to ${_formatDate(ui.customToDate!)}'
+                              : 'No date range selected',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _pickCustomRange(ui),
+                        child: const Text('Select'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          ref.read(_orderHistoryUiProvider.notifier).state = ui
+                              .copyWith(customFromDate: null, customToDate: null);
+                        },
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 14),

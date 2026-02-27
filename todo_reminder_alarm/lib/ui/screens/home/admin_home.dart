@@ -263,7 +263,7 @@ class _SupportTicketsTabState extends ConsumerState<_SupportTicketsTab> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -430,7 +430,7 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -668,11 +668,12 @@ class _BusinessesTabState extends ConsumerState<_BusinessesTab> {
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => Center(child: Text('Error loading orders: $err')),
+          error: (_, _) =>
+              const Center(child: Text('Something went wrong. Please retry.')),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -873,7 +874,7 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -1054,11 +1055,11 @@ class _DeliveryAgentsTabState extends ConsumerState<_DeliveryAgentsTab> {
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => Center(child: Text('Error: $err')),
+          error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }

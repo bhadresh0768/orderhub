@@ -26,25 +26,38 @@ final _businessOrdersUiProvider =
       (ref, _) => const _BusinessOrdersUiState(),
     );
 
-enum _CompletedDateFilter { all, today, thisWeek, thisMonth, thisYear }
+enum _CompletedDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }
 
 class _BusinessOrdersUiState {
   const _BusinessOrdersUiState({
     this.searchQuery = '',
     this.completedDateFilter = _CompletedDateFilter.all,
+    this.completedFromDate,
+    this.completedToDate,
   });
   final String searchQuery;
   final _CompletedDateFilter completedDateFilter;
+  final DateTime? completedFromDate;
+  final DateTime? completedToDate;
   _BusinessOrdersUiState copyWith({
     String? searchQuery,
     _CompletedDateFilter? completedDateFilter,
+    Object? completedFromDate = _businessDateUnset,
+    Object? completedToDate = _businessDateUnset,
   }) {
     return _BusinessOrdersUiState(
       searchQuery: searchQuery ?? this.searchQuery,
       completedDateFilter: completedDateFilter ?? this.completedDateFilter,
+      completedFromDate: completedFromDate == _businessDateUnset
+          ? this.completedFromDate
+          : completedFromDate as DateTime?,
+      completedToDate: completedToDate == _businessDateUnset
+          ? this.completedToDate
+          : completedToDate as DateTime?,
     );
   }
 }
+const _businessDateUnset = Object();
 
 final _placeOrdersUiProvider =
     StateProvider.autoDispose.family<_PlaceOrdersUiState, String>(
@@ -119,7 +132,9 @@ class BusinessHomeScreen extends ConsumerWidget {
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+      error: (_, _) => Scaffold(
+        body: Center(child: Text('Something went wrong. Please retry.')),
+      ),
     );
   }
 }
@@ -279,7 +294,22 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       _CompletedDateFilter.thisWeek => 'This Week',
       _CompletedDateFilter.thisMonth => 'This Month',
       _CompletedDateFilter.thisYear => 'This Year',
+      _CompletedDateFilter.custom => 'Custom Range',
     };
+  }
+
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
+    final start = DateTime(from.year, from.month, from.day);
+    final endExclusive = DateTime(to.year, to.month, to.day).add(
+      const Duration(days: 1),
+    );
+    return !date.isBefore(start) && date.isBefore(endExclusive);
   }
 
   DateTime _effectiveCompletedAt(Order order) {
@@ -310,7 +340,31 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         return effectiveDate.year == now.year && effectiveDate.month == now.month;
       case _CompletedDateFilter.thisYear:
         return effectiveDate.year == now.year;
+      case _CompletedDateFilter.custom:
+        final from = ref.read(_businessOrdersUiProvider(_uiKey)).completedFromDate;
+        final to = ref.read(_businessOrdersUiProvider(_uiKey)).completedToDate;
+        if (from == null || to == null) return false;
+        return _isInDateRange(effectiveDate, from, to);
     }
+  }
+
+  Future<void> _pickCompletedCustomRange(_BusinessOrdersUiState ui) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange:
+          (ui.completedFromDate != null && ui.completedToDate != null)
+          ? DateTimeRange(start: ui.completedFromDate!, end: ui.completedToDate!)
+          : null,
+    );
+    if (picked == null || !mounted) return;
+    ref.read(_businessOrdersUiProvider(_uiKey).notifier).state = ui.copyWith(
+      completedDateFilter: _CompletedDateFilter.custom,
+      completedFromDate: picked.start,
+      completedToDate: picked.end,
+    );
   }
 
   @override
@@ -382,11 +436,47 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                     .toList(),
                 onChanged: (value) {
                   if (value == null) return;
-                  ref
-                      .read(_businessOrdersUiProvider(_uiKey).notifier)
-                      .state = ui.copyWith(completedDateFilter: value);
+                  ref.read(_businessOrdersUiProvider(_uiKey).notifier).state = ui
+                      .copyWith(completedDateFilter: value);
+                  if (value == _CompletedDateFilter.custom &&
+                      (ui.completedFromDate == null || ui.completedToDate == null)) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      _pickCompletedCustomRange(
+                        ref.read(_businessOrdersUiProvider(_uiKey)),
+                      );
+                    });
+                  }
                 },
               ),
+              if (ui.completedDateFilter == _CompletedDateFilter.custom) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        (ui.completedFromDate != null && ui.completedToDate != null)
+                            ? '${_formatDate(ui.completedFromDate!)} to ${_formatDate(ui.completedToDate!)}'
+                            : 'No date range selected',
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _pickCompletedCustomRange(ui),
+                      child: const Text('Select'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        ref.read(_businessOrdersUiProvider(_uiKey).notifier).state =
+                            ui.copyWith(
+                              completedFromDate: null,
+                              completedToDate: null,
+                            );
+                      },
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+              ],
             ],
             const SizedBox(height: 12),
             if (tabOrders.isEmpty)
@@ -400,7 +490,8 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (_, _) =>
+          const Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 
@@ -426,6 +517,9 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   }
 
   String _requestedByAddress(Order order) {
+    final direct = (order.deliveryAddress ?? '').trim();
+    if (direct.isNotEmpty) return direct;
+
     if (order.requesterType == OrderRequesterType.businessOwner) {
       final requesterBusinessId = order.requesterBusinessId;
       if (requesterBusinessId == null || requesterBusinessId.isEmpty) {
@@ -532,7 +626,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                 ],
               ),
               const SizedBox(height: 4),
-              Text('Requested by: $requestedBy', style: lineStyle),
+              Text('Order by: $requestedBy', style: lineStyle),
               const SizedBox(height: 4),
               Text('Address: $requestedAddress', style: lineStyle),
               const SizedBox(height: 4),
@@ -1076,8 +1170,9 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                   },
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (err, _) =>
-                      Center(child: Text('Error loading businesses: $err')),
+                  error: (_, _) => const Center(
+                    child: Text('Something went wrong. Please retry.'),
+                  ),
                 ),
                 outgoingAsync.when(
                   data: (orders) {
@@ -1146,8 +1241,8 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                   },
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (err, _) => Center(
-                    child: Text('Error loading outgoing orders: $err'),
+                  error: (_, _) => const Center(
+                    child: Text('Something went wrong. Please retry.'),
                   ),
                 ),
               ],
@@ -1399,7 +1494,8 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => Text('Error loading delivery team: $err'),
+          error: (_, _) =>
+              const Text('Something went wrong. Please retry.'),
         ),
       ],
     );

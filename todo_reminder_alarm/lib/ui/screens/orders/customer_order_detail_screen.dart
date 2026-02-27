@@ -59,6 +59,20 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     return value[0].toUpperCase() + value.substring(1);
   }
 
+  ({String address, String? contact}) _splitLegacyAddress(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty) return (address: '-', contact: null);
+    const marker = '• Contact:';
+    final idx = raw.indexOf(marker);
+    if (idx < 0) return (address: raw, contact: null);
+    final address = raw.substring(0, idx).trim();
+    final contact = raw.substring(idx + marker.length).trim();
+    return (
+      address: address.isEmpty ? '-' : address,
+      contact: contact.isEmpty ? null : contact,
+    );
+  }
+
   bool _looksLikeImage(String value) {
     final normalized = value.toLowerCase();
     return normalized.contains('.jpg') ||
@@ -124,6 +138,17 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     final unavailableItems = order.items.where((e) => !(e.isIncluded ?? true)).toList();
     final schedule = order.scheduledAt;
     final created = order.createdAt;
+    final legacySplit = _splitLegacyAddress(order.deliveryAddress ?? '');
+    final deliveryAddress = legacySplit.address;
+    final contactName = (order.deliveryContactName ?? '').trim();
+    final contactPhone = (order.deliveryContactPhone ?? '').trim();
+    final deliveryContact = contactName.isNotEmpty && contactPhone.isNotEmpty
+        ? '$contactName ($contactPhone)'
+        : contactName.isNotEmpty
+        ? contactName
+        : contactPhone.isNotEmpty
+        ? contactPhone
+        : legacySplit.contact;
     final statusColor = switch (effectiveStatus) {
       OrderStatus.completed => Colors.green,
       OrderStatus.pending => Colors.red,
@@ -146,6 +171,9 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
+                  Text('Address: $deliveryAddress'),
+                  if (deliveryContact != null)
+                    Text('Contact: $deliveryContact'),
                   Text.rich(
                     TextSpan(
                       children: [

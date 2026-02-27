@@ -4,6 +4,7 @@ import '../models/app_user.dart';
 import '../models/business.dart';
 import '../models/catalog.dart';
 import '../models/delivery_agent.dart';
+import '../models/delivery_address.dart';
 import '../models/enums.dart';
 import '../models/order.dart';
 import '../models/support_ticket.dart';
@@ -21,6 +22,8 @@ class FirestoreService {
       _db.collection('orders');
   CollectionReference<Map<String, dynamic>> get _deliveryAgents =>
       _db.collection('deliveryAgents');
+  CollectionReference<Map<String, dynamic>> get _deliveryAddresses =>
+      _db.collection('deliveryAddresses');
   CollectionReference<Map<String, dynamic>> get _orderCounters =>
       _db.collection('orderCounters');
   CollectionReference<Map<String, dynamic>> get _catalogCategories =>
@@ -200,6 +203,26 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map(DeliveryAgent.fromDoc).toList());
   }
 
+  Stream<List<DeliveryAddressEntry>> deliveryAddressesForUserStream(
+    String userId,
+  ) {
+    return _deliveryAddresses
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          final items = snapshot.docs.map(DeliveryAddressEntry.fromDoc).toList();
+          items.sort((a, b) {
+            if (a.isDefault != b.isDefault) {
+              return a.isDefault ? -1 : 1;
+            }
+            final aTime = a.updatedAt ?? DateTime(0);
+            final bTime = b.updatedAt ?? DateTime(0);
+            return bTime.compareTo(aTime);
+          });
+          return items;
+        });
+  }
+
   Stream<List<CatalogCategory>> catalogCategoriesStream(String businessId) {
     return _catalogCategories
         .where('businessId', isEqualTo: businessId)
@@ -298,6 +321,58 @@ class FirestoreService {
     await _deliveryAgents
         .doc(agent.id)
         .set(agent.toMap(), SetOptions(merge: true));
+  }
+
+  Future<void> createDeliveryAddress(DeliveryAddressEntry address) async {
+    final batch = _db.batch();
+    if (address.isDefault) {
+      final existing = await _deliveryAddresses
+          .where('userId', isEqualTo: address.userId)
+          .where('isDefault', isEqualTo: true)
+          .get();
+      for (final doc in existing.docs) {
+        if (doc.id == address.id) continue;
+        batch.update(doc.reference, {
+          'isDefault': false,
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    }
+    batch.set(
+      _deliveryAddresses.doc(address.id),
+      address.toMap(),
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+  }
+
+  Future<void> updateDeliveryAddress(
+    String addressId,
+    DeliveryAddressEntry address,
+  ) async {
+    final batch = _db.batch();
+    if (address.isDefault) {
+      final existing = await _deliveryAddresses
+          .where('userId', isEqualTo: address.userId)
+          .where('isDefault', isEqualTo: true)
+          .get();
+      for (final doc in existing.docs) {
+        if (doc.id == addressId) continue;
+        batch.update(doc.reference, {
+          'isDefault': false,
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    }
+    batch.update(_deliveryAddresses.doc(addressId), {
+      ...address.toMap(),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+    await batch.commit();
+  }
+
+  Future<void> deleteDeliveryAddress(String addressId) async {
+    await _deliveryAddresses.doc(addressId).delete();
   }
 
   Future<void> updateDeliveryAgent(

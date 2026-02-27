@@ -162,6 +162,10 @@ class Order {
     this.assignedDeliveryAt,
     this.requesterBusinessId,
     this.requesterBusinessName,
+    this.deliveryAddressLabel,
+    this.deliveryAddress,
+    this.deliveryContactName,
+    this.deliveryContactPhone,
     this.notes,
     this.gstPercent,
     this.extraCharges,
@@ -183,6 +187,10 @@ class Order {
   final OrderRequesterType requesterType;
   final String? requesterBusinessId;
   final String? requesterBusinessName;
+  final String? deliveryAddressLabel;
+  final String? deliveryAddress;
+  final String? deliveryContactName;
+  final String? deliveryContactPhone;
   final OrderPriority priority;
   final OrderStatus status;
   final PaymentInfo payment;
@@ -229,6 +237,10 @@ class Order {
       'requesterType': enumToString(requesterType),
       'requesterBusinessId': requesterBusinessId,
       'requesterBusinessName': requesterBusinessName,
+      'deliveryAddressLabel': deliveryAddressLabel,
+      'deliveryAddress': deliveryAddress,
+      'deliveryContactName': deliveryContactName,
+      'deliveryContactPhone': deliveryContactPhone,
       'priority': enumToString(priority),
       'status': enumToString(status),
       'payment': payment.toMap(),
@@ -281,6 +293,10 @@ class Order {
       ),
       requesterBusinessId: data['requesterBusinessId'] as String?,
       requesterBusinessName: data['requesterBusinessName'] as String?,
+      deliveryAddressLabel: data['deliveryAddressLabel'] as String?,
+      deliveryAddress: data['deliveryAddress'] as String?,
+      deliveryContactName: data['deliveryContactName'] as String?,
+      deliveryContactPhone: data['deliveryContactPhone'] as String?,
       priority: enumFromString(
         OrderPriority.values,
         data['priority'] as String?,

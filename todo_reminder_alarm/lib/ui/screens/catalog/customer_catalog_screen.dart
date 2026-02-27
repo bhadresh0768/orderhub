@@ -187,7 +187,7 @@ class CustomerCatalogScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
       ),
     );
   }
@@ -247,9 +247,9 @@ class _ProductVariantsList extends ConsumerWidget {
         padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Text('Loading variants...'),
       ),
-      error: (err, _) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: Text('Error loading variants: $err'),
+      error: (_, _) => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Text('Variants unavailable'),
       ),
     );
   }
