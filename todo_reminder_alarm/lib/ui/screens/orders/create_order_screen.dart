@@ -102,12 +102,14 @@ class CreateOrderScreen extends ConsumerStatefulWidget {
     required this.customer,
     this.requesterBusiness,
     this.initialItems = const [],
+    this.existingOrder,
   });
 
   final BusinessProfile business;
   final AppUser customer;
   final BusinessProfile? requesterBusiness;
   final List<OrderItem> initialItems;
+  final Order? existingOrder;
 
   @override
   ConsumerState<CreateOrderScreen> createState() => _CreateOrderScreenState();
@@ -123,8 +125,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   final _paymentRemarkController = TextEditingController();
   final Map<String, List<String>> _prefixSuggestionCache = {};
   Timer? _searchDebounce;
-  final String _draftOrderId = const Uuid().v4();
+  late final String _draftOrderId;
   final ImagePicker _imagePicker = ImagePicker();
+  bool _defaultDeliveryAddressInitialized = false;
 
   _CreateOrderUiState get _ui => ref.read(_createOrderUiProvider(_draftOrderId));
   void _updateUi(_CreateOrderUiState Function(_CreateOrderUiState state) update) {
@@ -135,8 +138,24 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   @override
   void initState() {
     super.initState();
+    _draftOrderId = widget.existingOrder?.id ?? const Uuid().v4();
     unawaited(_initializeItemCatalog());
-    if (widget.initialItems.isNotEmpty) {
+    final existing = widget.existingOrder;
+    if (existing != null) {
+      _notesController.text = existing.notes ?? '';
+      _paymentRemarkController.text = existing.payment.remark ?? '';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _updateUi(
+          (state) => state.copyWith(
+            items: existing.items,
+            priority: existing.priority,
+            paymentMethod: existing.payment.method,
+            confirmedOnline: existing.payment.confirmedByCustomer ?? false,
+          ),
+        );
+      });
+    } else if (widget.initialItems.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _updateUi((state) => state.copyWith(items: widget.initialItems));
@@ -255,27 +274,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         : value.toString();
   }
 
-  String _shortUnit(QuantityUnit unit) {
-    switch (unit) {
-      case QuantityUnit.piece:
-        return 'pc';
-      case QuantityUnit.kilogram:
-        return 'kg';
-      case QuantityUnit.gram:
-        return 'g';
-      case QuantityUnit.liter:
-        return 'L';
-    }
-  }
-
   String _itemQuantityLabel(OrderItem item) {
-    final hasPack = (item.packSize ?? '').trim().isNotEmpty;
-    if (hasPack) {
-      final qty = _formatQuantity(item.quantity);
-      final suffix = item.quantity == 1 ? 'pack' : 'packs';
-      return '$qty $suffix';
-    }
-    return '${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
+    return _formatQuantity(item.quantity);
   }
 
   String _paymentMethodLabel(PaymentMethod method) {
@@ -902,56 +902,94 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
 
     final firestore = ref.read(firestoreServiceProvider);
     final requesterBusiness = widget.requesterBusiness;
-    final order = Order(
-      id: _draftOrderId,
-      businessId: widget.business.id,
-      businessName: widget.business.name,
-      customerId: widget.customer.id,
-      customerName: widget.customer.name,
-      requesterType: requesterBusiness == null
-          ? OrderRequesterType.customer
-          : OrderRequesterType.businessOwner,
-      requesterBusinessId: requesterBusiness?.id,
-      requesterBusinessName: requesterBusiness?.name,
-      deliveryAddressLabel: deliveryAddressLabel,
-      deliveryAddress: deliveryAddress,
-      deliveryContactName: deliveryContactName,
-      deliveryContactPhone: deliveryContactPhone,
-      priority: _ui.priority,
-      status: OrderStatus.pending,
-      payment: PaymentInfo(
-        status: PaymentStatus.pending,
-        method: _ui.paymentMethod,
-        amount: null,
-        remark: _paymentRemarkController.text.trim().isEmpty
-            ? null
-            : _paymentRemarkController.text.trim(),
-        confirmedByCustomer: _ui.paymentMethod == PaymentMethod.onlineTransfer
-            ? _ui.confirmedOnline
-            : null,
-        updatedAt: DateTime.now(),
-      ),
-      delivery: DeliveryInfo(
-        status: DeliveryStatus.pending,
-        updatedAt: DateTime.now(),
-      ),
-      items: _ui.items,
-      attachments: const [],
-      packedItemIndexes: const [],
-      notes: _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+    final existing = widget.existingOrder;
     try {
-      await firestore.createOrder(order);
+      if (existing == null) {
+        final order = Order(
+          id: _draftOrderId,
+          businessId: widget.business.id,
+          businessName: widget.business.name,
+          customerId: widget.customer.id,
+          customerName: widget.customer.name,
+          requesterType: requesterBusiness == null
+              ? OrderRequesterType.customer
+              : OrderRequesterType.businessOwner,
+          requesterBusinessId: requesterBusiness?.id,
+          requesterBusinessName: requesterBusiness?.name,
+          deliveryAddressLabel: deliveryAddressLabel,
+          deliveryAddress: deliveryAddress,
+          deliveryContactName: deliveryContactName,
+          deliveryContactPhone: deliveryContactPhone,
+          priority: _ui.priority,
+          status: OrderStatus.pending,
+          payment: PaymentInfo(
+            status: PaymentStatus.pending,
+            method: _ui.paymentMethod,
+            amount: null,
+            remark: _paymentRemarkController.text.trim().isEmpty
+                ? null
+                : _paymentRemarkController.text.trim(),
+            confirmedByCustomer:
+                _ui.paymentMethod == PaymentMethod.onlineTransfer
+                ? _ui.confirmedOnline
+                : null,
+            updatedAt: DateTime.now(),
+          ),
+          delivery: DeliveryInfo(
+            status: DeliveryStatus.pending,
+            updatedAt: DateTime.now(),
+          ),
+          items: _ui.items,
+          attachments: const [],
+          packedItemIndexes: const [],
+          notes: _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await firestore.createOrder(order);
+      } else {
+        if (existing.status != OrderStatus.pending) {
+          _updateUi(
+            (state) => state.copyWith(
+              inlineError: 'Only new orders can be edited.',
+            ),
+          );
+          return;
+        }
+        final updatedPayment = existing.payment.copyWith(
+          method: _ui.paymentMethod,
+          remark: _paymentRemarkController.text.trim().isEmpty
+              ? null
+              : _paymentRemarkController.text.trim(),
+          confirmedByCustomer: _ui.paymentMethod == PaymentMethod.onlineTransfer
+              ? _ui.confirmedOnline
+              : null,
+          updatedAt: DateTime.now(),
+        );
+        await firestore.updateOrder(existing.id, {
+          'priority': enumToString(_ui.priority),
+          'items': _ui.items.map((item) => item.toMap()).toList(),
+          'deliveryAddressLabel': deliveryAddressLabel,
+          'deliveryAddress': deliveryAddress,
+          'deliveryContactName': deliveryContactName,
+          'deliveryContactPhone': deliveryContactPhone,
+          'payment': updatedPayment.toMap(),
+          'notes': _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
+        });
+      }
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(_draftOrderId);
       }
     } catch (err) {
       _updateUi(
-        (state) => state.copyWith(inlineError: 'Failed to place order: $err'),
+        (state) => state.copyWith(
+          inlineError:
+              'Failed to ${existing == null ? 'place' : 'update'} order: $err',
+        ),
       );
     } finally {
       if (mounted) {
@@ -967,10 +1005,18 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       deliveryAddressesProvider(widget.customer.id),
     );
     return Scaffold(
-      appBar: AppBar(title: Text('Order ${widget.business.name}')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      appBar: AppBar(
+        title: Text(
+          widget.existingOrder == null
+              ? 'Order ${widget.business.name}'
+              : 'Edit Order ${widget.existingOrder!.displayOrderNumber}',
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -987,57 +1033,66 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                     const SizedBox(height: 12),
                     deliveryAddressesAsync.when(
                       data: (addresses) {
-                        DeliveryAddressEntry? defaultEntry;
-                        for (final entry in addresses) {
-                          if (entry.isDefault) {
-                            defaultEntry = entry;
-                            break;
+                        if (!_defaultDeliveryAddressInitialized) {
+                          _defaultDeliveryAddressInitialized = true;
+                          final defaultEntry = addresses.where((e) => e.isDefault).firstOrNull;
+                          if (defaultEntry != null &&
+                              _ui.deliveryAddressRef == _profileAddressRef) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              _updateUi(
+                                (state) => state.copyWith(
+                                  deliveryAddressRef: defaultEntry.id,
+                                ),
+                              );
+                            });
                           }
-                        }
-                        if (ui.deliveryAddressRef == _profileAddressRef &&
-                            defaultEntry != null) {
-                          final defaultEntryId = defaultEntry.id;
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            _updateUi(
-                              (state) => state.copyWith(
-                                deliveryAddressRef: defaultEntryId,
-                              ),
-                            );
-                          });
                         }
                         final selectedRef = addresses.any(
                           (entry) => entry.id == ui.deliveryAddressRef,
                         )
                             ? ui.deliveryAddressRef
                             : _profileAddressRef;
+                        final addressLabels = <String, String>{
+                          _profileAddressRef:
+                              '${_defaultAddressLabel()} • ${_defaultAddressText()}',
+                          for (final entry in addresses)
+                            entry.id: '${entry.label} • ${entry.fullAddress}',
+                        };
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             DropdownButtonFormField<String>(
                               key: ValueKey(selectedRef),
                               initialValue: selectedRef,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Delivery Address',
                               ),
-                              items: [
-                                DropdownMenuItem(
-                                  value: _profileAddressRef,
-                                  child: Text(
-                                    '${_defaultAddressLabel()} • ${_defaultAddressText()}',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                ...addresses.map(
-                                  (entry) => DropdownMenuItem(
-                                    value: entry.id,
-                                    child: Text(
-                                      '${entry.label} • ${entry.fullAddress}',
-                                      overflow: TextOverflow.ellipsis,
+                              items: addressLabels.entries
+                                  .map(
+                                    (entry) => DropdownMenuItem<String>(
+                                      value: entry.key,
+                                      child: Text(
+                                        entry.value,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
+                                  )
+                                  .toList(),
+                              selectedItemBuilder: (context) => addressLabels.values
+                                  .map(
+                                    (label) => Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        label,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
                               onChanged: (value) {
                                 if (value == null) return;
                                 _updateUi(
@@ -1252,12 +1307,29 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                     const SizedBox(height: 8),
                     FilledButton.tonal(
                       onPressed: _addOrUpdateItem,
+                      style: ui.editingItemIndex != null
+                          ? FilledButton.styleFrom(
+                              backgroundColor: Colors.red.shade100,
+                              foregroundColor: Colors.red.shade800,
+                            )
+                          : null,
                       child: Text(
                         ui.editingItemIndex == null
                             ? 'Add Item'
                             : 'Update Item',
                       ),
                     ),
+                    if (ui.editingItemIndex != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          'Tap "Update Item" to save item changes.',
+                          style: TextStyle(
+                            color: Colors.red.shade400,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     if (ui.editingItemIndex != null)
                       TextButton(
                         onPressed: _clearItemForm,
@@ -1338,7 +1410,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                     ),
                                   ),
                             title: Text(
-                              '${item.title} ${_itemQuantityLabel(item)}',
+                              '${item.title}, Qty - ${_itemQuantityLabel(item)}',
                             ),
                             subtitle: Text(
                               [
@@ -1470,7 +1542,11 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Place Order'),
+                            : Text(
+                                widget.existingOrder == null
+                                    ? 'Place Order'
+                                    : 'Update Order',
+                              ),
                       ),
                     ),
                   ],
@@ -1478,7 +1554,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

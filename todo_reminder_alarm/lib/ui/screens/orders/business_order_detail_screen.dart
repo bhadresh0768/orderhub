@@ -88,6 +88,7 @@ class BusinessOrderDetailScreen extends ConsumerStatefulWidget {
 
 class _BusinessOrderDetailScreenState
     extends ConsumerState<BusinessOrderDetailScreen> {
+  ProviderSubscription<AsyncValue<Order?>>? _orderSubscription;
   late final TextEditingController _paymentAmountController;
   late final TextEditingController _gstPercentController;
   late final TextEditingController _extraChargesController;
@@ -114,6 +115,52 @@ class _BusinessOrderDetailScreenState
       _order.status == OrderStatus.completed ||
       _order.delivery.status == DeliveryStatus.delivered;
   bool get _isAccepted => _order.status != OrderStatus.pending;
+
+  void _syncTextControllersFromOrder(Order order) {
+    _paymentAmountController.text = order.payment.amount?.toStringAsFixed(2) ?? '';
+    _gstPercentController.text = order.gstPercent?.toStringAsFixed(2) ?? '';
+    _extraChargesController.text = order.extraCharges?.toStringAsFixed(2) ?? '';
+
+    for (final controller in _itemPriceControllers) {
+      controller.dispose();
+    }
+    _itemPriceControllers = order.items
+        .map(
+          (item) => TextEditingController(
+            text: item.unitPrice?.toStringAsFixed(2) ?? '',
+          ),
+        )
+        .toList();
+
+    for (final controller in _itemUnavailableReasonControllers) {
+      controller.dispose();
+    }
+    _itemUnavailableReasonControllers = order.items
+        .map(
+          (item) => TextEditingController(text: item.unavailableReason ?? ''),
+        )
+        .toList();
+  }
+
+  void _syncUiFromLatestOrder(Order latestOrder) {
+    if (!mounted) return;
+    _updateUi(
+      (state) => state.copyWith(
+        order: latestOrder,
+        selectedPaymentStatus: latestOrder.payment.status,
+        selectedPaymentMethod: latestOrder.payment.method,
+        selectedDeliveryAgentId: latestOrder.assignedDeliveryAgentId,
+        itemGstIncluded: latestOrder.items
+            .map((item) => item.gstIncluded ?? false)
+            .toList(),
+        itemIncluded: latestOrder.items
+            .map((item) => item.isIncluded ?? true)
+            .toList(),
+        refreshTick: state.refreshTick + 1,
+      ),
+    );
+    _syncTextControllersFromOrder(latestOrder);
+  }
 
   @override
   void initState() {
@@ -142,10 +189,21 @@ class _BusinessOrderDetailScreenState
           (item) => TextEditingController(text: item.unavailableReason ?? ''),
         )
         .toList();
+    _orderSubscription = ref.listenManual<AsyncValue<Order?>>(
+      orderByIdProvider(widget.order.id),
+      (_, next) {
+        next.whenData((latestOrder) {
+          if (latestOrder == null) return;
+          _syncUiFromLatestOrder(latestOrder);
+        });
+      },
+      fireImmediately: true,
+    );
   }
 
   @override
   void dispose() {
+    _orderSubscription?.close();
     _paymentAmountController.dispose();
     _gstPercentController.dispose();
     _extraChargesController.dispose();
@@ -476,6 +534,16 @@ class _BusinessOrderDetailScreenState
     );
   }
 
+  bool _hasMissingIncludedUnitPrice() {
+    for (var i = 0; i < _order.items.length; i++) {
+      if (!_itemIncluded[i]) continue;
+      if (_itemPriceControllers[i].text.trim().isEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<void> _saveBilling() async {
     if (!_isAccepted) {
       if (!mounted) return;
@@ -489,6 +557,15 @@ class _BusinessOrderDetailScreenState
       return;
     }
     if (_saving) return;
+    if (_hasMissingIncludedUnitPrice()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter unit price for all included items before saving'),
+        ),
+      );
+      return;
+    }
     _updateUi((state) => state.copyWith(saving: true));
     try {
       final now = DateTime.now();
@@ -778,6 +855,15 @@ class _BusinessOrderDetailScreenState
       _showLockedMessage();
       return;
     }
+    if (_selectedDeliveryAgentId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select a delivery agent first'),
+        ),
+      );
+      return;
+    }
     (PaymentStatus, PaymentMethod)? paymentDecision;
     if (_collectPaymentOnAssign) {
       paymentDecision = await _askPaymentOnAssign();
@@ -902,11 +988,14 @@ class _BusinessOrderDetailScreenState
     final isLocked = _isLocked;
     final isAccepted = _isAccepted;
     final canEditAfterAccept = !isLocked && isAccepted;
+    final missingIncludedPrice = _hasMissingIncludedUnitPrice();
     return Scaffold(
       appBar: AppBar(title: Text('Order ${_order.displayOrderNumber} Details')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -1302,6 +1391,15 @@ class _BusinessOrderDetailScreenState
                       ).textTheme.bodyMedium?.copyWith(color: Colors.orange[800]),
                     ),
                   ],
+                  if (canEditAfterAccept && missingIncludedPrice) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Enter unit price for all included items to enable Save Pricing.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.red[700]),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Text('Subtotal: ${_formatAmount(billing.subtotal)}'),
                   Text('GST Amount: ${_formatAmount(billing.gstAmount)}'),
@@ -1313,7 +1411,7 @@ class _BusinessOrderDetailScreenState
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: (_saving || !canEditAfterAccept)
+                      onPressed: (_saving || !canEditAfterAccept || missingIncludedPrice)
                           ? null
                           : _saveBilling,
                       child: Text(_saving ? 'Saving...' : 'Save Pricing'),
@@ -1400,12 +1498,29 @@ class _BusinessOrderDetailScreenState
                                 : null,
                           ),
                           const SizedBox(height: 8),
+                          if (canEditAfterAccept &&
+                              selectedDeliveryAgentId == null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Select a delivery agent to enable save.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(color: Colors.red[700]),
+                                ),
+                              ),
+                            ),
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
                               onPressed: _saving
                                   ? null
                                   : !canEditAfterAccept
+                                  ? null
+                                  : selectedDeliveryAgentId == null
                                   ? null
                                   : () => _assignDeliveryAgent(activeAgents),
                               child: const Text('Save Delivery Agent'),
@@ -1497,7 +1612,8 @@ class _BusinessOrderDetailScreenState
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

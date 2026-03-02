@@ -20,6 +20,7 @@ import '../orders/customer_order_detail_screen.dart';
 import '../orders/order_history_report_screen.dart';
 import '../catalog/business_catalog_screen.dart';
 import '../catalog/customer_catalog_screen.dart';
+import '../support/support_tickets_screen.dart';
 
 final _businessOrdersUiProvider =
     StateProvider.autoDispose.family<_BusinessOrdersUiState, String>(
@@ -27,6 +28,7 @@ final _businessOrdersUiProvider =
     );
 
 enum _CompletedDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }
+enum _PlacedDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }
 
 class _BusinessOrdersUiState {
   const _BusinessOrdersUiState({
@@ -65,13 +67,35 @@ final _placeOrdersUiProvider =
     );
 
 class _PlaceOrdersUiState {
-  const _PlaceOrdersUiState({this.searchQuery = '', this.categoryFilter = 'All'});
+  const _PlaceOrdersUiState({
+    this.searchQuery = '',
+    this.categoryFilter = 'All',
+    this.placedDateFilter = _PlacedDateFilter.all,
+    this.placedFromDate,
+    this.placedToDate,
+  });
   final String searchQuery;
   final String categoryFilter;
-  _PlaceOrdersUiState copyWith({String? searchQuery, String? categoryFilter}) {
+  final _PlacedDateFilter placedDateFilter;
+  final DateTime? placedFromDate;
+  final DateTime? placedToDate;
+  _PlaceOrdersUiState copyWith({
+    String? searchQuery,
+    String? categoryFilter,
+    _PlacedDateFilter? placedDateFilter,
+    Object? placedFromDate = _businessDateUnset,
+    Object? placedToDate = _businessDateUnset,
+  }) {
     return _PlaceOrdersUiState(
       searchQuery: searchQuery ?? this.searchQuery,
       categoryFilter: categoryFilter ?? this.categoryFilter,
+      placedDateFilter: placedDateFilter ?? this.placedDateFilter,
+      placedFromDate: placedFromDate == _businessDateUnset
+          ? this.placedFromDate
+          : placedFromDate as DateTime?,
+      placedToDate: placedToDate == _businessDateUnset
+          ? this.placedToDate
+          : placedToDate as DateTime?,
     );
   }
 }
@@ -180,42 +204,12 @@ class _BusinessHomeBody extends ConsumerWidget {
               Tab(text: 'Catalog'),
             ],
           ),
-          actions: [
-            IconButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ProfileScreen(user: profile),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.person_outline),
-              tooltip: 'Profile',
-            ),
-            OutlinedButton(
-              onPressed: () {
-                final orders = [
-                  ...?incomingAsync.value,
-                  ...?outgoingAsync.value,
-                ];
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => OrderHistoryReportScreen(
-                      title: 'Business History & Reports',
-                      orders: orders,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Reports'),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: () => ref.read(authServiceProvider).signOut(),
-              icon: const Icon(Icons.logout),
-              tooltip: 'Logout',
-            ),
-          ],
+        ),
+        drawer: _buildDrawer(
+          context: context,
+          ref: ref,
+          incomingOrders: incomingAsync.value ?? const [],
+          outgoingOrders: outgoingAsync.value ?? const [],
         ),
         body: TabBarView(
           children: [
@@ -240,6 +234,76 @@ class _BusinessHomeBody extends ConsumerWidget {
             _PlaceOrdersTab(profile: profile, ownBusiness: ownBusiness),
             _DeliveryTeamTab(profile: profile),
             BusinessCatalogScreen(businessId: profile.businessId!),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Drawer _buildDrawer({
+    required BuildContext context,
+    required WidgetRef ref,
+    required List<Order> incomingOrders,
+    required List<Order> outgoingOrders,
+  }) {
+    final orders = [...incomingOrders, ...outgoingOrders];
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Text('Menu', style: TextStyle(fontSize: 24)),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text('Profile'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProfileScreen(user: profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.assessment_outlined),
+              title: const Text('Report & History'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OrderHistoryReportScreen(
+                      title: 'Business History & Reports',
+                      orders: orders,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.support_agent),
+              title: const Text('Help & Support'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SupportTicketsScreen(user: profile),
+                  ),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () {
+                Navigator.of(context).pop();
+                ref.read(authServiceProvider).signOut();
+              },
+            ),
           ],
         ),
       ),
@@ -516,6 +580,11 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         : value.toStringAsFixed(2);
   }
 
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+
   String _requestedByAddress(Order order) {
     final direct = (order.deliveryAddress ?? '').trim();
     if (direct.isNotEmpty) return direct;
@@ -562,11 +631,21 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final paymentColor = order.payment.status == PaymentStatus.done
         ? Colors.green
         : Colors.red;
+    final priorityColor = order.priority == OrderPriority.fast
+        ? Colors.red
+        : Theme.of(context).colorScheme.onSurface;
+    final isFast = order.priority == OrderPriority.fast;
     final lineStyle = Theme.of(
       context,
     ).textTheme.bodyLarge?.copyWith(fontSize: 16);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: isFast
+            ? BorderSide(color: Colors.red.shade400, width: 1.8)
+            : BorderSide.none,
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
@@ -629,6 +708,24 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               Text('Order by: $requestedBy', style: lineStyle),
               const SizedBox(height: 4),
               Text('Address: $requestedAddress', style: lineStyle),
+              const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'Delivery Priority: '),
+                    TextSpan(
+                      text: _capitalize(order.priority.name),
+                      style: TextStyle(
+                        color: priorityColor,
+                        fontWeight: order.priority == OrderPriority.fast
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                style: lineStyle,
+              ),
               const SizedBox(height: 4),
               Text.rich(
                 TextSpan(
@@ -873,10 +970,178 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     return value[0].toUpperCase() + value.substring(1);
   }
 
+  String _placedDateFilterLabel(_PlacedDateFilter filter) {
+    return switch (filter) {
+      _PlacedDateFilter.all => 'All',
+      _PlacedDateFilter.today => 'Today',
+      _PlacedDateFilter.thisWeek => 'This Week',
+      _PlacedDateFilter.thisMonth => 'This Month',
+      _PlacedDateFilter.thisYear => 'This Year',
+      _PlacedDateFilter.custom => 'Custom Range',
+    };
+  }
+
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
+    final start = DateTime(from.year, from.month, from.day);
+    final endExclusive = DateTime(
+      to.year,
+      to.month,
+      to.day,
+    ).add(const Duration(days: 1));
+    return !date.isBefore(start) && date.isBefore(endExclusive);
+  }
+
+  DateTime _effectiveOrderDate(Order order) {
+    return order.createdAt ?? order.updatedAt ?? DateTime.now();
+  }
+
+  bool _matchesPlacedDateFilter(
+    Order order,
+    _PlacedDateFilter filter,
+    DateTime now,
+    _PlaceOrdersUiState ui,
+  ) {
+    if (filter == _PlacedDateFilter.all) return true;
+    final effectiveDate = _effectiveOrderDate(order);
+    switch (filter) {
+      case _PlacedDateFilter.all:
+        return true;
+      case _PlacedDateFilter.today:
+        return effectiveDate.year == now.year &&
+            effectiveDate.month == now.month &&
+            effectiveDate.day == now.day;
+      case _PlacedDateFilter.thisWeek:
+        final startOfToday = DateTime(now.year, now.month, now.day);
+        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
+        final endOfWeek = startOfWeek.add(const Duration(days: 7));
+        return !effectiveDate.isBefore(startOfWeek) &&
+            effectiveDate.isBefore(endOfWeek);
+      case _PlacedDateFilter.thisMonth:
+        return effectiveDate.year == now.year && effectiveDate.month == now.month;
+      case _PlacedDateFilter.thisYear:
+        return effectiveDate.year == now.year;
+      case _PlacedDateFilter.custom:
+        final from = ui.placedFromDate;
+        final to = ui.placedToDate;
+        if (from == null || to == null) return false;
+        return _isInDateRange(effectiveDate, from, to);
+    }
+  }
+
+  Future<void> _pickPlacedCustomRange(_PlaceOrdersUiState ui) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: (ui.placedFromDate != null && ui.placedToDate != null)
+          ? DateTimeRange(start: ui.placedFromDate!, end: ui.placedToDate!)
+          : null,
+    );
+    if (picked == null || !mounted) return;
+    ref.read(_placeOrdersUiProvider(_uiKey).notifier).state = ui.copyWith(
+      placedDateFilter: _PlacedDateFilter.custom,
+      placedFromDate: picked.start,
+      placedToDate: picked.end,
+    );
+  }
+
+  bool _canEditOrder(Order order) {
+    return order.status == OrderStatus.pending &&
+        order.delivery.status == DeliveryStatus.pending;
+  }
+
+  void _onOutgoingOrderPlaced(String? orderId) {
+    if (orderId == null || !mounted) return;
+    final tabController = DefaultTabController.of(context);
+    tabController.animateTo(1);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Order $orderId placed successfully')));
+  }
+
+  Future<void> _editPlacedOrder(
+    Order order,
+    Map<String, BusinessProfile> businessById,
+  ) async {
+    final business = businessById[order.businessId];
+    if (business == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Store not found for edit')));
+      return;
+    }
+    final updatedOrderId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => CreateOrderScreen(
+          business: business,
+          customer: widget.profile,
+          requesterBusiness: widget.ownBusiness,
+          existingOrder: order,
+        ),
+      ),
+    );
+    if (!mounted || updatedOrderId == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order ${order.displayOrderNumber} updated successfully',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deletePlacedOrder(Order order) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Order'),
+        content: Text(
+          'Delete Order ${order.displayOrderNumber}? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      await ref.read(firestoreServiceProvider).deleteOrder(order.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order deleted')));
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete order: $err')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(_placeOrdersUiProvider(_uiKey));
     final businessesAsync = ref.watch(businessesProvider);
+    final businessById = {
+      for (final business
+          in businessesAsync.asData?.value ?? const <BusinessProfile>[])
+        business.id: business,
+    };
     final outgoingAsync = ref.watch(
       ordersPlacedByBusinessOwnerProvider(widget.profile.id),
     );
@@ -1091,10 +1356,8 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                 onPressed:
                                                     widget.ownBusiness == null
                                                     ? null
-                                                    : () {
-                                                        Navigator.of(
-                                                          context,
-                                                        ).push(
+                                                    : () async {
+                                                        final orderId = await Navigator.of(context).push<String>(
                                                           MaterialPageRoute(
                                                             builder: (_) =>
                                                                 CreateOrderScreen(
@@ -1108,6 +1371,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                                 ),
                                                           ),
                                                         );
+                                                        _onOutgoingOrderPlaced(orderId);
                                                       },
                                                 child: const Text(
                                                   'Place Order',
@@ -1117,8 +1381,8 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                             const SizedBox(width: 8),
                                             Expanded(
                                               child: OutlinedButton(
-                                                onPressed: () {
-                                                  Navigator.of(context).push(
+                                                onPressed: () async {
+                                                  final orderId = await Navigator.of(context).push<String>(
                                                     MaterialPageRoute(
                                                       builder: (_) =>
                                                           CustomerCatalogScreen(
@@ -1131,6 +1395,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                           ),
                                                     ),
                                                   );
+                                                  _onOutgoingOrderPlaced(orderId);
                                                 },
                                                 child: const Text('Catalog'),
                                               ),
@@ -1176,11 +1441,15 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                 ),
                 outgoingAsync.when(
                   data: (orders) {
-                    if (orders.isEmpty) {
-                      return const Center(
-                        child: Text('No outgoing orders yet.'),
+                    final now = DateTime.now();
+                    final filteredOrders = orders.where((order) {
+                      return _matchesPlacedDateFilter(
+                        order,
+                        ui.placedDateFilter,
+                        now,
+                        ui,
                       );
-                    }
+                    }).toList();
                     return ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
@@ -1189,11 +1458,82 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 12),
-                        ...orders.map((order) {
+                        DropdownButtonFormField<_PlacedDateFilter>(
+                          initialValue: ui.placedDateFilter,
+                          decoration: const InputDecoration(labelText: 'Date Filter'),
+                          items: _PlacedDateFilter.values
+                              .map(
+                                (filter) => DropdownMenuItem(
+                                  value: filter,
+                                  child: Text(_placedDateFilterLabel(filter)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            ref
+                                .read(_placeOrdersUiProvider(_uiKey).notifier)
+                                .state = ui.copyWith(placedDateFilter: value);
+                            if (value == _PlacedDateFilter.custom &&
+                                (ui.placedFromDate == null ||
+                                    ui.placedToDate == null)) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                _pickPlacedCustomRange(
+                                  ref.read(_placeOrdersUiProvider(_uiKey)),
+                                );
+                              });
+                            }
+                          },
+                        ),
+                        if (ui.placedDateFilter == _PlacedDateFilter.custom) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  (ui.placedFromDate != null &&
+                                          ui.placedToDate != null)
+                                      ? '${_formatDate(ui.placedFromDate!)} to ${_formatDate(ui.placedToDate!)}'
+                                      : 'No date range selected',
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _pickPlacedCustomRange(ui),
+                                child: const Text('Select'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(_placeOrdersUiProvider(_uiKey).notifier)
+                                      .state = ui.copyWith(
+                                        placedFromDate: null,
+                                        placedToDate: null,
+                                      );
+                                },
+                                child: const Text('Clear'),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        if (filteredOrders.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 24),
+                            child: Center(
+                              child: Text('No outgoing orders for selected filter.'),
+                            ),
+                          ),
+                        ...filteredOrders.map((order) {
                           final effectiveStatus =
                               order.delivery.status == DeliveryStatus.delivered
                               ? OrderStatus.completed
                               : order.status;
+                          final canEdit = _canEditOrder(order);
+                          final isFast = order.priority == OrderPriority.fast;
+                          final priorityColor = isFast
+                              ? Colors.red
+                              : Theme.of(context).colorScheme.onSurface;
                           final statusColor = switch (effectiveStatus) {
                             OrderStatus.completed => Colors.green,
                             OrderStatus.approved ||
@@ -1202,6 +1542,15 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           };
                           return Card(
                             margin: const EdgeInsets.only(bottom: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: isFast
+                                  ? BorderSide(
+                                      color: Colors.red.shade400,
+                                      width: 1.8,
+                                    )
+                                  : BorderSide.none,
+                            ),
                             child: ListTile(
                               onTap: () {
                                 Navigator.of(context).push(
@@ -1214,13 +1563,39 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                               title: Text(
                                 '${order.businessName} • ${_capitalize(effectiveStatus.name)}',
                               ),
-                              subtitle: Text(
-                                'Order ${order.displayOrderNumber}\n'
-                                'Priority: ${_capitalize(order.priority.name)} | Payment: ${_capitalize(order.payment.status.name)} | '
-                                'Delivery: ${_capitalize(order.delivery.status.name)}',
+                              subtitleTextStyle: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge,
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Order ${order.displayOrderNumber}'),
+                                  Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        const TextSpan(
+                                          text: 'Delivery Priority: ',
+                                        ),
+                                        TextSpan(
+                                          text: _capitalize(order.priority.name),
+                                          style: TextStyle(
+                                            color: priorityColor,
+                                            fontWeight: isFast
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    'Payment: ${_capitalize(order.payment.status.name)} | '
+                                    'Delivery: ${_capitalize(order.delivery.status.name)}',
+                                  ),
+                                ],
                               ),
                               isThreeLine: true,
-                              trailing: Column(
+                              trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Container(
@@ -1230,6 +1605,39 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                       color: statusColor,
                                       shape: BoxShape.circle,
                                     ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  PopupMenuButton<String>(
+                                    tooltip: canEdit
+                                        ? 'Order actions'
+                                        : 'Locked: accepted orders cannot be edited/deleted',
+                                    onSelected: (value) async {
+                                      if (value == 'edit') {
+                                        await _editPlacedOrder(
+                                          order,
+                                          businessById,
+                                        );
+                                      } else if (value == 'delete') {
+                                        await _deletePlacedOrder(order);
+                                      }
+                                    },
+                                    itemBuilder: (_) => [
+                                      const PopupMenuItem(
+                                        value: '__help__',
+                                        enabled: false,
+                                        child: Text('Editable only while order is New'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        enabled: canEdit,
+                                        child: const Text('Edit Order'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        enabled: canEdit,
+                                        child: const Text('Delete Order'),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

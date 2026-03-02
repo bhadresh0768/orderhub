@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../../../models/business.dart';
+import '../../../models/app_user.dart';
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
+import '../profile/profile_screen.dart';
 
 enum _DeliveryDateFilter { today, week, month, year, custom }
 
@@ -63,20 +65,14 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
           return Scaffold(
             appBar: AppBar(
               title: const Text('Delivery Dashboard'),
-              actions: [
-                IconButton(
-                  onPressed: () => ref.read(authServiceProvider).signOut(),
-                  icon: const Icon(Icons.logout),
-                  tooltip: 'Logout',
-                ),
-              ],
             ),
+            drawer: _buildDrawer(context, ref, profile),
             body: const Center(
               child: Text('Phone number missing in profile. Contact admin.'),
             ),
           );
         }
-        return _DeliveryBoyBody(phone: phone, name: profile.name);
+        return _DeliveryBoyBody(profile: profile, phone: phone, name: profile.name);
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -85,11 +81,53 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Drawer _buildDrawer(BuildContext context, WidgetRef ref, AppUser profile) {
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Text('Menu', style: TextStyle(fontSize: 24)),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text('Profile'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProfileScreen(user: profile),
+                  ),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () {
+                Navigator.of(context).pop();
+                ref.read(authServiceProvider).signOut();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DeliveryBoyBody extends ConsumerStatefulWidget {
-  const _DeliveryBoyBody({required this.phone, required this.name});
+  const _DeliveryBoyBody({
+    required this.profile,
+    required this.phone,
+    required this.name,
+  });
 
+  final AppUser profile;
   final String phone;
   final String name;
 
@@ -376,13 +414,40 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Delivery Dashboard • ${widget.name}'),
-        actions: [
-          IconButton(
-            onPressed: () => ref.read(authServiceProvider).signOut(),
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
+      ),
+      drawer: Drawer(
+        child: SafeArea(
+          child: ListView(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text('Menu', style: TextStyle(fontSize: 24)),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Profile'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProfileScreen(user: widget.profile),
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Logout'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  ref.read(authServiceProvider).signOut();
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
       body: ordersAsync.when(
         data: (orders) {
@@ -540,8 +605,15 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
             : (order.requesterType == OrderRequesterType.businessOwner
                   ? businessAddressById[order.requesterBusinessId] ?? '-'
                   : '-');
+        final isFast = order.priority == OrderPriority.fast;
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: isFast
+                ? BorderSide(color: Colors.red.shade400, width: 1.8)
+                : BorderSide.none,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(

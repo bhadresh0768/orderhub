@@ -10,24 +10,18 @@ import '../../../models/order.dart';
 import '../../../providers.dart';
 import '../orders/create_order_screen.dart';
 
-final _customerCatalogUiProvider =
-    StateProvider.autoDispose.family<_CustomerCatalogUiState, String>(
-  (ref, _) => const _CustomerCatalogUiState(),
-);
+final _customerCatalogUiProvider = StateProvider.autoDispose
+    .family<_CustomerCatalogUiState, String>(
+      (ref, _) => const _CustomerCatalogUiState(),
+    );
 
 class _CustomerCatalogUiState {
-  const _CustomerCatalogUiState({
-    this.selected = const {},
-  });
+  const _CustomerCatalogUiState({this.selected = const {}});
 
   final Map<String, _SelectedVariant> selected;
 
-  _CustomerCatalogUiState copyWith({
-    Map<String, _SelectedVariant>? selected,
-  }) {
-    return _CustomerCatalogUiState(
-      selected: selected ?? this.selected,
-    );
+  _CustomerCatalogUiState copyWith({Map<String, _SelectedVariant>? selected}) {
+    return _CustomerCatalogUiState(selected: selected ?? this.selected);
   }
 }
 
@@ -45,7 +39,10 @@ class CustomerCatalogScreen extends ConsumerWidget {
 
   String get _uiKey => '${business.id}_${customer.id}';
 
-  int _selectedQty(Map<String, _SelectedVariant> selected, CatalogVariant variant) {
+  int _selectedQty(
+    Map<String, _SelectedVariant> selected,
+    CatalogVariant variant,
+  ) {
     return selected[variant.id]?.quantity ?? 0;
   }
 
@@ -95,7 +92,11 @@ class CustomerCatalogScreen extends ConsumerWidget {
         _CustomerCatalogUiState(selected: next);
   }
 
-  void _proceedToOrder(BuildContext context, Map<String, _SelectedVariant> selected) {
+  Future<void> _proceedToOrder(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, _SelectedVariant> selected,
+  ) async {
     if (selected.isEmpty) return;
     final items = selected.values.map((entry) {
       final packSize = '${entry.baseValue} ${entry.baseUnit}';
@@ -112,7 +113,7 @@ class CustomerCatalogScreen extends ConsumerWidget {
         unavailableReason: null,
       );
     }).toList();
-    Navigator.of(context).push(
+    final orderId = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => CreateOrderScreen(
           business: business,
@@ -122,6 +123,10 @@ class CustomerCatalogScreen extends ConsumerWidget {
         ),
       ),
     );
+    if (!context.mounted || orderId == null) return;
+    ref.read(_customerCatalogUiProvider(_uiKey).notifier).state =
+        const _CustomerCatalogUiState();
+    Navigator.of(context).pop(orderId);
   }
 
   @override
@@ -131,16 +136,14 @@ class CustomerCatalogScreen extends ConsumerWidget {
     final productsAsync = ref.watch(catalogProductsProvider(business.id));
     final categoriesAsync = ref.watch(catalogCategoriesProvider(business.id));
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${business.name} Catalog'),
-      ),
+      appBar: AppBar(title: Text('${business.name} Catalog')),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: FilledButton(
             onPressed: selected.isEmpty
                 ? null
-                : () => _proceedToOrder(context, selected),
+                : () => _proceedToOrder(context, ref, selected),
             child: Text(
               selected.isEmpty
                   ? 'Select items to proceed'
@@ -149,45 +152,50 @@ class CustomerCatalogScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: productsAsync.when(
-        data: (products) {
-          if (products.isEmpty) {
-            return const Center(child: Text('No catalog items yet.'));
-          }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              ...products.map(
-                (product) => Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ExpansionTile(
-                    title: Text(product.name),
-                    subtitle: Text(
-                      'Category: ${_categoryName(categoriesAsync.value, product.categoryId)}',
-                    ),
-                    children: [
-                      if ((product.description ?? '').trim().isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                          child: Text(product.description!.trim()),
-                        ),
-                      _ProductVariantsList(
-                        product: product,
-                        selectedQty: (variant) => _selectedQty(selected, variant),
-                        onAdd: (p, variant) =>
-                            _incrementVariant(ref, selected, p, variant),
-                        onRemove: (variant) =>
-                            _decrementVariant(ref, selected, variant),
+      body: SafeArea(
+        top: false,
+        child: productsAsync.when(
+          data: (products) {
+            if (products.isEmpty) {
+              return const Center(child: Text('No catalog items yet.'));
+            }
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                ...products.map(
+                  (product) => Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ExpansionTile(
+                      title: Text(product.name),
+                      subtitle: Text(
+                        'Category: ${_categoryName(categoriesAsync.value, product.categoryId)}',
                       ),
-                    ],
+                      children: [
+                        if ((product.description ?? '').trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: Text(product.description!.trim()),
+                          ),
+                        _ProductVariantsList(
+                          product: product,
+                          selectedQty: (variant) =>
+                              _selectedQty(selected, variant),
+                          onAdd: (p, variant) =>
+                              _incrementVariant(ref, selected, p, variant),
+                          onRemove: (variant) =>
+                              _decrementVariant(ref, selected, variant),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) =>
+              Center(child: Text('Something went wrong. Please retry.')),
+        ),
       ),
     );
   }
@@ -253,7 +261,6 @@ class _ProductVariantsList extends ConsumerWidget {
       ),
     );
   }
-
 }
 
 String _categoryName(List<CatalogCategory>? categories, String? categoryId) {
@@ -304,26 +311,52 @@ class _VariantImagePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (imageUrls.isEmpty) {
-      return const CircleAvatar(
-        radius: 22,
-        child: Icon(Icons.image_outlined),
-      );
+      return const CircleAvatar(radius: 22, child: Icon(Icons.image_outlined));
     }
     return GestureDetector(
       onTap: () => _showCatalogImageGallery(context, imageUrls, 0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          imageUrls.first,
-          width: 44,
-          height: 44,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => const SizedBox(
-            width: 44,
-            height: 44,
-            child: Icon(Icons.broken_image_outlined),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              imageUrls.first,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(Icons.broken_image_outlined),
+              ),
+            ),
           ),
-        ),
+          if (imageUrls.length > 1)
+            Positioned(
+              right: 2,
+              top: 2,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  child: Text(
+                    '${imageUrls.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

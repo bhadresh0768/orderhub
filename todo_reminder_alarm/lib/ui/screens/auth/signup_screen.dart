@@ -214,17 +214,19 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     final profileOnlyMode = uiState.profileOnlyMode || existingUser != null;
     return Scaffold(
       appBar: AppBar(title: const Text('Create Account')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Card(
-            margin: const EdgeInsets.all(16),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  child: Column(
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Card(
+              margin: const EdgeInsets.all(16),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
@@ -485,6 +487,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         child: const Text('Already have an account? Login'),
                       ),
                     ],
+                    ),
                   ),
                 ),
               ),

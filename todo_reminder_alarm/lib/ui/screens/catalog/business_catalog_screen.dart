@@ -59,19 +59,15 @@ class _CategoriesTab extends ConsumerWidget {
                   ),
                 ),
                 FilledButton.icon(
-                  onPressed: () => _showCategoryDialog(
-                    context,
-                    ref,
-                    businessId: businessId,
-                  ),
+                  onPressed: () =>
+                      _showCategoryDialog(context, ref, businessId: businessId),
                   icon: const Icon(Icons.add),
                   label: const Text('Add'),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            if (categories.isEmpty)
-              const Text('No categories yet.'),
+            if (categories.isEmpty) const Text('No categories yet.'),
             ...categories.map(
               (category) => Card(
                 child: ListTile(
@@ -106,7 +102,8 @@ class _CategoriesTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
+      error: (_, _) =>
+          Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -146,8 +143,7 @@ class _ProductsTab extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 12),
-            if (products.isEmpty)
-              const Text('No products yet.'),
+            if (products.isEmpty) const Text('No products yet.'),
             ...products.map(
               (product) => Card(
                 child: Column(
@@ -183,7 +179,10 @@ class _ProductsTab extends ConsumerWidget {
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(value: 'edit', child: Text('Edit')),
-                          PopupMenuItem(value: 'variants', child: Text('Variants')),
+                          PopupMenuItem(
+                            value: 'variants',
+                            child: Text('Variants'),
+                          ),
                           PopupMenuItem(value: 'delete', child: Text('Delete')),
                         ],
                       ),
@@ -194,12 +193,12 @@ class _ProductsTab extends ConsumerWidget {
                         alignment: Alignment.centerLeft,
                         child: Consumer(
                           builder: (context, ref, _) {
-                            final variantsAsync =
-                                ref.watch(catalogVariantsProvider(product.id));
+                            final variantsAsync = ref.watch(
+                              catalogVariantsProvider(product.id),
+                            );
                             return variantsAsync.when(
-                              data: (variants) => Text(
-                                'Variants: ${variants.length}',
-                              ),
+                              data: (variants) =>
+                                  Text('Variants: ${variants.length}'),
                               loading: () => const Text('Variants: ...'),
                               error: (_, _) =>
                                   const Text('Variants unavailable'),
@@ -216,7 +215,8 @@ class _ProductsTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
+      error: (_, _) =>
+          Center(child: Text('Something went wrong. Please retry.')),
     );
   }
 }
@@ -272,7 +272,9 @@ Future<void> _showCategoryDialog(
               final sort = int.tryParse(sortOrder.text.trim()) ?? 0;
               if (category == null) {
                 final id = const Uuid().v4();
-                await ref.read(firestoreServiceProvider).createCatalogCategory(
+                await ref
+                    .read(firestoreServiceProvider)
+                    .createCatalogCategory(
                       CatalogCategory(
                         id: id,
                         businessId: businessId,
@@ -283,13 +285,10 @@ Future<void> _showCategoryDialog(
                       ),
                     );
               } else {
-                await ref
-                    .read(firestoreServiceProvider)
-                    .updateCatalogCategory(category.id, {
-                  'name': trimmed,
-                  'sortOrder': sort,
-                  'isActive': isActive,
-                });
+                await ref.read(firestoreServiceProvider).updateCatalogCategory(
+                  category.id,
+                  {'name': trimmed, 'sortOrder': sort, 'isActive': isActive},
+                );
               }
               if (!context.mounted) return;
               Navigator.of(context).pop();
@@ -365,7 +364,9 @@ Future<void> _showProductDialog(
               final keywords = _buildSearchKeywords(trimmed);
               if (product == null) {
                 final id = const Uuid().v4();
-                await ref.read(firestoreServiceProvider).createCatalogProduct(
+                await ref
+                    .read(firestoreServiceProvider)
+                    .createCatalogProduct(
                       CatalogProduct(
                         id: id,
                         businessId: businessId,
@@ -383,14 +384,14 @@ Future<void> _showProductDialog(
                 await ref
                     .read(firestoreServiceProvider)
                     .updateCatalogProduct(product.id, {
-                  'name': trimmed,
-                  'categoryId': categoryId,
-                  'description': description.text.trim().isEmpty
-                      ? null
-                      : description.text.trim(),
-                  'isActive': isActive,
-                  'searchKeywords': keywords,
-                });
+                      'name': trimmed,
+                      'categoryId': categoryId,
+                      'description': description.text.trim().isEmpty
+                          ? null
+                          : description.text.trim(),
+                      'isActive': isActive,
+                      'searchKeywords': keywords,
+                    });
               }
               if (!context.mounted) return;
               Navigator.of(context).pop();
@@ -454,15 +455,27 @@ Future<void> _showVariantsSheet(
                     return ListView(
                       controller: controller,
                       children: variants.map((variant) {
+                        final imageCount = variant.imageUrls.length;
                         return Card(
                           margin: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
                           ),
                           child: ListTile(
+                            leading: _VariantThumb(
+                              imageUrls: variant.imageUrls,
+                              onTap: imageCount == 0
+                                  ? null
+                                  : () => _showVariantImageGallery(
+                                      context,
+                                      variant.imageUrls,
+                                      0,
+                                    ),
+                            ),
                             title: Text(variant.label),
                             subtitle: Text(
-                              '${variant.baseValue} ${variant.baseUnit} • Price: ${variant.price}',
+                              '${variant.baseValue} ${variant.baseUnit} • Price: ${variant.price}'
+                              '${imageCount > 0 ? ' • Images: $imageCount' : ''}',
                             ),
                             trailing: PopupMenuButton<String>(
                               onSelected: (value) {
@@ -481,8 +494,14 @@ Future<void> _showVariantsSheet(
                                 }
                               },
                               itemBuilder: (_) => const [
-                                PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Edit'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Delete'),
+                                ),
                               ],
                             ),
                           ),
@@ -490,8 +509,11 @@ Future<void> _showVariantsSheet(
                       }).toList(),
                     );
                   },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (_, _) => Center(child: Text('Something went wrong. Please retry.')),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (_, _) => Center(
+                    child: Text('Something went wrong. Please retry.'),
+                  ),
                 ),
               ),
             ],
@@ -533,4 +555,131 @@ String _categoryName(List<CatalogCategory>? categories, String? categoryId) {
   final match = categories.where((c) => c.id == categoryId).toList();
   if (match.isEmpty) return categoryId;
   return match.first.name;
+}
+
+class _VariantThumb extends StatelessWidget {
+  const _VariantThumb({required this.imageUrls, this.onTap});
+
+  final List<String> imageUrls;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrls.isEmpty) {
+      return const CircleAvatar(radius: 24, child: Icon(Icons.image_outlined));
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              imageUrls.first,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(Icons.broken_image_outlined),
+              ),
+            ),
+          ),
+          if (imageUrls.length > 1)
+            Positioned(
+              right: 2,
+              top: 2,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  child: Text(
+                    '${imageUrls.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _showVariantImageGallery(
+  BuildContext context,
+  List<String> imageUrls,
+  int initialIndex,
+) async {
+  var currentIndex = initialIndex;
+  await showDialog<void>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setLocal) => Dialog.fullscreen(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: PageController(initialPage: initialIndex),
+                itemCount: imageUrls.length,
+                onPageChanged: (index) => setLocal(() => currentIndex = index),
+                itemBuilder: (context, index) {
+                  return Center(
+                    child: InteractiveViewer(
+                      child: Image.network(
+                        imageUrls[index],
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            const Text('Unable to load image'),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: IconButton.filledTonal(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      '${currentIndex + 1} / ${imageUrls.length}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

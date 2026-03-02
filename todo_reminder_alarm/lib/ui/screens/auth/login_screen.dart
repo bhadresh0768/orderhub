@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:country_picker/country_picker.dart';
@@ -21,7 +22,9 @@ class _LoginUiState {
     required this.selectedCountry,
     required this.usePhoneLogin,
     this.loading = false,
+    this.otpRequesting = false,
     this.otpSent = false,
+    this.resendCooldownSeconds = 0,
     this.verificationId,
     this.resendToken,
     this.webConfirmationResult,
@@ -31,7 +34,9 @@ class _LoginUiState {
   final Country selectedCountry;
   final bool usePhoneLogin;
   final bool loading;
+  final bool otpRequesting;
   final bool otpSent;
+  final int resendCooldownSeconds;
   final String? verificationId;
   final int? resendToken;
   final ConfirmationResult? webConfirmationResult;
@@ -41,7 +46,9 @@ class _LoginUiState {
     Country? selectedCountry,
     bool? usePhoneLogin,
     bool? loading,
+    bool? otpRequesting,
     bool? otpSent,
+    int? resendCooldownSeconds,
     Object? verificationId = _loginUnset,
     Object? resendToken = _loginUnset,
     Object? webConfirmationResult = _loginUnset,
@@ -51,7 +58,10 @@ class _LoginUiState {
       selectedCountry: selectedCountry ?? this.selectedCountry,
       usePhoneLogin: usePhoneLogin ?? this.usePhoneLogin,
       loading: loading ?? this.loading,
+      otpRequesting: otpRequesting ?? this.otpRequesting,
       otpSent: otpSent ?? this.otpSent,
+      resendCooldownSeconds:
+          resendCooldownSeconds ?? this.resendCooldownSeconds,
       verificationId: verificationId == _loginUnset
           ? this.verificationId
           : verificationId as String?,
@@ -84,6 +94,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
+  Timer? _resendTimer;
   _LoginUiState get _ui => ref.read(_loginUiProvider);
   void _updateUi(_LoginUiState Function(_LoginUiState state) update) {
     final notifier = ref.read(_loginUiProvider.notifier);
@@ -95,7 +106,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final localeCountryCode = ui.PlatformDispatcher.instance.locale.countryCode;
+      final localeCountryCode =
+          ui.PlatformDispatcher.instance.locale.countryCode;
       if (localeCountryCode != null && localeCountryCode.trim().isNotEmpty) {
         try {
           _updateUi(
@@ -112,11 +124,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
     super.dispose();
+  }
+
+  void _startResendCooldown([int seconds = 30]) {
+    _resendTimer?.cancel();
+    if (!mounted) return;
+    _updateUi((state) => state.copyWith(resendCooldownSeconds: seconds));
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final current = _ui.resendCooldownSeconds;
+      if (current <= 1) {
+        timer.cancel();
+        _updateUi((state) => state.copyWith(resendCooldownSeconds: 0));
+      } else {
+        _updateUi(
+          (state) => state.copyWith(resendCooldownSeconds: current - 1),
+        );
+      }
+    });
   }
 
   Future<void> _submitEmailLogin() async {
@@ -142,14 +176,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final raw = value.trim().replaceAll(RegExp(r'[\s-]'), '');
     if (raw.startsWith('+')) return raw;
     if (raw.startsWith('00') && raw.length > 2) return '+${raw.substring(2)}';
-    if (RegExp(r'^\d+$').hasMatch(raw)) return '+${_ui.selectedCountry.phoneCode}$raw';
+    if (RegExp(r'^\d+$').hasMatch(raw))
+      return '+${_ui.selectedCountry.phoneCode}$raw';
     return value.trim();
   }
 
   Future<void> _sendOtp() async {
     if (!_phoneFormKey.currentState!.validate()) return;
     final phone = _normalizePhoneNumber(_phoneController.text);
-    _updateUi((state) => state.copyWith(loading: true, error: null));
+    _updateUi((state) => state.copyWith(otpRequesting: true, error: null));
     try {
       if (kIsWeb) {
         final confirmation = await ref
@@ -159,9 +194,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _updateUi(
           (state) => state.copyWith(
             webConfirmationResult: confirmation,
+            otpRequesting: false,
             otpSent: true,
           ),
         );
+        _startResendCooldown();
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('OTP sent to $phone')));
@@ -177,9 +214,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   (state) => state.copyWith(
                     verificationId: verificationId,
                     resendToken: resendToken,
+                    otpRequesting: false,
                     otpSent: true,
                   ),
                 );
+                _startResendCooldown();
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(SnackBar(content: Text('OTP sent to $phone')));
@@ -188,11 +227,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 await ref
                     .read(authServiceProvider)
                     .signInWithPhoneCredential(credential);
+                if (!mounted) return;
+                _updateUi((state) => state.copyWith(otpRequesting: false));
               },
               verificationFailed: (e) {
                 if (!mounted) return;
                 _updateUi(
-                  (state) => state.copyWith(error: e.message ?? e.code),
+                  (state) => state.copyWith(
+                    otpRequesting: false,
+                    error: e.message ?? e.code,
+                  ),
                 );
               },
               codeAutoRetrievalTimeout: (verificationId) {
@@ -204,10 +248,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             );
       }
     } catch (err) {
-      _updateUi((state) => state.copyWith(error: err.toString()));
+      _updateUi(
+        (state) => state.copyWith(otpRequesting: false, error: err.toString()),
+      );
     } finally {
-      if (mounted) {
-        _updateUi((state) => state.copyWith(loading: false));
+      if (!mounted) return;
+      if (!_ui.otpSent) {
+        _updateUi((state) => state.copyWith(otpRequesting: false));
       }
     }
   }
@@ -219,18 +266,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (kIsWeb) {
         final confirmation = _ui.webConfirmationResult;
         if (confirmation == null) {
-          _updateUi(
-            (state) => state.copyWith(error: 'Please send OTP first.'),
-          );
+          _updateUi((state) => state.copyWith(error: 'Please send OTP first.'));
           return;
         }
         await confirmation.confirm(_otpController.text.trim());
       } else {
         final verificationId = _ui.verificationId;
         if (verificationId == null) {
-          _updateUi(
-            (state) => state.copyWith(error: 'Please send OTP first.'),
-          );
+          _updateUi((state) => state.copyWith(error: 'Please send OTP first.'));
           return;
         }
         await ref
@@ -254,203 +297,249 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final uiState = ref.watch(_loginUiProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Card(
-            margin: const EdgeInsets.all(16),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Welcome Back',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  if (uiState.error != null) ...[
-                    Text(uiState.error!, style: const TextStyle(color: Colors.red)),
-                    const SizedBox(height: 12),
-                  ],
-                  if (kIsWeb)
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment<bool>(value: false, label: Text('Email')),
-                        ButtonSegment<bool>(
-                          value: true,
-                          label: Text('Mobile OTP'),
-                        ),
-                      ],
-                      selected: {uiState.usePhoneLogin},
-                      onSelectionChanged: (selection) {
-                        final usePhone = selection.first;
-                        _otpController.clear();
-                        _updateUi(
-                          (state) => state.copyWith(
-                            usePhoneLogin: usePhone,
-                            error: null,
-                            otpSent: false,
-                            verificationId: null,
-                            webConfirmationResult: null,
-                          ),
-                        );
-                      },
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Card(
+              margin: const EdgeInsets.all(16),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Welcome Back',
+                      style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                  const SizedBox(height: 16),
-                  if (!uiState.usePhoneLogin)
-                    Form(
-                      key: _emailFormKey,
-                      child: Column(
-                        children: [
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                            ),
-                            validator: (value) => value == null || value.isEmpty
-                                ? 'Enter your email'
-                                : null,
+                    const SizedBox(height: 16),
+                    if (uiState.error != null) ...[
+                      Text(
+                        uiState.error!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (kIsWeb)
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment<bool>(
+                            value: false,
+                            label: Text('Email'),
                           ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _passwordController,
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                            ),
-                            obscureText: true,
-                            validator: (value) => value == null || value.isEmpty
-                                ? 'Enter your password'
-                                : null,
-                          ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: uiState.loading
-                                  ? null
-                                  : _submitEmailLogin,
-                              child: uiState.loading
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Login'),
-                            ),
+                          ButtonSegment<bool>(
+                            value: true,
+                            label: Text('Mobile OTP'),
                           ),
                         ],
+                        selected: {uiState.usePhoneLogin},
+                        onSelectionChanged: (selection) {
+                          final usePhone = selection.first;
+                          _otpController.clear();
+                          _updateUi(
+                            (state) => state.copyWith(
+                              usePhoneLogin: usePhone,
+                              error: null,
+                              otpSent: false,
+                              verificationId: null,
+                              webConfirmationResult: null,
+                            ),
+                          );
+                        },
                       ),
-                    )
-                  else
-                    Form(
-                      key: _phoneFormKey,
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 132,
-                                child: InkWell(
-                                  onTap: () {
-                                    showCountryPicker(
-                                      context: context,
-                                      showPhoneCode: true,
-                                      onSelect: (country) {
-                                        _updateUi(
-                                          (state) => state.copyWith(
-                                            selectedCountry: country,
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
-                                  child: InputDecorator(
-                                    decoration: const InputDecoration(
-                                      labelText: 'Code',
-                                    ),
-                                    child: Text(
-                                      '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
-                                    ),
-                                  ),
-                                ),
+                    const SizedBox(height: 16),
+                    if (!uiState.usePhoneLogin)
+                      Form(
+                        key: _emailFormKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Mobile Number',
-                                    hintText: '9876543210',
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Enter mobile number';
-                                    }
-                                    final normalized = _normalizePhoneNumber(value);
-                                    if (!normalized.startsWith('+') ||
-                                        normalized.length < 8) {
-                                      return 'Enter valid mobile number';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (uiState.otpSent) ...[
+                              validator: (value) =>
+                                  value == null || value.isEmpty
+                                  ? 'Enter your email'
+                                  : null,
+                            ),
                             const SizedBox(height: 12),
                             TextFormField(
-                              controller: _otpController,
-                              keyboardType: TextInputType.number,
+                              controller: _passwordController,
                               decoration: const InputDecoration(
-                                labelText: 'OTP Code',
+                                labelText: 'Password',
                               ),
-                              validator: (value) {
-                                if (!uiState.otpSent) return null;
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Enter OTP';
-                                }
-                                if (value.trim().length < 6) {
-                                  return 'OTP must be 6 digits';
-                                }
-                                return null;
-                              },
+                              obscureText: true,
+                              validator: (value) =>
+                                  value == null || value.isEmpty
+                                  ? 'Enter your password'
+                                  : null,
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: uiState.loading
+                                    ? null
+                                    : _submitEmailLogin,
+                                child: uiState.loading
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Login'),
+                              ),
                             ),
                           ],
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: uiState.loading
-                                  ? null
-                                  : (uiState.otpSent ? _verifyOtp : _sendOtp),
-                              child: uiState.loading
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                        ),
+                      )
+                    else
+                      Form(
+                        key: _phoneFormKey,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 132,
+                                  child: InkWell(
+                                    onTap: () {
+                                      showCountryPicker(
+                                        context: context,
+                                        showPhoneCode: true,
+                                        onSelect: (country) {
+                                          _updateUi(
+                                            (state) => state.copyWith(
+                                              selectedCountry: country,
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                    child: InputDecorator(
+                                      decoration: const InputDecoration(
+                                        labelText: 'Code',
                                       ),
-                                    )
-                                  : Text(uiState.otpSent ? 'Verify OTP' : 'Send OTP'),
+                                      child: Text(
+                                        '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _phoneController,
+                                    keyboardType: TextInputType.phone,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Mobile Number',
+                                      hintText: '9876543210',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null ||
+                                          value.trim().isEmpty) {
+                                        return 'Enter mobile number';
+                                      }
+                                      final normalized = _normalizePhoneNumber(
+                                        value,
+                                      );
+                                      if (!normalized.startsWith('+') ||
+                                          normalized.length < 8) {
+                                        return 'Enter valid mobile number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          if (uiState.otpSent) ...[
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: uiState.loading ? null : _sendOtp,
-                              child: const Text('Resend OTP'),
+                            if (uiState.otpSent) ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _otpController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'OTP Code',
+                                ),
+                                validator: (value) {
+                                  if (!uiState.otpSent) return null;
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Enter OTP';
+                                  }
+                                  if (value.trim().length < 6) {
+                                    return 'OTP must be 6 digits';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            if (uiState.otpRequesting) ...[
+                              const LinearProgressIndicator(minHeight: 3),
+                              const SizedBox(height: 8),
+                              const Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text('Sending OTP...'),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed:
+                                    (uiState.loading || uiState.otpRequesting)
+                                    ? null
+                                    : (uiState.otpSent ? _verifyOtp : _sendOtp),
+                                child: uiState.loading
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : uiState.otpRequesting
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Text(
+                                        uiState.otpSent
+                                            ? 'Verify OTP'
+                                            : 'Send OTP',
+                                      ),
+                              ),
                             ),
+                            if (uiState.otpSent) ...[
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed:
+                                    (uiState.loading ||
+                                        uiState.otpRequesting ||
+                                        uiState.resendCooldownSeconds > 0)
+                                    ? null
+                                    : _sendOtp,
+                                child: const Text('Resend OTP'),
+                              ),
+                              if (uiState.resendCooldownSeconds > 0)
+                                Text(
+                                  'Resend in ${uiState.resendCooldownSeconds}s',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

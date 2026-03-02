@@ -37,6 +37,33 @@ service cloud.firestore {
           resource.data.delivery.status == 'delivered');
     }
 
+    function isRequesterOfOrder() {
+      return signedIn() && resource.data.customerId == request.auth.uid;
+    }
+
+    function requesterCanEditPendingOrder() {
+      return isRequesterOfOrder() &&
+        resource.data.status == 'pending' &&
+        resource.data.delivery.status == 'pending' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'priority',
+          'items',
+          'deliveryAddressLabel',
+          'deliveryAddress',
+          'deliveryContactName',
+          'deliveryContactPhone',
+          'payment',
+          'notes',
+          'updatedAt'
+        ]) &&
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.delivery == resource.data.delivery &&
+        request.resource.data.payment.status == resource.data.payment.status &&
+        request.resource.data.payment.amount == resource.data.payment.amount &&
+        request.resource.data.payment.collectedBy == resource.data.payment.collectedBy &&
+        request.resource.data.payment.collectedByName == resource.data.payment.collectedByName;
+    }
+
     function categoryBelongsTo(businessId, categoryId) {
       return categoryId == null ||
         (exists(/databases/$(database)/documents/catalogCategories/$(categoryId)) &&
@@ -88,6 +115,7 @@ service cloud.firestore {
         !isOrderLocked() &&
         signedIn() && (
           isBusinessOwnerOf(resource.data.businessId) ||
+          requesterCanEditPendingOrder() ||
           (
             isDeliveryBoy() &&
             resource.data.assignedDeliveryAgentPhone == myPhone() &&
@@ -95,7 +123,11 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (
+        isRequesterOfOrder() &&
+        resource.data.status == 'pending' &&
+        resource.data.delivery.status == 'pending'
+      );
     }
 
     match /supportTickets/{ticketId} {

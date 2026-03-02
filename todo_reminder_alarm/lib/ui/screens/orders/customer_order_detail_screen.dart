@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
+import '../../../providers.dart';
 
-class CustomerOrderDetailScreen extends StatelessWidget {
+class CustomerOrderDetailScreen extends ConsumerWidget {
   const CustomerOrderDetailScreen({super.key, required this.order});
 
   final Order order;
@@ -130,18 +132,39 @@ class CustomerOrderDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final effectiveStatus = order.delivery.status == DeliveryStatus.delivered
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveOrderAsync = ref.watch(orderByIdProvider(order.id));
+    final currentOrder = liveOrderAsync.asData?.value;
+    if (currentOrder == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Order ${order.displayOrderNumber}')),
+        body: liveOrderAsync.when(
+          data: (_) => const Center(child: Text('Order not found.')),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Failed to load latest order details: $err'),
+            ),
+          ),
+        ),
+      );
+    }
+    final effectiveStatus = currentOrder.delivery.status == DeliveryStatus.delivered
         ? OrderStatus.completed
-        : order.status;
-    final includedItems = order.items.where((e) => e.isIncluded ?? true).toList();
-    final unavailableItems = order.items.where((e) => !(e.isIncluded ?? true)).toList();
-    final schedule = order.scheduledAt;
-    final created = order.createdAt;
-    final legacySplit = _splitLegacyAddress(order.deliveryAddress ?? '');
+        : currentOrder.status;
+    final includedItems = currentOrder.items
+        .where((e) => e.isIncluded ?? true)
+        .toList();
+    final unavailableItems = currentOrder.items
+        .where((e) => !(e.isIncluded ?? true))
+        .toList();
+    final schedule = currentOrder.scheduledAt;
+    final created = currentOrder.createdAt;
+    final legacySplit = _splitLegacyAddress(currentOrder.deliveryAddress ?? '');
     final deliveryAddress = legacySplit.address;
-    final contactName = (order.deliveryContactName ?? '').trim();
-    final contactPhone = (order.deliveryContactPhone ?? '').trim();
+    final contactName = (currentOrder.deliveryContactName ?? '').trim();
+    final contactPhone = (currentOrder.deliveryContactPhone ?? '').trim();
     final deliveryContact = contactName.isNotEmpty && contactPhone.isNotEmpty
         ? '$contactName ($contactPhone)'
         : contactName.isNotEmpty
@@ -156,10 +179,12 @@ class CustomerOrderDetailScreen extends StatelessWidget {
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text('Order ${order.displayOrderNumber}')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      appBar: AppBar(title: Text('Order ${currentOrder.displayOrderNumber}')),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -167,7 +192,7 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    order.businessName,
+                    currentOrder.businessName,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -188,24 +213,24 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Text('Payment: ${_capitalize(order.payment.status.name)}'),
-                  Text('Delivery: ${_capitalize(order.delivery.status.name)}'),
-                  Text('Amount: ${_money(order.payment.amount)}'),
+                  Text('Payment: ${_capitalize(currentOrder.payment.status.name)}'),
+                  Text('Delivery: ${_capitalize(currentOrder.delivery.status.name)}'),
+                  Text('Amount: ${_money(currentOrder.payment.amount)}'),
                   Text(
                     'Created: ${created == null ? '-' : created.toLocal().toString()}',
                   ),
                   Text(
                     'Scheduled: ${schedule == null ? '-' : schedule.toLocal().toString()}',
                   ),
-                  if (_clean(order.notes) != null)
-                    Text('Order Remark: ${_clean(order.notes)}'),
-                  if (_clean(order.delivery.note) != null)
-                    Text('Delivery Remark: ${_clean(order.delivery.note)}'),
-                  if (_clean(order.payment.remark) != null)
-                    Text('Payment Remark: ${_clean(order.payment.remark)}'),
-                  if (_clean(order.payment.collectionNote) != null)
+                  if (_clean(currentOrder.notes) != null)
+                    Text('Order Remark: ${_clean(currentOrder.notes)}'),
+                  if (_clean(currentOrder.delivery.note) != null)
+                    Text('Delivery Remark: ${_clean(currentOrder.delivery.note)}'),
+                  if (_clean(currentOrder.payment.remark) != null)
+                    Text('Payment Remark: ${_clean(currentOrder.payment.remark)}'),
+                  if (_clean(currentOrder.payment.collectionNote) != null)
                     Text(
-                      'Delivery Boy Remark: ${_clean(order.payment.collectionNote)}',
+                      'Delivery Boy Remark: ${_clean(currentOrder.payment.collectionNote)}',
                     ),
                 ],
               ),
@@ -222,8 +247,9 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                   .where(_isImageAttachment)
                   .toList();
               final lineSubtotal = (item.unitPrice ?? 0) * item.quantity;
-              final lineGst = (item.gstIncluded ?? false) && (order.gstPercent ?? 0) > 0
-                  ? lineSubtotal * (order.gstPercent! / 100)
+              final lineGst = (item.gstIncluded ?? false) &&
+                      (currentOrder.gstPercent ?? 0) > 0
+                  ? lineSubtotal * (currentOrder.gstPercent! / 100)
                   : 0.0;
               final lineTotal = lineSubtotal + lineGst;
               final subtitleParts = [
@@ -341,19 +367,20 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                 children: [
                   Text('Billing', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
-                  Text('Subtotal: ${_money(order.subtotalAmount)}'),
-                  Text('GST %: ${_money(order.gstPercent)}'),
-                  Text('GST Amount: ${_money(order.gstAmount)}'),
-                  Text('Extra Charges: ${_money(order.extraCharges)}'),
+                  Text('Subtotal: ${_money(currentOrder.subtotalAmount)}'),
+                  Text('GST %: ${_money(currentOrder.gstPercent)}'),
+                  Text('GST Amount: ${_money(currentOrder.gstAmount)}'),
+                  Text('Extra Charges: ${_money(currentOrder.extraCharges)}'),
                   Text(
-                    'Grand Total: ${_money(order.totalAmount ?? order.payment.amount)}',
+                    'Grand Total: ${_money(currentOrder.totalAmount ?? currentOrder.payment.amount)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ],
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

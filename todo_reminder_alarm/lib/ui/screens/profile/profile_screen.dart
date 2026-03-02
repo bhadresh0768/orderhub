@@ -12,7 +12,6 @@ import '../../../models/enums.dart';
 import '../../../providers.dart';
 import '../../../app/deep_link_utils.dart';
 import 'public_business_profile_screen.dart';
-import '../support/support_tickets_screen.dart';
 
 final _profileUiProvider =
     StateProvider.autoDispose.family<_ProfileUiState, String>(
@@ -321,6 +320,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _requestDeleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure? This will submit your account deletion request for admin approval.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    _updateUi((state) => state.copyWith(saving: true, error: null));
+    try {
+      await ref.read(firestoreServiceProvider).updateUser(widget.user.id, {
+        'deleteRequestStatus': 'pending',
+        'deleteRequestedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Delete request submitted (Pending)')),
+      );
+    } catch (err) {
+      _updateUi(
+        (state) => state.copyWith(
+          error: 'Failed to submit delete request: $err',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        _updateUi((state) => state.copyWith(saving: false));
+      }
+    }
+  }
+
   String _normalizePhoneNumber(String value, Country country) {
     final raw = value.trim().replaceAll(RegExp(r'[\s-]'), '');
     if (raw.isEmpty) return '';
@@ -332,23 +377,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final uiState = ref.watch(_profileUiProvider(widget.user.id));
+    final liveUser =
+        ref.watch(userProfileProvider(widget.user.id)).asData?.value ??
+        widget.user;
     _initUser(widget.user);
-    final isCustomer = widget.user.role == UserRole.customer;
-    final businessId = widget.user.businessId;
+    final isCustomer = liveUser.role == UserRole.customer;
+    final businessId = liveUser.businessId;
+    final canRequestDelete =
+        liveUser.role == UserRole.customer ||
+        liveUser.role == UserRole.businessOwner;
+    final deletePending = (liveUser.deleteRequestStatus ?? '') == 'pending';
     final businessAsync = businessId == null
         ? null
         : ref.watch(businessByIdProvider(businessId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Form(
-              key: _formKey,
-              child: Column(
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Form(
+                key: _formKey,
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (uiState.error != null) ...[
@@ -758,24 +812,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           : const Text('Save Profile'),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => SupportTicketsScreen(
-                              user: widget.user,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.support_agent),
-                      label: const Text('Help & Support'),
+                  if (canRequestDelete) ...[
+                    const SizedBox(height: 12),
+                    if (deletePending)
+                      Text(
+                        'Delete request status: Pending',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: uiState.saving || deletePending
+                            ? null
+                            : _requestDeleteAccount,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                        icon: const Icon(Icons.delete_outline),
+                        label: Text(
+                          deletePending
+                              ? 'Delete Account Requested'
+                              : 'Delete Account',
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
+                ),
               ),
             ),
           ),

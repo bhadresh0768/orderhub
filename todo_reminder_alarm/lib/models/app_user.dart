@@ -13,6 +13,8 @@ class AppUser {
     this.appShareLink,
     this.shopName,
     this.address,
+    this.deleteRequestStatus,
+    this.deleteRequestedAt,
     this.isActive = true,
     this.businessId,
     this.createdAt,
@@ -26,6 +28,8 @@ class AppUser {
   final String? appShareLink;
   final String? shopName;
   final String? address;
+  final String? deleteRequestStatus;
+  final DateTime? deleteRequestedAt;
   final UserRole role;
   final bool isActive;
   final String? businessId;
@@ -40,6 +44,10 @@ class AppUser {
       'appShareLink': appShareLink,
       'shopName': shopName,
       'address': address,
+      'deleteRequestStatus': deleteRequestStatus,
+      'deleteRequestedAt': deleteRequestedAt == null
+          ? null
+          : Timestamp.fromDate(deleteRequestedAt!),
       'role': enumToString(role),
       'isActive': isActive,
       'businessId': businessId,
@@ -61,6 +69,8 @@ class AppUser {
       appShareLink: data['appShareLink'] as String?,
       shopName: data['shopName'] as String?,
       address: data['address'] as String?,
+      deleteRequestStatus: data['deleteRequestStatus'] as String?,
+      deleteRequestedAt: (data['deleteRequestedAt'] as Timestamp?)?.toDate(),
       role: enumFromString(
         UserRole.values,
         data['role'] as String?,

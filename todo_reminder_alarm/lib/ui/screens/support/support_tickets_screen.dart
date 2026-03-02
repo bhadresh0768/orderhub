@@ -178,9 +178,11 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Help & Support')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -345,7 +347,8 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
             ),
             error: (err, _) => Text('Error loading tickets: $err'),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

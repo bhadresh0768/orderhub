@@ -144,6 +144,13 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map(Order.fromDoc).toList());
   }
 
+  Stream<Order?> orderStream(String orderId) {
+    return _orders.doc(orderId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return Order.fromDoc(doc);
+    });
+  }
+
   Future<BusinessProfile?> getBusinessById(String businessId) async {
     final doc = await _businesses.doc(businessId).get();
     if (!doc.exists) return null;

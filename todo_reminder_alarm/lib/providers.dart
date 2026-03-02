@@ -152,6 +152,10 @@ final ordersForDeliveryAgentByPhoneProvider =
           .ordersForDeliveryAgentByPhoneStream(phone);
     });
 
+final orderByIdProvider = StreamProvider.family<Order?, String>((ref, orderId) {
+  return ref.read(firestoreServiceProvider).orderStream(orderId);
+});
+
 final catalogCategoriesProvider =
     StreamProvider.family<List<CatalogCategory>, String>((ref, businessId) {
       return ref

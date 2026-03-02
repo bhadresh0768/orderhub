@@ -234,9 +234,11 @@ class _OrderHistoryReportScreenState
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -415,7 +417,8 @@ class _OrderHistoryReportScreenState
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
