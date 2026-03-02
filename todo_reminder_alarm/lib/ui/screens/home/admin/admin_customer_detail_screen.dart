@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:android_intent_plus/android_intent.dart';
 
-import '../../../models/app_user.dart';
-import '../../../models/enums.dart';
-import '../../../models/order.dart';
-import '../../../providers.dart';
-import '../orders/customer_order_detail_screen.dart';
+import 'package:todo_reminder_alarm/models/app_user.dart';
+import 'package:todo_reminder_alarm/models/enums.dart';
+import 'package:todo_reminder_alarm/models/order.dart';
+import 'package:todo_reminder_alarm/providers.dart';
+import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
 
 enum _AdminCustomerDateFilter {
   all,

@@ -11,10 +11,10 @@ import '../providers.dart';
 import 'order_status_listener.dart';
 import '../ui/screens/auth/login_screen.dart';
 import '../ui/screens/auth/signup_screen.dart';
-import '../ui/screens/home/admin_home.dart';
-import '../ui/screens/home/business_home.dart';
-import '../ui/screens/home/customer_home.dart';
-import '../ui/screens/home/delivery_boy_home.dart';
+import '../ui/screens/home/admin/admin_home.dart';
+import '../ui/screens/home/business/business_home.dart';
+import '../ui/screens/home/customer/customer_home.dart';
+import '../ui/screens/home/delivery_agent/delivery_boy_home.dart';
 import '../ui/screens/profile/public_business_profile_screen.dart';
 import 'theme.dart';
 
