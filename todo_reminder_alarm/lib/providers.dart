@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/app_user.dart';
 import 'models/business.dart';
 import 'models/catalog.dart';
+import 'models/contact_us_message.dart';
 import 'models/delivery_agent.dart';
 import 'models/delivery_address.dart';
 import 'models/order.dart';
@@ -186,6 +187,10 @@ final supportTicketsForUserProvider =
 
 final allSupportTicketsProvider = StreamProvider<List<SupportTicket>>((ref) {
   return ref.read(firestoreServiceProvider).allSupportTicketsStream();
+});
+
+final allContactUsProvider = StreamProvider<List<ContactUsMessage>>((ref) {
+  return ref.read(firestoreServiceProvider).allContactUsStream();
 });
 
 final deliveryAgentsForBusinessProvider =

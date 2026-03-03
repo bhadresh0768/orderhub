@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:todo_reminder_alarm/providers.dart';
+import 'admin_contact_us_tab.dart';
 import 'admin_businesses_tab.dart';
 import 'admin_orders_tab.dart';
 import 'admin_support_tickets_tab.dart';
@@ -21,7 +22,7 @@ class AdminHomeScreen extends ConsumerWidget {
         : ref.watch(userProfileProvider(authState.uid)).value;
     final allOrders = ref.watch(allOrdersProvider).value ?? [];
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -32,6 +33,7 @@ class AdminHomeScreen extends ConsumerWidget {
               Tab(text: 'Businesses'),
               Tab(text: 'Orders'),
               Tab(text: 'Support'),
+              Tab(text: 'Contact Us'),
             ],
           ),
         ),
@@ -104,6 +106,7 @@ class AdminHomeScreen extends ConsumerWidget {
             AdminBusinessesTab(),
             AdminOrdersTab(),
             AdminSupportTicketsTab(),
+            AdminContactUsTab(),
           ],
         ),
       ),

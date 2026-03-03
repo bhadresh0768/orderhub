@@ -141,6 +141,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /contactUs/{entryId} {
+      allow read: if isAdmin() || (
+        signedIn() && resource.data.userId == request.auth.uid
+      );
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
     match /item_catalog/{itemId} {
       allow read: if signedIn();
       allow create, update: if signedIn();

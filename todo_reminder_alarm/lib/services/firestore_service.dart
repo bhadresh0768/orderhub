@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import '../models/app_user.dart';
 import '../models/business.dart';
 import '../models/catalog.dart';
+import '../models/contact_us_message.dart';
 import '../models/delivery_agent.dart';
 import '../models/delivery_address.dart';
 import '../models/enums.dart';
@@ -34,6 +35,8 @@ class FirestoreService {
       _db.collection('catalogVariants');
   CollectionReference<Map<String, dynamic>> get _supportTickets =>
       _db.collection('supportTickets');
+  CollectionReference<Map<String, dynamic>> get _contactUs =>
+      _db.collection('contactUs');
 
   Stream<AppUser?> userStream(String uid) {
     return _users.doc(uid).snapshots().map((doc) {
@@ -134,6 +137,13 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(SupportTicket.fromDoc).toList());
+  }
+
+  Stream<List<ContactUsMessage>> allContactUsStream() {
+    return _contactUs
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(ContactUsMessage.fromDoc).toList());
   }
 
   Stream<List<Order>> ordersForDeliveryAgentByPhoneStream(String phone) {
@@ -456,6 +466,13 @@ class FirestoreService {
   Future<void> createSupportTicket(SupportTicket ticket) async {
     await _supportTickets.doc(ticket.id).set(
       ticket.toMap(),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> createContactUsMessage(ContactUsMessage message) async {
+    await _contactUs.doc(message.id).set(
+      message.toMap(),
       SetOptions(merge: true),
     );
   }

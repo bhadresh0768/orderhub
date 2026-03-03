@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/business.dart';
+import 'package:todo_reminder_alarm/models/delivery_agent.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
@@ -518,7 +519,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAgentsTab(AsyncValue agentsAsync) {
+  Widget _buildAgentsTab(AsyncValue<List<DeliveryAgent>> agentsAsync) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
@@ -544,7 +545,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             }
             return Column(
               children: agents
-                  .map(
+                  .map<Widget>(
                     (agent) => Card(
                       child: ListTile(
                         title: Text(agent.name),

@@ -160,6 +160,18 @@ class _BusinessHomeBody extends ConsumerWidget {
                 );
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.contact_phone_outlined),
+              title: const Text('Contact Us'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ContactUsScreen(user: profile),
+                  ),
+                );
+              },
+            ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),

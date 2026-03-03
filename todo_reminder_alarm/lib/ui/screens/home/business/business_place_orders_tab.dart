@@ -147,13 +147,13 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
         order.delivery.status == DeliveryStatus.pending;
   }
 
-  void _onOutgoingOrderPlaced(String? orderId) {
-    if (orderId == null || !mounted) return;
+  void _onOutgoingOrderPlaced(String? orderLabel) {
+    if (orderLabel == null || !mounted) return;
     final tabController = DefaultTabController.of(context);
     tabController.animateTo(1);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Order $orderId placed successfully')));
+    ).showSnackBar(SnackBar(content: Text('$orderLabel placed successfully')));
   }
 
   Future<void> _editPlacedOrder(
@@ -751,4 +751,3 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     );
   }
 }
-

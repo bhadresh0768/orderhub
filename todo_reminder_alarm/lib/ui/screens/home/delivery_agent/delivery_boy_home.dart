@@ -9,6 +9,7 @@ import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/profile/profile_screen.dart';
+import 'package:todo_reminder_alarm/ui/screens/support/contact_us_screen.dart';
 
 enum _DeliveryDateFilter { today, week, month, year, custom }
 
@@ -100,6 +101,18 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ProfileScreen(user: profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.contact_phone_outlined),
+              title: const Text('Contact Us'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ContactUsScreen(user: profile),
                   ),
                 );
               },
@@ -432,6 +445,18 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ProfileScreen(user: widget.profile),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.contact_phone_outlined),
+                title: const Text('Contact Us'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ContactUsScreen(user: widget.profile),
                     ),
                   );
                 },

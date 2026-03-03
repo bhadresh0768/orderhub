@@ -89,6 +89,8 @@ class BusinessOrderDetailScreen extends ConsumerStatefulWidget {
 class _BusinessOrderDetailScreenState
     extends ConsumerState<BusinessOrderDetailScreen> {
   ProviderSubscription<AsyncValue<Order?>>? _orderSubscription;
+  final Set<TextEditingController> _tapClearedControllers =
+      <TextEditingController>{};
   late final TextEditingController _paymentAmountController;
   late final TextEditingController _gstPercentController;
   late final TextEditingController _extraChargesController;
@@ -248,6 +250,21 @@ class _BusinessOrderDetailScreenState
   String _capitalize(String value) {
     if (value.isEmpty) return value;
     return value[0].toUpperCase() + value.substring(1);
+  }
+
+  bool _isDefaultNumericValue(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    final parsed = double.tryParse(trimmed);
+    return parsed != null && parsed == 0;
+  }
+
+  void _clearDefaultNumericOnTap(TextEditingController controller) {
+    if (_tapClearedControllers.contains(controller)) return;
+    if (_isDefaultNumericValue(controller.text)) {
+      controller.clear();
+      _tapClearedControllers.add(controller);
+    }
   }
 
   Future<void> _saveStatusUpdates() async {
@@ -1288,6 +1305,9 @@ class _BusinessOrderDetailScreenState
                                 child: TextFormField(
                                   controller: _itemPriceControllers[index],
                                   enabled: included && canEditAfterAccept,
+                                  onTap: () => _clearDefaultNumericOnTap(
+                                    _itemPriceControllers[index],
+                                  ),
                                   keyboardType:
                                       const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -1343,6 +1363,8 @@ class _BusinessOrderDetailScreenState
                         child: TextFormField(
                           controller: _gstPercentController,
                           enabled: canEditAfterAccept,
+                          onTap: () =>
+                              _clearDefaultNumericOnTap(_gstPercentController),
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -1364,6 +1386,8 @@ class _BusinessOrderDetailScreenState
                         child: TextFormField(
                           controller: _extraChargesController,
                           enabled: canEditAfterAccept,
+                          onTap: () =>
+                              _clearDefaultNumericOnTap(_extraChargesController),
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -1589,6 +1613,8 @@ class _BusinessOrderDetailScreenState
                   TextFormField(
                     controller: _paymentAmountController,
                     enabled: canEditAfterAccept,
+                    onTap: () =>
+                        _clearDefaultNumericOnTap(_paymentAmountController),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),

@@ -1,12 +1,12 @@
 part of 'customer_home.dart';
 
 class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
-  void _onOrderPlaced(String? orderId) {
-    if (orderId == null || !mounted) return;
+  void _onOrderPlaced(String? orderLabel) {
+    if (orderLabel == null || !mounted) return;
     final tabController = DefaultTabController.of(context);
     tabController.animateTo(1);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order $orderId placed successfully')),
+      SnackBar(content: Text('$orderLabel placed successfully')),
     );
   }
 
@@ -369,6 +369,18 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => SupportTicketsScreen(user: widget.profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.contact_phone_outlined),
+              title: const Text('Contact Us'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ContactUsScreen(user: widget.profile),
                   ),
                 );
               },

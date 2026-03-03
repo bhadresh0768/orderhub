@@ -982,7 +982,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         });
       }
       if (mounted) {
-        Navigator.of(context).pop(_draftOrderId);
+        final resultLabel = existing == null
+            ? 'Order for ${widget.business.name}'
+            : 'Order ${existing.displayOrderNumber}';
+        Navigator.of(context).pop(resultLabel);
       }
     } catch (err) {
       _updateUi(
