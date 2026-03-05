@@ -1,27 +1,24 @@
 part of 'business_home.dart';
 
-final _businessOrdersUiProvider =
-    StateProvider.autoDispose.family<_BusinessOrdersUiState, String>(
+final _businessOrdersUiProvider = StateProvider.autoDispose
+    .family<_BusinessOrdersUiState, String>(
       (ref, _) => const _BusinessOrdersUiState(),
     );
-
-enum _CompletedDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }
-enum _PlacedDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }
 
 class _BusinessOrdersUiState {
   const _BusinessOrdersUiState({
     this.searchQuery = '',
-    this.completedDateFilter = _CompletedDateFilter.all,
+    this.completedDateFilter = OrderDateFilterOption.all,
     this.completedFromDate,
     this.completedToDate,
   });
   final String searchQuery;
-  final _CompletedDateFilter completedDateFilter;
+  final OrderDateFilterOption completedDateFilter;
   final DateTime? completedFromDate;
   final DateTime? completedToDate;
   _BusinessOrdersUiState copyWith({
     String? searchQuery,
-    _CompletedDateFilter? completedDateFilter,
+    OrderDateFilterOption? completedDateFilter,
     Object? completedFromDate = _businessDateUnset,
     Object? completedToDate = _businessDateUnset,
   }) {
@@ -37,10 +34,11 @@ class _BusinessOrdersUiState {
     );
   }
 }
+
 const _businessDateUnset = Object();
 
-final _placeOrdersUiProvider =
-    StateProvider.autoDispose.family<_PlaceOrdersUiState, String>(
+final _placeOrdersUiProvider = StateProvider.autoDispose
+    .family<_PlaceOrdersUiState, String>(
       (ref, _) => const _PlaceOrdersUiState(),
     );
 
@@ -48,19 +46,19 @@ class _PlaceOrdersUiState {
   const _PlaceOrdersUiState({
     this.searchQuery = '',
     this.categoryFilter = 'All',
-    this.placedDateFilter = _PlacedDateFilter.all,
+    this.placedDateFilter = OrderDateFilterOption.all,
     this.placedFromDate,
     this.placedToDate,
   });
   final String searchQuery;
   final String categoryFilter;
-  final _PlacedDateFilter placedDateFilter;
+  final OrderDateFilterOption placedDateFilter;
   final DateTime? placedFromDate;
   final DateTime? placedToDate;
   _PlaceOrdersUiState copyWith({
     String? searchQuery,
     String? categoryFilter,
-    _PlacedDateFilter? placedDateFilter,
+    OrderDateFilterOption? placedDateFilter,
     Object? placedFromDate = _businessDateUnset,
     Object? placedToDate = _businessDateUnset,
   }) {
@@ -78,8 +76,8 @@ class _PlaceOrdersUiState {
   }
 }
 
-final _deliveryTeamUiProvider =
-    StateProvider.autoDispose.family<_DeliveryTeamUiState, String>(
+final _deliveryTeamUiProvider = StateProvider.autoDispose
+    .family<_DeliveryTeamUiState, String>(
       (ref, _) => _DeliveryTeamUiState(selectedCountry: Country.parse('IN')),
     );
 

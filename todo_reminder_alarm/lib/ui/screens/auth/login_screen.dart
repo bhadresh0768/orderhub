@@ -176,8 +176,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final raw = value.trim().replaceAll(RegExp(r'[\s-]'), '');
     if (raw.startsWith('+')) return raw;
     if (raw.startsWith('00') && raw.length > 2) return '+${raw.substring(2)}';
-    if (RegExp(r'^\d+$').hasMatch(raw))
+    if (RegExp(r'^\d+$').hasMatch(raw)) {
       return '+${_ui.selectedCountry.phoneCode}$raw';
+    }
     return value.trim();
   }
 
@@ -252,9 +253,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         (state) => state.copyWith(otpRequesting: false, error: err.toString()),
       );
     } finally {
-      if (!mounted) return;
-      if (!_ui.otpSent) {
-        _updateUi((state) => state.copyWith(otpRequesting: false));
+      if (mounted) {
+        if (!_ui.otpSent) {
+          _updateUi((state) => state.copyWith(otpRequesting: false));
+        }
       }
     }
   }

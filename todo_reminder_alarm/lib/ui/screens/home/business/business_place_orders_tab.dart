@@ -30,7 +30,9 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
   void initState() {
     super.initState();
     _uiKey = widget.profile.id;
-    _searchController.text = ref.read(_placeOrdersUiProvider(_uiKey)).searchQuery;
+    _searchController.text = ref
+        .read(_placeOrdersUiProvider(_uiKey))
+        .searchQuery;
   }
 
   @override
@@ -55,73 +57,25 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     }).toList();
   }
 
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return value[0].toUpperCase() + value.substring(1);
-  }
-
-  String _placedDateFilterLabel(_PlacedDateFilter filter) {
-    return switch (filter) {
-      _PlacedDateFilter.all => 'All',
-      _PlacedDateFilter.today => 'Today',
-      _PlacedDateFilter.thisWeek => 'This Week',
-      _PlacedDateFilter.thisMonth => 'This Month',
-      _PlacedDateFilter.thisYear => 'This Year',
-      _PlacedDateFilter.custom => 'Custom Range',
-    };
-  }
-
-  String _formatDate(DateTime date) {
-    final mm = date.month.toString().padLeft(2, '0');
-    final dd = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$mm-$dd';
-  }
-
-  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
-    final start = DateTime(from.year, from.month, from.day);
-    final endExclusive = DateTime(
-      to.year,
-      to.month,
-      to.day,
-    ).add(const Duration(days: 1));
-    return !date.isBefore(start) && date.isBefore(endExclusive);
-  }
-
   DateTime _effectiveOrderDate(Order order) {
     return order.createdAt ?? order.updatedAt ?? DateTime.now();
   }
 
   bool _matchesPlacedDateFilter(
     Order order,
-    _PlacedDateFilter filter,
+    OrderDateFilterOption filter,
     DateTime now,
     _PlaceOrdersUiState ui,
   ) {
-    if (filter == _PlacedDateFilter.all) return true;
+    if (filter == OrderDateFilterOption.all) return true;
     final effectiveDate = _effectiveOrderDate(order);
-    switch (filter) {
-      case _PlacedDateFilter.all:
-        return true;
-      case _PlacedDateFilter.today:
-        return effectiveDate.year == now.year &&
-            effectiveDate.month == now.month &&
-            effectiveDate.day == now.day;
-      case _PlacedDateFilter.thisWeek:
-        final startOfToday = DateTime(now.year, now.month, now.day);
-        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
-        final endOfWeek = startOfWeek.add(const Duration(days: 7));
-        return !effectiveDate.isBefore(startOfWeek) &&
-            effectiveDate.isBefore(endOfWeek);
-      case _PlacedDateFilter.thisMonth:
-        return effectiveDate.year == now.year && effectiveDate.month == now.month;
-      case _PlacedDateFilter.thisYear:
-        return effectiveDate.year == now.year;
-      case _PlacedDateFilter.custom:
-        final from = ui.placedFromDate;
-        final to = ui.placedToDate;
-        if (from == null || to == null) return false;
-        return _isInDateRange(effectiveDate, from, to);
-    }
+    return OrderSharedHelpers.matchesDateFilter(
+      effectiveDate,
+      filter,
+      now,
+      customFrom: ui.placedFromDate,
+      customTo: ui.placedToDate,
+    );
   }
 
   Future<void> _pickPlacedCustomRange(_PlaceOrdersUiState ui) async {
@@ -136,7 +90,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     );
     if (picked == null || !mounted) return;
     ref.read(_placeOrdersUiProvider(_uiKey).notifier).state = ui.copyWith(
-      placedDateFilter: _PlacedDateFilter.custom,
+      placedDateFilter: OrderDateFilterOption.custom,
       placedFromDate: picked.start,
       placedToDate: picked.end,
     );
@@ -181,9 +135,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     if (!mounted || updatedOrderId == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Order ${order.displayOrderNumber} updated successfully',
-        ),
+        content: Text('Order ${order.displayOrderNumber} updated successfully'),
       ),
     );
   }
@@ -292,12 +244,14 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                     ),
                                     onChanged: (value) {
                                       ref
-                                              .read(
-                                                _placeOrdersUiProvider(_uiKey)
-                                                    .notifier,
-                                              )
-                                              .state =
-                                          ui.copyWith(searchQuery: value);
+                                          .read(
+                                            _placeOrdersUiProvider(
+                                              _uiKey,
+                                            ).notifier,
+                                          )
+                                          .state = ui.copyWith(
+                                        searchQuery: value,
+                                      );
                                     },
                                   ),
                                   const SizedBox(height: 10),
@@ -317,14 +271,14 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                         .toList(),
                                     onChanged: (value) {
                                       ref
-                                              .read(
-                                                _placeOrdersUiProvider(_uiKey)
-                                                    .notifier,
-                                              )
-                                              .state =
-                                          ui.copyWith(
-                                            categoryFilter: value ?? 'All',
-                                          );
+                                          .read(
+                                            _placeOrdersUiProvider(
+                                              _uiKey,
+                                            ).notifier,
+                                          )
+                                          .state = ui.copyWith(
+                                        categoryFilter: value ?? 'All',
+                                      );
                                     },
                                   ),
                                 ],
@@ -343,12 +297,14 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                     ),
                                     onChanged: (value) {
                                       ref
-                                              .read(
-                                                _placeOrdersUiProvider(_uiKey)
-                                                    .notifier,
-                                              )
-                                              .state =
-                                          ui.copyWith(searchQuery: value);
+                                          .read(
+                                            _placeOrdersUiProvider(
+                                              _uiKey,
+                                            ).notifier,
+                                          )
+                                          .state = ui.copyWith(
+                                        searchQuery: value,
+                                      );
                                     },
                                   ),
                                 ),
@@ -370,14 +326,14 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                         .toList(),
                                     onChanged: (value) {
                                       ref
-                                              .read(
-                                                _placeOrdersUiProvider(_uiKey)
-                                                    .notifier,
-                                              )
-                                              .state =
-                                          ui.copyWith(
-                                            categoryFilter: value ?? 'All',
-                                          );
+                                          .read(
+                                            _placeOrdersUiProvider(
+                                              _uiKey,
+                                            ).notifier,
+                                          )
+                                          .state = ui.copyWith(
+                                        categoryFilter: value ?? 'All',
+                                      );
                                     },
                                   ),
                                 ),
@@ -447,10 +403,12 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                     widget.ownBusiness == null
                                                     ? null
                                                     : () async {
-                                                        final orderId = await Navigator.of(context).push<String>(
-                                                          MaterialPageRoute(
-                                                            builder: (_) =>
-                                                                CreateOrderScreen(
+                                                        final orderId =
+                                                            await Navigator.of(
+                                                              context,
+                                                            ).push<String>(
+                                                              MaterialPageRoute(
+                                                                builder: (_) => CreateOrderScreen(
                                                                   business:
                                                                       business,
                                                                   customer: widget
@@ -459,9 +417,11 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                                                       widget
                                                                           .ownBusiness,
                                                                 ),
-                                                          ),
+                                                              ),
+                                                            );
+                                                        _onOutgoingOrderPlaced(
+                                                          orderId,
                                                         );
-                                                        _onOutgoingOrderPlaced(orderId);
                                                       },
                                                 child: const Text(
                                                   'Place Order',
@@ -472,20 +432,26 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                             Expanded(
                                               child: OutlinedButton(
                                                 onPressed: () async {
-                                                  final orderId = await Navigator.of(context).push<String>(
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          CustomerCatalogScreen(
-                                                            business: business,
-                                                            customer:
-                                                                widget.profile,
-                                                            requesterBusiness:
-                                                                widget
-                                                                    .ownBusiness,
-                                                          ),
-                                                    ),
+                                                  final orderId =
+                                                      await Navigator.of(
+                                                        context,
+                                                      ).push<String>(
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              CustomerCatalogScreen(
+                                                                business:
+                                                                    business,
+                                                                customer: widget
+                                                                    .profile,
+                                                                requesterBusiness:
+                                                                    widget
+                                                                        .ownBusiness,
+                                                              ),
+                                                        ),
+                                                      );
+                                                  _onOutgoingOrderPlaced(
+                                                    orderId,
                                                   );
-                                                  _onOutgoingOrderPlaced(orderId);
                                                 },
                                                 child: const Text('Catalog'),
                                               ),
@@ -548,14 +514,18 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 12),
-                        DropdownButtonFormField<_PlacedDateFilter>(
+                        DropdownButtonFormField<OrderDateFilterOption>(
                           initialValue: ui.placedDateFilter,
-                          decoration: const InputDecoration(labelText: 'Date Filter'),
-                          items: _PlacedDateFilter.values
+                          decoration: const InputDecoration(
+                            labelText: 'Date Filter',
+                          ),
+                          items: OrderDateFilterOption.values
                               .map(
                                 (filter) => DropdownMenuItem(
                                   value: filter,
-                                  child: Text(_placedDateFilterLabel(filter)),
+                                  child: Text(
+                                    OrderSharedHelpers.dateFilterLabel(filter),
+                                  ),
                                 ),
                               )
                               .toList(),
@@ -563,8 +533,10 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                             if (value == null) return;
                             ref
                                 .read(_placeOrdersUiProvider(_uiKey).notifier)
-                                .state = ui.copyWith(placedDateFilter: value);
-                            if (value == _PlacedDateFilter.custom &&
+                                .state = ui.copyWith(
+                              placedDateFilter: value,
+                            );
+                            if (value == OrderDateFilterOption.custom &&
                                 (ui.placedFromDate == null ||
                                     ui.placedToDate == null)) {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -576,34 +548,21 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                             }
                           },
                         ),
-                        if (ui.placedDateFilter == _PlacedDateFilter.custom) ...[
+                        if (ui.placedDateFilter ==
+                            OrderDateFilterOption.custom) ...[
                           const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  (ui.placedFromDate != null &&
-                                          ui.placedToDate != null)
-                                      ? '${_formatDate(ui.placedFromDate!)} to ${_formatDate(ui.placedToDate!)}'
-                                      : 'No date range selected',
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => _pickPlacedCustomRange(ui),
-                                child: const Text('Select'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  ref
-                                      .read(_placeOrdersUiProvider(_uiKey).notifier)
-                                      .state = ui.copyWith(
-                                        placedFromDate: null,
-                                        placedToDate: null,
-                                      );
-                                },
-                                child: const Text('Clear'),
-                              ),
-                            ],
+                          OrderDateRangeRow(
+                            fromDate: ui.placedFromDate,
+                            toDate: ui.placedToDate,
+                            onSelect: () => _pickPlacedCustomRange(ui),
+                            onClear: () {
+                              ref
+                                  .read(_placeOrdersUiProvider(_uiKey).notifier)
+                                  .state = ui.copyWith(
+                                placedFromDate: null,
+                                placedToDate: null,
+                              );
+                            },
                           ),
                         ],
                         const SizedBox(height: 12),
@@ -611,36 +570,24 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           const Padding(
                             padding: EdgeInsets.only(top: 24),
                             child: Center(
-                              child: Text('No outgoing orders for selected filter.'),
+                              child: Text(
+                                'No outgoing orders for selected filter.',
+                              ),
                             ),
                           ),
                         ...filteredOrders.map((order) {
                           final effectiveStatus =
-                              order.delivery.status == DeliveryStatus.delivered
-                              ? OrderStatus.completed
-                              : order.status;
+                              OrderSharedHelpers.effectiveStatus(order);
                           final canEdit = _canEditOrder(order);
                           final isFast = order.priority == OrderPriority.fast;
                           final priorityColor = isFast
                               ? Colors.red
                               : Theme.of(context).colorScheme.onSurface;
-                          final statusColor = switch (effectiveStatus) {
-                            OrderStatus.completed => Colors.green,
-                            OrderStatus.approved ||
-                            OrderStatus.inProgress => Colors.yellow.shade700,
-                            _ => Colors.red,
-                          };
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: isFast
-                                  ? BorderSide(
-                                      color: Colors.red.shade400,
-                                      width: 1.8,
-                                    )
-                                  : BorderSide.none,
-                            ),
+                          final statusColor = OrderSharedHelpers.statusColor(
+                            effectiveStatus,
+                          );
+                          return OrderCardShell(
+                            isHighlighted: isFast,
                             child: ListTile(
                               onTap: () {
                                 Navigator.of(context).push(
@@ -651,7 +598,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                 );
                               },
                               title: Text(
-                                '${order.businessName} • ${_capitalize(effectiveStatus.name)}',
+                                '${order.businessName} • ${OrderSharedHelpers.capitalize(effectiveStatus.name)}',
                               ),
                               subtitleTextStyle: Theme.of(
                                 context,
@@ -667,7 +614,9 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                           text: 'Delivery Priority: ',
                                         ),
                                         TextSpan(
-                                          text: _capitalize(order.priority.name),
+                                          text: OrderSharedHelpers.capitalize(
+                                            order.priority.name,
+                                          ),
                                           style: TextStyle(
                                             color: priorityColor,
                                             fontWeight: isFast
@@ -679,8 +628,8 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                     ),
                                   ),
                                   Text(
-                                    'Payment: ${_capitalize(order.payment.status.name)} | '
-                                    'Delivery: ${_capitalize(order.delivery.status.name)}',
+                                    'Payment: ${OrderSharedHelpers.capitalize(order.payment.status.name)} | '
+                                    'Delivery: ${OrderSharedHelpers.capitalize(order.delivery.status.name)}',
                                   ),
                                 ],
                               ),
@@ -688,13 +637,14 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Container(
-                                    width: 14,
-                                    height: 14,
-                                    decoration: BoxDecoration(
-                                      color: statusColor,
-                                      shape: BoxShape.circle,
+                                  OrderStatusChip(
+                                    label: OrderSharedHelpers.capitalize(
+                                      effectiveStatus.name,
                                     ),
+                                    backgroundColor: statusColor.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    foregroundColor: statusColor,
                                   ),
                                   const SizedBox(width: 6),
                                   PopupMenuButton<String>(
@@ -715,7 +665,9 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                       const PopupMenuItem(
                                         value: '__help__',
                                         enabled: false,
-                                        child: Text('Editable only while order is New'),
+                                        child: Text(
+                                          'Editable only while order is New',
+                                        ),
                                       ),
                                       PopupMenuItem(
                                         value: 'edit',

@@ -15,14 +15,13 @@ final _customerCityFilterProvider = StateProvider.autoDispose<String>(
 final _customerOrderFilterProvider = StateProvider.autoDispose<String>(
   (ref) => 'All',
 );
-final _customerOrderDateFilterProvider = StateProvider.autoDispose<_OrderDateFilter>(
-  (ref) => _OrderDateFilter.all,
-);
+final _customerOrderDateFilterProvider =
+    StateProvider.autoDispose<OrderDateFilterOption>(
+      (ref) => OrderDateFilterOption.all,
+    );
 final _customerOrderFromDateProvider = StateProvider.autoDispose<DateTime?>(
   (ref) => null,
 );
 final _customerOrderToDateProvider = StateProvider.autoDispose<DateTime?>(
   (ref) => null,
 );
-
-enum _OrderDateFilter { all, today, thisWeek, thisMonth, thisYear, custom }

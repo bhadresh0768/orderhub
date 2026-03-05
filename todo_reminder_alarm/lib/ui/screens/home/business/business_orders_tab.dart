@@ -26,7 +26,9 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     super.initState();
     _uiKey =
         '${widget.profile.businessId}-${widget.allowedStatuses.map((e) => e.name).join(",")}';
-    _searchController.text = ref.read(_businessOrdersUiProvider(_uiKey)).searchQuery;
+    _searchController.text = ref
+        .read(_businessOrdersUiProvider(_uiKey))
+        .searchQuery;
   }
 
   @override
@@ -40,65 +42,28 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         widget.allowedStatuses.first == OrderStatus.completed;
   }
 
-  String _completedDateFilterLabel(_CompletedDateFilter filter) {
-    return switch (filter) {
-      _CompletedDateFilter.all => 'All',
-      _CompletedDateFilter.today => 'Today',
-      _CompletedDateFilter.thisWeek => 'This Week',
-      _CompletedDateFilter.thisMonth => 'This Month',
-      _CompletedDateFilter.thisYear => 'This Year',
-      _CompletedDateFilter.custom => 'Custom Range',
-    };
-  }
-
-  String _formatDate(DateTime date) {
-    final mm = date.month.toString().padLeft(2, '0');
-    final dd = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$mm-$dd';
-  }
-
-  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
-    final start = DateTime(from.year, from.month, from.day);
-    final endExclusive = DateTime(to.year, to.month, to.day).add(
-      const Duration(days: 1),
-    );
-    return !date.isBefore(start) && date.isBefore(endExclusive);
-  }
-
   DateTime _effectiveCompletedAt(Order order) {
-    return order.delivery.deliveredAt ?? order.updatedAt ?? order.createdAt ?? DateTime.now();
+    return order.delivery.deliveredAt ??
+        order.updatedAt ??
+        order.createdAt ??
+        DateTime.now();
   }
 
   bool _matchesCompletedDateFilter(
     Order order,
-    _CompletedDateFilter filter,
+    OrderDateFilterOption filter,
     DateTime now,
   ) {
-    if (filter == _CompletedDateFilter.all) return true;
+    if (filter == OrderDateFilterOption.all) return true;
     final effectiveDate = _effectiveCompletedAt(order);
-    switch (filter) {
-      case _CompletedDateFilter.all:
-        return true;
-      case _CompletedDateFilter.today:
-        return effectiveDate.year == now.year &&
-            effectiveDate.month == now.month &&
-            effectiveDate.day == now.day;
-      case _CompletedDateFilter.thisWeek:
-        final startOfToday = DateTime(now.year, now.month, now.day);
-        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
-        final endOfWeek = startOfWeek.add(const Duration(days: 7));
-        return !effectiveDate.isBefore(startOfWeek) &&
-            effectiveDate.isBefore(endOfWeek);
-      case _CompletedDateFilter.thisMonth:
-        return effectiveDate.year == now.year && effectiveDate.month == now.month;
-      case _CompletedDateFilter.thisYear:
-        return effectiveDate.year == now.year;
-      case _CompletedDateFilter.custom:
-        final from = ref.read(_businessOrdersUiProvider(_uiKey)).completedFromDate;
-        final to = ref.read(_businessOrdersUiProvider(_uiKey)).completedToDate;
-        if (from == null || to == null) return false;
-        return _isInDateRange(effectiveDate, from, to);
-    }
+    final ui = ref.read(_businessOrdersUiProvider(_uiKey));
+    return OrderSharedHelpers.matchesDateFilter(
+      effectiveDate,
+      filter,
+      now,
+      customFrom: ui.completedFromDate,
+      customTo: ui.completedToDate,
+    );
   }
 
   Future<void> _pickCompletedCustomRange(_BusinessOrdersUiState ui) async {
@@ -109,12 +74,15 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       lastDate: DateTime(now.year + 2),
       initialDateRange:
           (ui.completedFromDate != null && ui.completedToDate != null)
-          ? DateTimeRange(start: ui.completedFromDate!, end: ui.completedToDate!)
+          ? DateTimeRange(
+              start: ui.completedFromDate!,
+              end: ui.completedToDate!,
+            )
           : null,
     );
     if (picked == null || !mounted) return;
     ref.read(_businessOrdersUiProvider(_uiKey).notifier).state = ui.copyWith(
-      completedDateFilter: _CompletedDateFilter.custom,
+      completedDateFilter: OrderDateFilterOption.custom,
       completedFromDate: picked.start,
       completedToDate: picked.end,
     );
@@ -167,32 +135,32 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                     prefixIcon: Icon(Icons.search),
                   ),
                   onChanged: (value) {
-                    ref
-                        .read(_businessOrdersUiProvider(_uiKey).notifier)
-                        .state = ui.copyWith(searchQuery: value);
+                    ref.read(_businessOrdersUiProvider(_uiKey).notifier).state =
+                        ui.copyWith(searchQuery: value);
                   },
                 );
               },
             ),
             if (_isCompletedTab) ...[
               const SizedBox(height: 12),
-              DropdownButtonFormField<_CompletedDateFilter>(
+              DropdownButtonFormField<OrderDateFilterOption>(
                 initialValue: ui.completedDateFilter,
                 decoration: const InputDecoration(labelText: 'Date Filter'),
-                items: _CompletedDateFilter.values
+                items: OrderDateFilterOption.values
                     .map(
                       (filter) => DropdownMenuItem(
                         value: filter,
-                        child: Text(_completedDateFilterLabel(filter)),
+                        child: Text(OrderSharedHelpers.dateFilterLabel(filter)),
                       ),
                     )
                     .toList(),
                 onChanged: (value) {
                   if (value == null) return;
-                  ref.read(_businessOrdersUiProvider(_uiKey).notifier).state = ui
-                      .copyWith(completedDateFilter: value);
-                  if (value == _CompletedDateFilter.custom &&
-                      (ui.completedFromDate == null || ui.completedToDate == null)) {
+                  ref.read(_businessOrdersUiProvider(_uiKey).notifier).state =
+                      ui.copyWith(completedDateFilter: value);
+                  if (value == OrderDateFilterOption.custom &&
+                      (ui.completedFromDate == null ||
+                          ui.completedToDate == null)) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       if (!mounted) return;
                       _pickCompletedCustomRange(
@@ -202,32 +170,20 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                   }
                 },
               ),
-              if (ui.completedDateFilter == _CompletedDateFilter.custom) ...[
+              if (ui.completedDateFilter == OrderDateFilterOption.custom) ...[
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        (ui.completedFromDate != null && ui.completedToDate != null)
-                            ? '${_formatDate(ui.completedFromDate!)} to ${_formatDate(ui.completedToDate!)}'
-                            : 'No date range selected',
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _pickCompletedCustomRange(ui),
-                      child: const Text('Select'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        ref.read(_businessOrdersUiProvider(_uiKey).notifier).state =
-                            ui.copyWith(
-                              completedFromDate: null,
-                              completedToDate: null,
-                            );
-                      },
-                      child: const Text('Clear'),
-                    ),
-                  ],
+                OrderDateRangeRow(
+                  fromDate: ui.completedFromDate,
+                  toDate: ui.completedToDate,
+                  onSelect: () => _pickCompletedCustomRange(ui),
+                  onClear: () {
+                    ref
+                        .read(_businessOrdersUiProvider(_uiKey).notifier)
+                        .state = ui.copyWith(
+                      completedFromDate: null,
+                      completedToDate: null,
+                    );
+                  },
                 ),
               ],
             ],
@@ -249,29 +205,10 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   }
 
   OrderStatus _effectiveOrderStatus(Order order) {
-    if (order.delivery.status == DeliveryStatus.delivered) {
-      return OrderStatus.completed;
-    }
-    if (order.status == OrderStatus.approved) {
-      return OrderStatus.inProgress;
-    }
-    return order.status;
-  }
-
-  String _paymentStatusLabel(PaymentStatus status) {
-    return status == PaymentStatus.done ? 'Done' : 'Remaining';
-  }
-
-  String _paymentAmountLabel(double? value) {
-    if (value == null) return 'Not set';
-    return value == value.truncateToDouble()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(2);
-  }
-
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return value[0].toUpperCase() + value.substring(1);
+    return OrderSharedHelpers.effectiveStatus(
+      order,
+      normalizeApprovedToInProgress: true,
+    );
   }
 
   String _requestedByAddress(Order order) {
@@ -283,7 +220,9 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       if (requesterBusinessId == null || requesterBusinessId.isEmpty) {
         return '-';
       }
-      final businessAsync = ref.watch(businessByIdProvider(requesterBusinessId));
+      final businessAsync = ref.watch(
+        businessByIdProvider(requesterBusinessId),
+      );
       final business = businessAsync.asData?.value;
       final address = (business?.address ?? '').trim();
       final city = (business?.city ?? '').trim();
@@ -327,143 +266,134 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final lineStyle = Theme.of(
       context,
     ).textTheme.bodyLarge?.copyWith(fontSize: 16);
-    return Card(
+    return OrderCardShell(
+      isHighlighted: isFast,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isFast
-            ? BorderSide(color: Colors.red.shade400, width: 1.8)
-            : BorderSide.none,
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => BusinessOrderDetailScreen(order: order),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BusinessOrderDetailScreen(order: order),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Order ${order.displayOrderNumber} • $sourceLabel',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                widget.allowActions
+                    ? PopupMenuButton<String>(
+                        onSelected: (value) =>
+                            _handleOrderAction(context, order, value),
+                        itemBuilder: (context) {
+                          final canApprove =
+                              order.status == OrderStatus.pending;
+                          final canUpdateAfterAccept =
+                              order.status == OrderStatus.approved ||
+                              order.status == OrderStatus.inProgress;
+                          return [
+                            if (canApprove)
+                              const PopupMenuItem(
+                                value: 'approve',
+                                child: Text('Approve Order'),
+                              ),
+                            if (canUpdateAfterAccept)
+                              const PopupMenuItem(
+                                value: 'mark_delivered',
+                                child: Text('Mark Delivered'),
+                              ),
+                            if (canUpdateAfterAccept &&
+                                order.payment.status != PaymentStatus.done)
+                              const PopupMenuItem(
+                                value: 'payment_done',
+                                child: Text('Set Payment Done'),
+                              ),
+                          ];
+                        },
+                      )
+                    : const Icon(Icons.chevron_right),
+              ],
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 4),
+            Text('Order by: $requestedBy', style: lineStyle),
+            const SizedBox(height: 4),
+            Text('Address: $requestedAddress', style: lineStyle),
+            const SizedBox(height: 4),
+            Text.rich(
+              TextSpan(
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Order ${order.displayOrderNumber} • $sourceLabel',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(fontSize: 18),
+                  const TextSpan(text: 'Delivery Priority: '),
+                  TextSpan(
+                    text: OrderSharedHelpers.capitalize(order.priority.name),
+                    style: TextStyle(
+                      color: priorityColor,
+                      fontWeight: order.priority == OrderPriority.fast
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  widget.allowActions
-                      ? PopupMenuButton<String>(
-                          onSelected: (value) =>
-                              _handleOrderAction(context, order, value),
-                          itemBuilder: (context) {
-                            final canApprove = order.status == OrderStatus.pending;
-                            final canUpdateAfterAccept =
-                                order.status == OrderStatus.approved ||
-                                order.status == OrderStatus.inProgress;
-                            return [
-                              if (canApprove)
-                                const PopupMenuItem(
-                                  value: 'approve',
-                                  child: Text('Approve Order'),
-                                ),
-                              if (canUpdateAfterAccept)
-                                const PopupMenuItem(
-                                  value: 'mark_delivered',
-                                  child: Text('Mark Delivered'),
-                                ),
-                              if (canUpdateAfterAccept &&
-                                  order.payment.status != PaymentStatus.done)
-                                const PopupMenuItem(
-                                  value: 'payment_done',
-                                  child: Text('Set Payment Done'),
-                                ),
-                            ];
-                          },
-                        )
-                      : const Icon(Icons.chevron_right),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text('Order by: $requestedBy', style: lineStyle),
-              const SizedBox(height: 4),
-              Text('Address: $requestedAddress', style: lineStyle),
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    const TextSpan(text: 'Delivery Priority: '),
-                    TextSpan(
-                      text: _capitalize(order.priority.name),
-                      style: TextStyle(
-                        color: priorityColor,
-                        fontWeight: order.priority == OrderPriority.fast
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                      ),
+              style: lineStyle,
+            ),
+            const SizedBox(height: 4),
+            Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Payment: '),
+                  TextSpan(
+                    text: OrderSharedHelpers.paymentStatusLabel(
+                      order.payment.status,
                     ),
-                  ],
-                ),
-                style: lineStyle,
-              ),
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    const TextSpan(text: 'Payment: '),
-                    TextSpan(
-                      text: _paymentStatusLabel(order.payment.status),
-                      style: TextStyle(
-                        color: paymentColor,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    style: TextStyle(
+                      color: paymentColor,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const TextSpan(text: ' | Amount: '),
-                    TextSpan(
-                      text: _paymentAmountLabel(order.payment.amount),
-                      style: TextStyle(
-                        color: paymentColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                style: lineStyle,
-              ),
-              if (paymentCollector != null)
-                Text('Collected by: $paymentCollector', style: lineStyle),
-              if ((order.notes ?? '').trim().isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Remark: ${order.notes!.trim()}',
-                  style: lineStyle?.copyWith(
-                    color: Colors.red.shade300,
-                    fontWeight: FontWeight.w600,
                   ),
+                  const TextSpan(text: ' | Amount: '),
+                  TextSpan(
+                    text: OrderSharedHelpers.amountLabel(order.payment.amount),
+                    style: TextStyle(
+                      color: paymentColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              style: lineStyle,
+            ),
+            if (paymentCollector != null)
+              Text('Collected by: $paymentCollector', style: lineStyle),
+            if ((order.notes ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Remark: ${order.notes!.trim()}',
+                style: lineStyle?.copyWith(
+                  color: Colors.red.shade300,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
   String _paymentMethodLabel(PaymentMethod method) {
-    return switch (method) {
-      PaymentMethod.cash => 'Cash',
-      PaymentMethod.check => 'Check',
-      PaymentMethod.onlineTransfer => 'Online Transfer',
-    };
+    return OrderSharedHelpers.paymentMethodLabel(method);
   }
 
   Future<(PaymentStatus, PaymentMethod)?> _askPaymentOnDelivery(
@@ -598,4 +528,3 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     }
   }
 }
-

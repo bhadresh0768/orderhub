@@ -5,9 +5,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     if (orderLabel == null || !mounted) return;
     final tabController = DefaultTabController.of(context);
     tabController.animateTo(1);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$orderLabel placed successfully')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$orderLabel placed successfully')));
   }
 
   bool _canEditOrder(Order order) {
@@ -37,13 +37,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
       ),
     );
     if (!mounted || result == null) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Order ${order.displayOrderNumber} updated successfully',
-        ),
+        content: Text('Order ${order.displayOrderNumber} updated successfully'),
       ),
     );
   }
@@ -83,11 +79,6 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     }
   }
 
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return value[0].toUpperCase() + value.substring(1);
-  }
-
   List<BusinessProfile> _applyFilters(
     List<BusinessProfile> businesses, {
     required String queryText,
@@ -109,37 +100,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
   }
 
   OrderStatus _effectiveStatus(Order order) {
-    if (order.delivery.status == DeliveryStatus.delivered) {
-      return OrderStatus.completed;
-    }
-    return order.status;
-  }
-
-  String _orderDateFilterLabel(_OrderDateFilter filter) {
-    return switch (filter) {
-      _OrderDateFilter.all => 'All',
-      _OrderDateFilter.today => 'Today',
-      _OrderDateFilter.thisWeek => 'This Week',
-      _OrderDateFilter.thisMonth => 'This Month',
-      _OrderDateFilter.thisYear => 'This Year',
-      _OrderDateFilter.custom => 'Custom Range',
-    };
-  }
-
-  String _formatDate(DateTime date) {
-    final mm = date.month.toString().padLeft(2, '0');
-    final dd = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$mm-$dd';
-  }
-
-  bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
-    final start = DateTime(from.year, from.month, from.day);
-    final endExclusive = DateTime(
-      to.year,
-      to.month,
-      to.day,
-    ).add(const Duration(days: 1));
-    return !date.isBefore(start) && date.isBefore(endExclusive);
+    return OrderSharedHelpers.effectiveStatus(order);
   }
 
   DateTime _effectiveOrderDate(Order order) {
@@ -148,34 +109,20 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
 
   bool _matchesOrderDateFilter(
     Order order,
-    _OrderDateFilter filter,
+    OrderDateFilterOption filter,
     DateTime now,
     DateTime? from,
     DateTime? to,
   ) {
-    if (filter == _OrderDateFilter.all) return true;
+    if (filter == OrderDateFilterOption.all) return true;
     final effectiveDate = _effectiveOrderDate(order);
-    switch (filter) {
-      case _OrderDateFilter.all:
-        return true;
-      case _OrderDateFilter.today:
-        return effectiveDate.year == now.year &&
-            effectiveDate.month == now.month &&
-            effectiveDate.day == now.day;
-      case _OrderDateFilter.thisWeek:
-        final startOfToday = DateTime(now.year, now.month, now.day);
-        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
-        final endOfWeek = startOfWeek.add(const Duration(days: 7));
-        return !effectiveDate.isBefore(startOfWeek) &&
-            effectiveDate.isBefore(endOfWeek);
-      case _OrderDateFilter.thisMonth:
-        return effectiveDate.year == now.year && effectiveDate.month == now.month;
-      case _OrderDateFilter.thisYear:
-        return effectiveDate.year == now.year;
-      case _OrderDateFilter.custom:
-        if (from == null || to == null) return false;
-        return _isInDateRange(effectiveDate, from, to);
-    }
+    return OrderSharedHelpers.matchesDateFilter(
+      effectiveDate,
+      filter,
+      now,
+      customFrom: from,
+      customTo: to,
+    );
   }
 
   Future<void> _pickOrderCustomRange() async {
@@ -186,12 +133,13 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime(now.year + 2),
-      initialDateRange:
-          (from != null && to != null) ? DateTimeRange(start: from, end: to) : null,
+      initialDateRange: (from != null && to != null)
+          ? DateTimeRange(start: from, end: to)
+          : null,
     );
     if (picked == null || !mounted) return;
     ref.read(_customerOrderDateFilterProvider.notifier).state =
-        _OrderDateFilter.custom;
+        OrderDateFilterOption.custom;
     ref.read(_customerOrderFromDateProvider.notifier).state = picked.start;
     ref.read(_customerOrderToDateProvider.notifier).state = picked.end;
   }
@@ -209,7 +157,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
         'Pending' => effectiveStatus == OrderStatus.pending,
         'Processing' =>
           effectiveStatus == OrderStatus.approved ||
-          effectiveStatus == OrderStatus.inProgress,
+              effectiveStatus == OrderStatus.inProgress,
         'Completed' => effectiveStatus == OrderStatus.completed,
         'Payment Pending' => paymentPending,
         _ => true,
@@ -224,49 +172,25 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
 
   Widget? _buildPaymentBadge(Order order) {
     if (order.payment.status == PaymentStatus.pending) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.red.shade100,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          'Payment Pending',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.red.shade800,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      return OrderStatusChip(
+        label: 'Payment Pending',
+        backgroundColor: Colors.red.shade100,
+        foregroundColor: Colors.red.shade800,
       );
     }
     if (order.payment.status == PaymentStatus.done &&
         order.payment.collectedBy == PaymentCollectedBy.deliveryBoy) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.green.shade100,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          'Collected by Delivery',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.green.shade800,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      return OrderStatusChip(
+        label: 'Collected by Delivery',
+        backgroundColor: Colors.green.shade100,
+        foregroundColor: Colors.green.shade800,
       );
     }
     return null;
   }
 
   Color _statusColor(OrderStatus status) {
-    return switch (status) {
-      OrderStatus.completed => Colors.green,
-      OrderStatus.pending => Colors.red,
-      _ => Colors.yellow.shade800,
-    };
+    return OrderSharedHelpers.statusColor(status);
   }
 
   bool _looksLikeImage(String value) {
@@ -296,9 +220,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     final ordersAsync = ref.watch(ordersForCustomerProvider(widget.profile.id));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-      ),
+      appBar: AppBar(title: const Text('Dashboard')),
       drawer: _buildDrawer(ordersAsync.value ?? const []),
       body: DefaultTabController(
         length: 2,
@@ -406,7 +328,10 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     final cityFilter = ref.watch(_customerCityFilterProvider);
     return businessesAsync.when(
       data: (businesses) {
-        final categories = <String>{'All', ...businesses.map((e) => e.category)};
+        final categories = <String>{
+          'All',
+          ...businesses.map((e) => e.category),
+        };
         final cities = <String>{'All', ...businesses.map((e) => e.city)};
         final filtered = _applyFilters(
           businesses,
@@ -417,7 +342,10 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Find Businesses', style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'Find Businesses',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -430,21 +358,34 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                           labelText: 'Search by business/category/city',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (value) => ref
-                            .read(_customerStoreSearchProvider.notifier)
-                            .state = value,
+                        onChanged: (value) =>
+                            ref
+                                    .read(_customerStoreSearchProvider.notifier)
+                                    .state =
+                                value,
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         initialValue: categoryFilter,
-                        decoration: const InputDecoration(labelText: 'Category'),
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                        ),
                         items: categories
-                            .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
                             .toList(),
-                        onChanged: (value) => ref
-                            .read(_customerCategoryFilterProvider.notifier)
-                            .state = value ?? 'All',
+                        onChanged: (value) =>
+                            ref
+                                    .read(
+                                      _customerCategoryFilterProvider.notifier,
+                                    )
+                                    .state =
+                                value ?? 'All',
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
@@ -452,11 +393,18 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                         initialValue: cityFilter,
                         decoration: const InputDecoration(labelText: 'City'),
                         items: cities
-                            .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
                             .toList(),
-                        onChanged: (value) => ref
-                            .read(_customerCityFilterProvider.notifier)
-                            .state = value ?? 'All',
+                        onChanged: (value) =>
+                            ref
+                                    .read(_customerCityFilterProvider.notifier)
+                                    .state =
+                                value ?? 'All',
                       ),
                     ],
                   );
@@ -470,9 +418,11 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                           labelText: 'Search by business/category/city',
                           prefixIcon: Icon(Icons.search),
                         ),
-                        onChanged: (value) => ref
-                            .read(_customerStoreSearchProvider.notifier)
-                            .state = value,
+                        onChanged: (value) =>
+                            ref
+                                    .read(_customerStoreSearchProvider.notifier)
+                                    .state =
+                                value,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -480,13 +430,24 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                       child: DropdownButtonFormField<String>(
                         isExpanded: true,
                         initialValue: categoryFilter,
-                        decoration: const InputDecoration(labelText: 'Category'),
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                        ),
                         items: categories
-                            .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
                             .toList(),
-                        onChanged: (value) => ref
-                            .read(_customerCategoryFilterProvider.notifier)
-                            .state = value ?? 'All',
+                        onChanged: (value) =>
+                            ref
+                                    .read(
+                                      _customerCategoryFilterProvider.notifier,
+                                    )
+                                    .state =
+                                value ?? 'All',
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -496,11 +457,18 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                         initialValue: cityFilter,
                         decoration: const InputDecoration(labelText: 'City'),
                         items: cities
-                            .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
                             .toList(),
-                        onChanged: (value) => ref
-                            .read(_customerCityFilterProvider.notifier)
-                            .state = value ?? 'All',
+                        onChanged: (value) =>
+                            ref
+                                    .read(_customerCityFilterProvider.notifier)
+                                    .state =
+                                value ?? 'All',
                       ),
                     ),
                   ],
@@ -508,7 +476,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
               },
             ),
             const SizedBox(height: 12),
-            if (filtered.isEmpty) const Text('No businesses match your filters.'),
+            if (filtered.isEmpty)
+              const Text('No businesses match your filters.'),
             ...filtered.map((business) {
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -517,12 +486,17 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(business.name, style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        business.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 4),
                       Text('${business.category} • ${business.city}'),
                       const SizedBox(height: 6),
                       Text(
-                        (business.address ?? '').trim().isEmpty ? '-' : business.address!.trim(),
+                        (business.address ?? '').trim().isEmpty
+                            ? '-'
+                            : business.address!.trim(),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -532,14 +506,15 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                           Expanded(
                             child: FilledButton(
                               onPressed: () async {
-                                final orderId = await Navigator.of(context).push<String>(
-                                  MaterialPageRoute(
-                                    builder: (_) => CreateOrderScreen(
-                                      business: business,
-                                      customer: widget.profile,
-                                    ),
-                                  ),
-                                );
+                                final orderId = await Navigator.of(context)
+                                    .push<String>(
+                                      MaterialPageRoute(
+                                        builder: (_) => CreateOrderScreen(
+                                          business: business,
+                                          customer: widget.profile,
+                                        ),
+                                      ),
+                                    );
                                 _onOrderPlaced(orderId);
                               },
                               child: const Text('Create Order'),
@@ -549,14 +524,15 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () async {
-                                final orderId = await Navigator.of(context).push<String>(
-                                  MaterialPageRoute(
-                                    builder: (_) => CustomerCatalogScreen(
-                                      business: business,
-                                      customer: widget.profile,
-                                    ),
-                                  ),
-                                );
+                                final orderId = await Navigator.of(context)
+                                    .push<String>(
+                                      MaterialPageRoute(
+                                        builder: (_) => CustomerCatalogScreen(
+                                          business: business,
+                                          customer: widget.profile,
+                                        ),
+                                      ),
+                                    );
                                 _onOrderPlaced(orderId);
                               },
                               child: const Text('Catalog'),
@@ -610,19 +586,20 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     return ordersAsync.when(
       data: (orders) {
         final now = DateTime.now();
-        final filteredOrders = _applyOrderFilters(
-          orders,
-          queryText: orderSearch,
-          orderFilter: orderFilter,
-        ).where((order) {
-          return _matchesOrderDateFilter(
-            order,
-            dateFilter,
-            now,
-            fromDate,
-            toDate,
-          );
-        }).toList();
+        final filteredOrders =
+            _applyOrderFilters(
+              orders,
+              queryText: orderSearch,
+              orderFilter: orderFilter,
+            ).where((order) {
+              return _matchesOrderDateFilter(
+                order,
+                dateFilter,
+                now,
+                fromDate,
+                toDate,
+              );
+            }).toList();
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -643,7 +620,10 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
               items: const [
                 DropdownMenuItem(value: 'All', child: Text('All')),
                 DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                DropdownMenuItem(value: 'Processing', child: Text('Processing')),
+                DropdownMenuItem(
+                  value: 'Processing',
+                  child: Text('Processing'),
+                ),
                 DropdownMenuItem(value: 'Completed', child: Text('Completed')),
                 DropdownMenuItem(
                   value: 'Payment Pending',
@@ -655,21 +635,22 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                       value ?? 'All',
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<_OrderDateFilter>(
+            DropdownButtonFormField<OrderDateFilterOption>(
               initialValue: dateFilter,
               decoration: const InputDecoration(labelText: 'Date Filter'),
-              items: _OrderDateFilter.values
+              items: OrderDateFilterOption.values
                   .map(
                     (value) => DropdownMenuItem(
                       value: value,
-                      child: Text(_orderDateFilterLabel(value)),
+                      child: Text(OrderSharedHelpers.dateFilterLabel(value)),
                     ),
                   )
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
-                ref.read(_customerOrderDateFilterProvider.notifier).state = value;
-                if (value == _OrderDateFilter.custom &&
+                ref.read(_customerOrderDateFilterProvider.notifier).state =
+                    value;
+                if (value == OrderDateFilterOption.custom &&
                     (fromDate == null || toDate == null)) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
@@ -678,29 +659,17 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                 }
               },
             ),
-            if (dateFilter == _OrderDateFilter.custom) ...[
+            if (dateFilter == OrderDateFilterOption.custom) ...[
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      (fromDate != null && toDate != null)
-                          ? '${_formatDate(fromDate)} to ${_formatDate(toDate)}'
-                          : 'No date range selected',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _pickOrderCustomRange,
-                    child: const Text('Select'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      ref.read(_customerOrderFromDateProvider.notifier).state = null;
-                      ref.read(_customerOrderToDateProvider.notifier).state = null;
-                    },
-                    child: const Text('Clear'),
-                  ),
-                ],
+              OrderDateRangeRow(
+                fromDate: fromDate,
+                toDate: toDate,
+                onSelect: _pickOrderCustomRange,
+                onClear: () {
+                  ref.read(_customerOrderFromDateProvider.notifier).state =
+                      null;
+                  ref.read(_customerOrderToDateProvider.notifier).state = null;
+                },
               ),
             ],
             const SizedBox(height: 12),
@@ -714,7 +683,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
               final priorityColor = isFast
                   ? Colors.red
                   : Theme.of(context).colorScheme.onSurface;
-              final showAmountToCustomer = effectiveStatus != OrderStatus.pending;
+              final showAmountToCustomer =
+                  effectiveStatus != OrderStatus.pending;
               final amount = order.payment.amount;
               final amountText = amount == null
                   ? 'Not set'
@@ -723,7 +693,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                         : amount.toStringAsFixed(2));
               final collectedBy = order.payment.collectedBy;
               final collectedByText =
-                  collectedBy == null || order.payment.status != PaymentStatus.done
+                  collectedBy == null ||
+                      order.payment.status != PaymentStatus.done
                   ? null
                   : (collectedBy == PaymentCollectedBy.deliveryBoy
                         ? 'Delivery Boy'
@@ -734,19 +705,23 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   .map((item) => item.title)
                   .toList();
               final imageAttachments = _imageAttachments(order);
-              final includedItems = order.items.where((item) => item.isIncluded ?? true);
+              final includedItems = order.items.where(
+                (item) => item.isIncluded ?? true,
+              );
               final itemSummary = includedItems
                   .take(3)
                   .map((item) {
                     final pack = (item.packSize ?? '').trim();
                     if (pack.isNotEmpty) {
-                      final qty = item.quantity == item.quantity.truncateToDouble()
+                      final qty =
+                          item.quantity == item.quantity.truncateToDouble()
                           ? item.quantity.toInt().toString()
                           : item.quantity.toStringAsFixed(2);
                       final suffix = item.quantity == 1 ? 'pack' : 'packs';
                       return '${item.title} $qty $suffix ($pack)';
                     }
-                    final qty = item.quantity == item.quantity.truncateToDouble()
+                    final qty =
+                        item.quantity == item.quantity.truncateToDouble()
                         ? item.quantity.toInt().toString()
                         : item.quantity.toStringAsFixed(2);
                     final unit = switch (item.unit) {
@@ -758,23 +733,17 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     return '${item.title} $qty $unit';
                   })
                   .join(', ');
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: isFast
-                      ? BorderSide(color: Colors.red.shade400, width: 1.8)
-                      : BorderSide.none,
-                ),
+              return OrderCardShell(
+                isHighlighted: isFast,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CustomerOrderDetailScreen(order: order),
+                    ),
+                  );
+                },
                 child: ListTile(
                   dense: true,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CustomerOrderDetailScreen(order: order),
-                      ),
-                    );
-                  },
                   title: Row(
                     children: [
                       Expanded(
@@ -783,7 +752,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                             children: [
                               TextSpan(text: '${order.businessName} • '),
                               TextSpan(
-                                text: _capitalize(effectiveStatus.name),
+                                text: OrderSharedHelpers.capitalize(
+                                  effectiveStatus.name,
+                                ),
                                 style: TextStyle(
                                   color: statusColor,
                                   fontWeight: FontWeight.w700,
@@ -793,10 +764,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                           ),
                         ),
                       ),
-                      if (badge != null) ...[
-                        const SizedBox(width: 8),
-                        badge,
-                      ],
+                      if (badge != null) ...[const SizedBox(width: 8), badge],
                     ],
                   ),
                   subtitleTextStyle: Theme.of(context).textTheme.bodyLarge,
@@ -812,7 +780,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                           children: [
                             const TextSpan(text: 'Delivery Priority: '),
                             TextSpan(
-                              text: _capitalize(order.priority.name),
+                              text: OrderSharedHelpers.capitalize(
+                                order.priority.name,
+                              ),
                               style: TextStyle(
                                 color: priorityColor,
                                 fontWeight: isFast
@@ -824,9 +794,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                         ),
                       ),
                       Text(
-                        'Payment: ${_capitalize(order.payment.status.name)}'
+                        'Payment: ${OrderSharedHelpers.capitalize(order.payment.status.name)}'
                         '${collectedByText == null ? '' : ' ($collectedByText)'}'
-                        ' | Delivery: ${_capitalize(order.delivery.status.name)}',
+                        ' | Delivery: ${OrderSharedHelpers.capitalize(order.delivery.status.name)}',
                       ),
                       if (itemSummary.isNotEmpty) Text('Items: $itemSummary'),
                       if (unavailableItems.isNotEmpty)
