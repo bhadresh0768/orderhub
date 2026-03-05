@@ -8,6 +8,7 @@ import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
+import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
 
 enum _AdminCustomerDateFilter {
@@ -19,18 +20,18 @@ enum _AdminCustomerDateFilter {
   custom,
 }
 
-final _adminCustomerStatusFilterProvider =
-    StateProvider.autoDispose.family<OrderStatus?, String>((ref, _) => null);
-final _adminCustomerDateFilterProvider =
-    StateProvider.autoDispose.family<_AdminCustomerDateFilter, String>(
+final _adminCustomerStatusFilterProvider = StateProvider.autoDispose
+    .family<OrderStatus?, String>((ref, _) => null);
+final _adminCustomerDateFilterProvider = StateProvider.autoDispose
+    .family<_AdminCustomerDateFilter, String>(
       (ref, _) => _AdminCustomerDateFilter.all,
     );
-final _adminCustomerFromDateProvider =
-    StateProvider.autoDispose.family<DateTime?, String>((ref, _) => null);
-final _adminCustomerToDateProvider =
-    StateProvider.autoDispose.family<DateTime?, String>((ref, _) => null);
-final _adminCustomerPageProvider =
-    StateProvider.autoDispose.family<int, String>((ref, _) => 0);
+final _adminCustomerFromDateProvider = StateProvider.autoDispose
+    .family<DateTime?, String>((ref, _) => null);
+final _adminCustomerToDateProvider = StateProvider.autoDispose
+    .family<DateTime?, String>((ref, _) => null);
+final _adminCustomerPageProvider = StateProvider.autoDispose
+    .family<int, String>((ref, _) => 0);
 
 class AdminCustomerDetailScreen extends ConsumerWidget {
   const AdminCustomerDetailScreen({super.key, required this.customer});
@@ -221,7 +222,9 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statusFilter = ref.watch(_adminCustomerStatusFilterProvider(customer.id));
+    final statusFilter = ref.watch(
+      _adminCustomerStatusFilterProvider(customer.id),
+    );
     final dateFilter = ref.watch(_adminCustomerDateFilterProvider(customer.id));
     final fromDate = ref.watch(_adminCustomerFromDateProvider(customer.id));
     final toDate = ref.watch(_adminCustomerToDateProvider(customer.id));
@@ -242,26 +245,37 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => Center(child: Text('Error: $err')),
           data: (orders) {
-            final customerOrders = orders.where((o) => o.customerId == customer.id);
-            final filteredOrders = customerOrders.where((order) {
-              if (statusFilter != null && order.status != statusFilter) {
-                return false;
-              }
-              return _matchesDateFilter(order, dateFilter, fromDate, toDate);
-            }).toList()
-              ..sort((a, b) {
-                final ad = a.createdAt ?? a.updatedAt ?? DateTime(1970);
-                final bd = b.createdAt ?? b.updatedAt ?? DateTime(1970);
-                return bd.compareTo(ad);
-              });
+            final customerOrders = orders.where(
+              (o) => o.customerId == customer.id,
+            );
+            final filteredOrders =
+                customerOrders.where((order) {
+                  if (statusFilter != null && order.status != statusFilter) {
+                    return false;
+                  }
+                  return _matchesDateFilter(
+                    order,
+                    dateFilter,
+                    fromDate,
+                    toDate,
+                  );
+                }).toList()..sort((a, b) {
+                  final ad = a.createdAt ?? a.updatedAt ?? DateTime(1970);
+                  final bd = b.createdAt ?? b.updatedAt ?? DateTime(1970);
+                  return bd.compareTo(ad);
+                });
 
             final totalPages = filteredOrders.isEmpty
                 ? 1
                 : (filteredOrders.length / _pageSize).ceil();
-            final safePage = pageIndex >= totalPages ? totalPages - 1 : pageIndex;
+            final safePage = pageIndex >= totalPages
+                ? totalPages - 1
+                : pageIndex;
             if (safePage != pageIndex) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                ref.read(_adminCustomerPageProvider(customer.id).notifier).state =
+                ref
+                        .read(_adminCustomerPageProvider(customer.id).notifier)
+                        .state =
                     safePage;
               });
             }
@@ -288,7 +302,8 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                             CircleAvatar(
                               radius: 28,
                               backgroundColor: Colors.black12,
-                              backgroundImage: _display(customer.photoUrl) != '-'
+                              backgroundImage:
+                                  _display(customer.photoUrl) != '-'
                                   ? NetworkImage(customer.photoUrl!.trim())
                                   : null,
                               child: _display(customer.photoUrl) == '-'
@@ -316,7 +331,11 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                               'Mobile',
                               _display(customer.phoneNumber),
                             ),
-                            _infoTile(context, 'Email', _display(customer.email)),
+                            _infoTile(
+                              context,
+                              'Email',
+                              _display(customer.email),
+                            ),
                             _infoTile(
                               context,
                               'Role',
@@ -365,7 +384,9 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                               'Delete Requested At',
                               customer.deleteRequestedAt == null
                                   ? '-'
-                                  : _formatDateTime(customer.deleteRequestedAt!),
+                                  : _formatDateTime(
+                                      customer.deleteRequestedAt!,
+                                    ),
                             ),
                             _infoTile(
                               context,
@@ -429,14 +450,21 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                         ],
                         onChanged: (value) {
                           ref
-                              .read(
-                                _adminCustomerStatusFilterProvider(customer.id)
-                                    .notifier,
-                              )
-                              .state = value;
+                                  .read(
+                                    _adminCustomerStatusFilterProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              value;
                           ref
-                              .read(_adminCustomerPageProvider(customer.id).notifier)
-                              .state = 0;
+                                  .read(
+                                    _adminCustomerPageProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              0;
                         },
                       ),
                     ),
@@ -444,7 +472,9 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                     Expanded(
                       child: DropdownButtonFormField<_AdminCustomerDateFilter>(
                         initialValue: dateFilter,
-                        decoration: const InputDecoration(labelText: 'Date Filter'),
+                        decoration: const InputDecoration(
+                          labelText: 'Date Filter',
+                        ),
                         items: _AdminCustomerDateFilter.values
                             .map(
                               (value) => DropdownMenuItem(
@@ -456,26 +486,38 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                         onChanged: (value) {
                           if (value == null) return;
                           ref
-                              .read(
-                                _adminCustomerDateFilterProvider(customer.id)
-                                    .notifier,
-                              )
-                              .state = value;
+                                  .read(
+                                    _adminCustomerDateFilterProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              value;
                           ref
-                              .read(_adminCustomerPageProvider(customer.id).notifier)
-                              .state = 0;
+                                  .read(
+                                    _adminCustomerPageProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              0;
                           if (value != _AdminCustomerDateFilter.custom) {
                             ref
-                                .read(
-                                  _adminCustomerFromDateProvider(customer.id)
-                                      .notifier,
-                                )
-                                .state = null;
+                                    .read(
+                                      _adminCustomerFromDateProvider(
+                                        customer.id,
+                                      ).notifier,
+                                    )
+                                    .state =
+                                null;
                             ref
-                                .read(
-                                  _adminCustomerToDateProvider(customer.id).notifier,
-                                )
-                                .state = null;
+                                    .read(
+                                      _adminCustomerToDateProvider(
+                                        customer.id,
+                                      ).notifier,
+                                    )
+                                    .state =
+                                null;
                           } else if (fromDate == null || toDate == null) {
                             _pickCustomRange(context, ref);
                           }
@@ -502,21 +544,29 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                       TextButton(
                         onPressed: () {
                           ref
-                              .read(
-                                _adminCustomerFromDateProvider(customer.id).notifier,
-                              )
-                              .state = null;
+                                  .read(
+                                    _adminCustomerFromDateProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              null;
                           ref
-                              .read(
-                                _adminCustomerToDateProvider(customer.id).notifier,
-                              )
-                              .state = null;
+                                  .read(
+                                    _adminCustomerToDateProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              null;
                           ref
-                              .read(
-                                _adminCustomerDateFilterProvider(customer.id)
-                                    .notifier,
-                              )
-                              .state = _AdminCustomerDateFilter.all;
+                                  .read(
+                                    _adminCustomerDateFilterProvider(
+                                      customer.id,
+                                    ).notifier,
+                                  )
+                                  .state =
+                              _AdminCustomerDateFilter.all;
                         },
                         child: const Text('Clear'),
                       ),
@@ -534,6 +584,12 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                 else
                   ...pageItems.map((order) {
                     final created = order.createdAt ?? order.updatedAt;
+                    final effectiveStatus = OrderSharedHelpers.effectiveStatus(
+                      order,
+                    );
+                    final statusColor = OrderSharedHelpers.statusColor(
+                      effectiveStatus,
+                    );
                     final payment = _capitalize(order.payment.status.name);
                     final delivery = _capitalize(order.delivery.status.name);
                     return Card(
@@ -541,18 +597,37 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => CustomerOrderDetailScreen(order: order),
+                              builder: (_) =>
+                                  CustomerOrderDetailScreen(order: order),
                             ),
                           );
                         },
                         title: Text('Order ${order.displayOrderNumber}'),
-                        subtitle: Text(
-                          'Business: ${order.businessName}\n'
-                          'Status: ${_statusLabel(order.status)}\n'
-                          'Payment: $payment • Delivery: $delivery\n'
-                          'Created: ${created == null ? '-' : created.toLocal()}',
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Business: ${order.businessName}'),
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  const TextSpan(text: 'Status: '),
+                                  TextSpan(
+                                    text: _statusLabel(effectiveStatus),
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text('Payment: $payment • Delivery: $delivery'),
+                            Text(
+                              'Created: ${created == null ? '-' : created.toLocal()}',
+                            ),
+                          ],
                         ),
-                        isThreeLine: true,
+                        isThreeLine: false,
                         trailing: const Icon(Icons.chevron_right),
                       ),
                     );
@@ -567,11 +642,13 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ? null
                           : () {
                               ref
-                                  .read(
-                                    _adminCustomerPageProvider(customer.id)
-                                        .notifier,
-                                  )
-                                  .state = safePage - 1;
+                                      .read(
+                                        _adminCustomerPageProvider(
+                                          customer.id,
+                                        ).notifier,
+                                      )
+                                      .state =
+                                  safePage - 1;
                             },
                       child: const Text('Prev'),
                     ),
@@ -580,11 +657,13 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ? null
                           : () {
                               ref
-                                  .read(
-                                    _adminCustomerPageProvider(customer.id)
-                                        .notifier,
-                                  )
-                                  .state = safePage + 1;
+                                      .read(
+                                        _adminCustomerPageProvider(
+                                          customer.id,
+                                        ).notifier,
+                                      )
+                                      .state =
+                                  safePage + 1;
                             },
                       child: const Text('Next'),
                     ),

@@ -20,7 +20,21 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
     final canEditAfterAccept = !isLocked && isAccepted;
     final missingIncludedPrice = _hasMissingIncludedUnitPrice();
     return Scaffold(
-      appBar: AppBar(title: Text('Order ${_order.displayOrderNumber} Details')),
+      appBar: AppBar(
+        title: Text('Order ${_order.displayOrderNumber} Details'),
+        actions: [
+          IconButton(
+            tooltip: 'Share order details',
+            onPressed: _shareOrderDetails,
+            icon: const Icon(Icons.share_outlined),
+          ),
+          IconButton(
+            tooltip: 'Share on WhatsApp',
+            onPressed: _shareOrderDetailsOnWhatsApp,
+            icon: const Icon(Icons.chat, color: Colors.green),
+          ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: ListView(

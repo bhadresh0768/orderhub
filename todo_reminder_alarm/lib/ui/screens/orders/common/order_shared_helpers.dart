@@ -87,7 +87,17 @@ class OrderSharedHelpers {
     return switch (status) {
       OrderStatus.completed => Colors.green,
       OrderStatus.pending => Colors.red,
-      _ => Colors.yellow.shade800,
+      OrderStatus.approved || OrderStatus.inProgress => Colors.yellow.shade800,
+      OrderStatus.cancelled => Colors.grey,
+    };
+  }
+
+  static String statusLabel(OrderStatus status) {
+    return switch (status) {
+      OrderStatus.pending => 'Pending',
+      OrderStatus.approved || OrderStatus.inProgress => 'Processing',
+      OrderStatus.completed => 'Completed',
+      OrderStatus.cancelled => 'Cancelled',
     };
   }
 

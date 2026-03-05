@@ -330,8 +330,12 @@ class _OrderHistoryReportScreenState
             const SizedBox(height: 16),
             if (filtered.isEmpty)
               const Text('No orders match current filters.'),
-            ...filtered.map(
-              (order) => OrderCardShell(
+            ...filtered.map((order) {
+              final effectiveStatus = OrderSharedHelpers.effectiveStatus(order);
+              final statusColor = OrderSharedHelpers.statusColor(
+                effectiveStatus,
+              );
+              return OrderCardShell(
                 margin: EdgeInsets.zero,
                 onTap: () {
                   Navigator.of(context).push(
@@ -341,8 +345,19 @@ class _OrderHistoryReportScreenState
                   );
                 },
                 child: ListTile(
-                  title: Text(
-                    '${order.businessName} • ${OrderSharedHelpers.capitalize(order.status.name)}',
+                  title: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: '${order.businessName} • '),
+                        TextSpan(
+                          text: OrderSharedHelpers.statusLabel(effectiveStatus),
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   subtitle: Text(
                     'Priority: ${OrderSharedHelpers.capitalize(order.priority.name)} | Items: ${order.items.length} | '
@@ -358,8 +373,8 @@ class _OrderHistoryReportScreenState
                               .first,
                   ),
                 ),
-              ),
-            ),
+              );
+            }),
           ],
         ),
       ),

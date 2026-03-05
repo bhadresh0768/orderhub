@@ -752,8 +752,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                             children: [
                               TextSpan(text: '${order.businessName} • '),
                               TextSpan(
-                                text: OrderSharedHelpers.capitalize(
-                                  effectiveStatus.name,
+                                text: OrderSharedHelpers.statusLabel(
+                                  effectiveStatus,
                                 ),
                                 style: TextStyle(
                                   color: statusColor,

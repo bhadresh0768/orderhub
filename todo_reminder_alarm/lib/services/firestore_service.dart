@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 
 import '../models/app_user.dart';
+import '../models/app_update_config.dart';
 import '../models/business.dart';
 import '../models/catalog.dart';
 import '../models/contact_us_message.dart';
@@ -37,6 +38,8 @@ class FirestoreService {
       _db.collection('supportTickets');
   CollectionReference<Map<String, dynamic>> get _contactUs =>
       _db.collection('contactUs');
+  DocumentReference<Map<String, dynamic>> get _appUpdateConfig =>
+      _db.collection('appConfig').doc('mobileUpdate');
 
   Stream<AppUser?> userStream(String uid) {
     return _users.doc(uid).snapshots().map((doc) {
@@ -92,6 +95,26 @@ class FirestoreService {
         .set(profile.toMap(), SetOptions(merge: true));
   }
 
+  Future<void> upgradeCustomerToBusinessOwner({
+    required String userId,
+    required BusinessProfile business,
+  }) async {
+    final batch = _db.batch();
+    batch.set(
+      _businesses.doc(business.id),
+      business.toMap(),
+      SetOptions(merge: true),
+    );
+    batch.update(_users.doc(userId), {
+      'role': enumToString(UserRole.businessOwner),
+      'businessId': business.id,
+      'shopName': null,
+      'address': null,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+    await batch.commit();
+  }
+
   Stream<List<Order>> ordersForBusinessStream(String businessId) {
     return _orders
         .where('businessId', isEqualTo: businessId)
@@ -143,7 +166,20 @@ class FirestoreService {
     return _contactUs
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map(ContactUsMessage.fromDoc).toList());
+        .map(
+          (snapshot) => snapshot.docs.map(ContactUsMessage.fromDoc).toList(),
+        );
+  }
+
+  Stream<AppUpdateConfig?> appUpdateConfigStream() {
+    return _appUpdateConfig.snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return AppUpdateConfig.fromDoc(doc);
+    });
+  }
+
+  Future<void> setAppUpdateConfig(AppUpdateConfig config) async {
+    await _appUpdateConfig.set(config.toMap(), SetOptions(merge: true));
   }
 
   Stream<List<Order>> ordersForDeliveryAgentByPhoneStream(String phone) {
@@ -227,7 +263,9 @@ class FirestoreService {
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-          final items = snapshot.docs.map(DeliveryAddressEntry.fromDoc).toList();
+          final items = snapshot.docs
+              .map(DeliveryAddressEntry.fromDoc)
+              .toList();
           items.sort((a, b) {
             if (a.isDefault != b.isDefault) {
               return a.isDefault ? -1 : 1;
@@ -245,10 +283,7 @@ class FirestoreService {
         .where('businessId', isEqualTo: businessId)
         .orderBy('sortOrder')
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map(CatalogCategory.fromDoc).toList(),
-        );
+        .map((snapshot) => snapshot.docs.map(CatalogCategory.fromDoc).toList());
   }
 
   Stream<List<CatalogProduct>> catalogProductsStream(String businessId) {
@@ -256,9 +291,7 @@ class FirestoreService {
         .where('businessId', isEqualTo: businessId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.map(CatalogProduct.fromDoc).toList(),
-        );
+        .map((snapshot) => snapshot.docs.map(CatalogProduct.fromDoc).toList());
   }
 
   Stream<List<CatalogVariant>> catalogVariantsStream(String productId) {
@@ -266,16 +299,13 @@ class FirestoreService {
         .where('productId', isEqualTo: productId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.map(CatalogVariant.fromDoc).toList(),
-        );
+        .map((snapshot) => snapshot.docs.map(CatalogVariant.fromDoc).toList());
   }
 
   Future<void> createCatalogCategory(CatalogCategory category) async {
-    await _catalogCategories.doc(category.id).set(
-          category.toMap(),
-          SetOptions(merge: true),
-        );
+    await _catalogCategories
+        .doc(category.id)
+        .set(category.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateCatalogCategory(
@@ -293,10 +323,9 @@ class FirestoreService {
   }
 
   Future<void> createCatalogProduct(CatalogProduct product) async {
-    await _catalogProducts.doc(product.id).set(
-          product.toMap(),
-          SetOptions(merge: true),
-        );
+    await _catalogProducts
+        .doc(product.id)
+        .set(product.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateCatalogProduct(
@@ -314,10 +343,9 @@ class FirestoreService {
   }
 
   Future<void> createCatalogVariant(CatalogVariant variant) async {
-    await _catalogVariants.doc(variant.id).set(
-          variant.toMap(),
-          SetOptions(merge: true),
-        );
+    await _catalogVariants
+        .doc(variant.id)
+        .set(variant.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateCatalogVariant(
@@ -464,17 +492,15 @@ class FirestoreService {
   }
 
   Future<void> createSupportTicket(SupportTicket ticket) async {
-    await _supportTickets.doc(ticket.id).set(
-      ticket.toMap(),
-      SetOptions(merge: true),
-    );
+    await _supportTickets
+        .doc(ticket.id)
+        .set(ticket.toMap(), SetOptions(merge: true));
   }
 
   Future<void> createContactUsMessage(ContactUsMessage message) async {
-    await _contactUs.doc(message.id).set(
-      message.toMap(),
-      SetOptions(merge: true),
-    );
+    await _contactUs
+        .doc(message.id)
+        .set(message.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateSupportTicket(

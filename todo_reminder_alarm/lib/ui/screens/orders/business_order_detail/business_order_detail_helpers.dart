@@ -79,11 +79,7 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
   }
 
   Color _orderStatusColor(OrderStatus status) {
-    return switch (status) {
-      OrderStatus.completed => Colors.green,
-      OrderStatus.pending => Colors.red,
-      _ => Colors.orange,
-    };
+    return OrderSharedHelpers.statusColor(status);
   }
 
   Color _deliveryStatusColor(DeliveryStatus status) {
@@ -259,5 +255,116 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
       }
     }
     return false;
+  }
+
+  String _digitsOnly(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
+
+  String _buildOrderShareDetailsText() {
+    final isBusinessOrder =
+        _order.requesterType == OrderRequesterType.businessOwner;
+    final requester = isBusinessOrder
+        ? (_order.requesterBusinessName ?? _order.customerName)
+        : _order.customerName;
+    final requestedAddress = _requestedByAddress();
+    final requestedContact = _requestedByContact();
+    final paymentCollector =
+        _order.payment.collectedBy == null ||
+            _order.payment.status != PaymentStatus.done
+        ? null
+        : (_order.payment.collectedBy == PaymentCollectedBy.deliveryBoy
+              ? 'Delivery Boy'
+              : 'Business');
+    final items = _order.items
+        .asMap()
+        .entries
+        .map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          final include = _itemIncluded[index] ? 'Included' : 'Excluded';
+          final unitPriceText = _itemPriceControllers[index].text.trim().isEmpty
+              ? 'Not set'
+              : _itemPriceControllers[index].text.trim();
+          final gstText = _itemGstIncluded[index] ? 'GST: Yes' : 'GST: No';
+          final unavailableReason = (item.unavailableReason ?? '').trim();
+          final note = (item.note ?? '').trim();
+          return '- ${item.title} | Qty: ${_itemQuantityLabel(item)} | $include | Unit Price: $unitPriceText | $gstText'
+              '${unavailableReason.isEmpty ? '' : ' | Unavailable: $unavailableReason'}'
+              '${note.isEmpty ? '' : ' | Note: $note'}';
+        })
+        .join('\n');
+
+    final billing = _billingPreview();
+    final orderNote = (_order.notes ?? '').trim();
+    final deliveryNote = (_order.delivery.note ?? '').trim();
+    final paymentNote = (_order.payment.remark ?? '').trim();
+
+    return '''
+Order ${_order.displayOrderNumber} Details
+Business: ${_order.businessName}
+Type: ${isBusinessOrder ? 'Business Order' : 'Customer Order'}
+Order by: $requester
+Address: $requestedAddress
+${requestedContact == null ? '' : 'Contact: $requestedContact\n'}Status: ${_statusLabel(_order.status)}
+Delivery: ${_capitalize(_order.delivery.status.name)}
+Payment: ${_paymentStatusLabel(_order.payment.status)} (${_paymentMethodLabel(_order.payment.method)})
+Amount: ${_formatAmount(_order.payment.amount)}
+${paymentCollector == null ? '' : 'Collected By: $paymentCollector\n'}Delivery Agent: ${_order.assignedDeliveryAgentName ?? 'Not assigned'}
+Included Items: ${_itemIncluded.where((e) => e).length} / ${_order.items.length}
+Subtotal: ${_formatAmount(billing.subtotal)}
+GST %: ${billing.gstPercent.toStringAsFixed(2)}
+GST Amount: ${_formatAmount(billing.gstAmount)}
+Extra Charges: ${_formatAmount(billing.extra)}
+Total: ${_formatAmount(billing.total)}
+${orderNote.isEmpty ? '' : 'Order Remark: $orderNote\n'}${deliveryNote.isEmpty ? '' : 'Delivery Remark: $deliveryNote\n'}${paymentNote.isEmpty ? '' : 'Payment Remark: $paymentNote\n'}
+Items:
+$items
+'''
+        .trim();
+  }
+
+  Future<void> _shareOrderDetails() async {
+    final text = _buildOrderShareDetailsText();
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.SEND',
+        type: 'text/plain',
+        arguments: {'android.intent.extra.TEXT': text},
+      );
+      await intent.launchChooser('Share order details');
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Share unavailable. Order details copied.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _shareOrderDetailsOnWhatsApp() async {
+    final contactPhone = (_order.deliveryContactPhone ?? '').trim();
+    final digits = _digitsOnly(contactPhone);
+    final text = Uri.encodeComponent(_buildOrderShareDetailsText());
+    final url = digits.isEmpty
+        ? 'https://wa.me/?text=$text'
+        : 'https://wa.me/$digits?text=$text';
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.VIEW',
+        data: url,
+      );
+      await intent.launch();
+    } catch (_) {
+      await Clipboard.setData(
+        ClipboardData(text: _buildOrderShareDetailsText()),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('WhatsApp unavailable. Order details copied.'),
+        ),
+      );
+    }
   }
 }

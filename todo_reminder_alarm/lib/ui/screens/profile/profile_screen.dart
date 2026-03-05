@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
+import 'package:uuid/uuid.dart';
 
 import '../../../models/app_user.dart';
 import '../../../models/business.dart';
@@ -13,8 +14,8 @@ import '../../../providers.dart';
 import '../../../app/deep_link_utils.dart';
 import 'public_business_profile_screen.dart';
 
-final _profileUiProvider =
-    StateProvider.autoDispose.family<_ProfileUiState, String>(
+final _profileUiProvider = StateProvider.autoDispose
+    .family<_ProfileUiState, String>(
       (ref, _) => _ProfileUiState(businessCountry: Country.parse('IN')),
     );
 
@@ -76,6 +77,28 @@ class _ProfileUiState {
 }
 
 const _profileUnset = Object();
+
+class _UpgradeBusinessData {
+  const _UpgradeBusinessData({
+    required this.name,
+    required this.category,
+    required this.city,
+    required this.country,
+    this.address,
+    this.phone,
+    this.gstNumber,
+    this.description,
+  });
+
+  final String name;
+  final String category;
+  final String city;
+  final Country country;
+  final String? address;
+  final String? phone;
+  final String? gstNumber;
+  final String? description;
+}
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, required this.user});
@@ -168,9 +191,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _pickAndUploadUserImage() async {
-    _updateUi(
-      (state) => state.copyWith(error: null, uploadingUserImage: true),
-    );
+    _updateUi((state) => state.copyWith(error: null, uploadingUserImage: true));
     try {
       final picked = await FilePicker.platform.pickFiles(
         withData: true,
@@ -355,8 +376,235 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
     } catch (err) {
       _updateUi(
+        (state) =>
+            state.copyWith(error: 'Failed to submit delete request: $err'),
+      );
+    } finally {
+      if (mounted) {
+        _updateUi((state) => state.copyWith(saving: false));
+      }
+    }
+  }
+
+  Future<void> _showUpgradeToBusinessOwnerDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final businessNameController = TextEditingController(
+      text: _shopNameController.text.trim(),
+    );
+    final categoryController = TextEditingController();
+    final cityController = TextEditingController();
+    final addressController = TextEditingController(
+      text: _addressController.text.trim(),
+    );
+    final gstController = TextEditingController();
+    final phoneController = TextEditingController();
+    final descriptionController = TextEditingController();
+    Country selectedCountry = _ui.businessCountry;
+
+    final payload = await showDialog<_UpgradeBusinessData>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Switch to Business Owner'),
+          content: SizedBox(
+            width: 520,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'After switching, your account will open Business Owner screens by default. This change applies immediately.',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: businessNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Business Name',
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Enter business name'
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: categoryController,
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Enter category'
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: cityController,
+                      decoration: const InputDecoration(labelText: 'City'),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Enter city'
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: addressController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Business Address',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 132,
+                          child: InkWell(
+                            onTap: () {
+                              showCountryPicker(
+                                context: context,
+                                showPhoneCode: true,
+                                onSelect: (country) {
+                                  setDialogState(() {
+                                    selectedCountry = country;
+                                  });
+                                },
+                              );
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Code',
+                              ),
+                              child: Text(
+                                '${selectedCountry.flagEmoji} +${selectedCountry.phoneCode}',
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            decoration: const InputDecoration(
+                              labelText: 'Business Contact Number',
+                              hintText: '9876543210',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: gstController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: 'Business Unique No (GST optional)',
+                        hintText: 'e.g. 27ABCDE1234F1Z5',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Business Description',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.of(context).pop(
+                  _UpgradeBusinessData(
+                    name: businessNameController.text.trim(),
+                    category: categoryController.text.trim(),
+                    city: cityController.text.trim(),
+                    country: selectedCountry,
+                    address: addressController.text.trim().isEmpty
+                        ? null
+                        : addressController.text.trim(),
+                    phone: phoneController.text.trim().isEmpty
+                        ? null
+                        : phoneController.text.trim(),
+                    gstNumber: gstController.text.trim().isEmpty
+                        ? null
+                        : gstController.text.trim().toUpperCase(),
+                    description: descriptionController.text.trim().isEmpty
+                        ? null
+                        : descriptionController.text.trim(),
+                  ),
+                );
+              },
+              child: const Text('Switch Role'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    businessNameController.dispose();
+    categoryController.dispose();
+    cityController.dispose();
+    addressController.dispose();
+    gstController.dispose();
+    phoneController.dispose();
+    descriptionController.dispose();
+
+    if (payload == null || !mounted) return;
+    await _upgradeCustomerToBusinessOwner(payload);
+  }
+
+  Future<void> _upgradeCustomerToBusinessOwner(
+    _UpgradeBusinessData data,
+  ) async {
+    _updateUi((state) => state.copyWith(saving: true, error: null));
+    try {
+      final businessId = const Uuid().v4();
+      await ref
+          .read(firestoreServiceProvider)
+          .upgradeCustomerToBusinessOwner(
+            userId: widget.user.id,
+            business: BusinessProfile(
+              id: businessId,
+              name: data.name,
+              category: data.category,
+              ownerId: widget.user.id,
+              city: data.city,
+              address: data.address,
+              phone: (data.phone ?? '').trim().isEmpty
+                  ? null
+                  : _normalizePhoneNumber(data.phone!, data.country),
+              gstNumber: data.gstNumber,
+              description: data.description,
+              shareLink: businessDeepLink(businessId),
+            ),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Role changed to Business Owner')),
+      );
+    } catch (err) {
+      _updateUi(
         (state) => state.copyWith(
-          error: 'Failed to submit delete request: $err',
+          error: 'Failed to switch role to business owner: $err',
         ),
       );
     } finally {
@@ -403,446 +651,475 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (uiState.error != null) ...[
-                    Text(uiState.error!, style: const TextStyle(color: Colors.red)),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (uiState.error != null) ...[
+                      Text(
+                        uiState.error!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Text(
+                      'User Details',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 12),
-                  ],
-                  Text(
-                    'User Details',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundImage: (uiState.userPhotoUrl ?? '').isNotEmpty
-                            ? NetworkImage(uiState.userPhotoUrl!)
-                            : null,
-                        child: (uiState.userPhotoUrl ?? '').isEmpty
-                            ? const Icon(Icons.person, size: 36)
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundImage:
+                              (uiState.userPhotoUrl ?? '').isNotEmpty
+                              ? NetworkImage(uiState.userPhotoUrl!)
+                              : null,
+                          child: (uiState.userPhotoUrl ?? '').isEmpty
+                              ? const Icon(Icons.person, size: 36)
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          onPressed: uiState.uploadingUserImage
+                              ? null
+                              : _pickAndUploadUserImage,
+                          icon: uiState.uploadingUserImage
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.upload),
+                          label: const Text('Upload Profile Picture'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(labelText: 'Full Name'),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Enter full name'
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    if (isCustomer) ...[
+                      TextFormField(
+                        controller: _shopNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Shop Name',
+                        ),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Enter shop name'
                             : null,
                       ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        onPressed: uiState.uploadingUserImage
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _addressController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(labelText: 'Address'),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Enter address'
+                            : null,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    TextFormField(
+                      controller: _emailController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Email (read-only)',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _phoneController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Mobile Number (cannot be changed)',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _appShareLinkController,
+                      onChanged: (_) => _updateUi(
+                        (state) =>
+                            state.copyWith(refreshTick: state.refreshTick + 1),
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'App Share Link',
+                        hintText:
+                            'https://play.google.com/store/apps/details?id=...',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: _appShareLinkController.text.trim().isEmpty
                             ? null
-                            : _pickAndUploadUserImage,
-                        icon: uiState.uploadingUserImage
+                            : () => _copyToClipboard(
+                                'App share link',
+                                _appShareLinkController.text,
+                              ),
+                        icon: const Icon(Icons.copy),
+                        label: const Text('Copy App Link'),
+                      ),
+                    ),
+                    if (businessAsync != null) ...[
+                      const SizedBox(height: 24),
+                      businessAsync.when(
+                        data: (business) {
+                          _initBusiness(business);
+                          if (business == null) {
+                            return const Text('Business profile not found.');
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Business Details',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 36,
+                                    backgroundImage:
+                                        (uiState.businessLogoUrl ?? '')
+                                            .isNotEmpty
+                                        ? NetworkImage(uiState.businessLogoUrl!)
+                                        : null,
+                                    child:
+                                        (uiState.businessLogoUrl ?? '').isEmpty
+                                        ? const Icon(Icons.store, size: 36)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  FilledButton.icon(
+                                    onPressed: uiState.uploadingBusinessLogo
+                                        ? null
+                                        : () => _pickAndUploadBusinessLogo(
+                                            business.id,
+                                          ),
+                                    icon: uiState.uploadingBusinessLogo
+                                        ? const SizedBox(
+                                            height: 16,
+                                            width: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.upload),
+                                    label: const Text('Upload Business Logo'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _businessNameController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Business Name',
+                                ),
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? 'Enter business name'
+                                    : null,
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _businessCategoryController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Category',
+                                ),
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? 'Enter business category'
+                                    : null,
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _businessAddressController,
+                                maxLines: 2,
+                                decoration: const InputDecoration(
+                                  labelText: 'Business Address',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _businessCityController,
+                                decoration: const InputDecoration(
+                                  labelText: 'City',
+                                ),
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? 'Enter city'
+                                    : null,
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _businessGstController,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                  labelText:
+                                      'Business Unique No (GST optional)',
+                                  hintText: 'e.g. 27ABCDE1234F1Z5',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 132,
+                                    child: InkWell(
+                                      onTap: () {
+                                        showCountryPicker(
+                                          context: context,
+                                          showPhoneCode: true,
+                                          onSelect: (country) {
+                                            _updateUi(
+                                              (state) => state.copyWith(
+                                                businessCountry: country,
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      },
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          labelText: 'Code',
+                                        ),
+                                        child: Text(
+                                          '${uiState.businessCountry.flagEmoji} +${uiState.businessCountry.phoneCode}',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _businessPhoneController,
+                                      keyboardType: TextInputType.phone,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Business Contact Number',
+                                        hintText: '9876543210',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _businessDescriptionController,
+                                maxLines: 3,
+                                decoration: const InputDecoration(
+                                  labelText: 'Business Description',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _businessShareLinkController,
+                                onChanged: (_) => _updateUi(
+                                  (state) => state.copyWith(
+                                    refreshTick: state.refreshTick + 1,
+                                  ),
+                                ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Business Share Link',
+                                  hintText: 'https://your-business-link.com',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: OutlinedButton.icon(
+                                  onPressed:
+                                      _businessShareLinkController.text
+                                          .trim()
+                                          .isEmpty
+                                      ? null
+                                      : () => _copyToClipboard(
+                                          'Business share link',
+                                          _businessShareLinkController.text,
+                                        ),
+                                  icon: const Icon(Icons.copy),
+                                  label: const Text('Copy Business Link'),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: FilledButton.icon(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => PublicBusinessProfileScreen(
+                                          business: BusinessProfile(
+                                            id: business.id,
+                                            name:
+                                                _businessNameController.text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.name
+                                                : _businessNameController.text
+                                                      .trim(),
+                                            category:
+                                                _businessCategoryController.text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.category
+                                                : _businessCategoryController
+                                                      .text
+                                                      .trim(),
+                                            ownerId: business.ownerId,
+                                            city:
+                                                _businessCityController.text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.city
+                                                : _businessCityController.text
+                                                      .trim(),
+                                            address:
+                                                _businessAddressController.text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.address
+                                                : _businessAddressController
+                                                      .text
+                                                      .trim(),
+                                            gstNumber:
+                                                _businessGstController.text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.gstNumber
+                                                : _businessGstController.text
+                                                      .trim()
+                                                      .toUpperCase(),
+                                            status: business.status,
+                                            description:
+                                                _businessDescriptionController
+                                                    .text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.description
+                                                : _businessDescriptionController
+                                                      .text
+                                                      .trim(),
+                                            phone:
+                                                _businessPhoneController.text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.phone
+                                                : _businessPhoneController.text
+                                                      .trim(),
+                                            logoUrl:
+                                                (uiState.businessLogoUrl ?? '')
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.logoUrl
+                                                : uiState.businessLogoUrl,
+                                            shareLink:
+                                                _businessShareLinkController
+                                                    .text
+                                                    .trim()
+                                                    .isEmpty
+                                                ? business.shareLink
+                                                : _businessShareLinkController
+                                                      .text
+                                                      .trim(),
+                                            createdAt: business.createdAt,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.remove_red_eye_outlined,
+                                  ),
+                                  label: const Text('View Public Profile'),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                        loading: () => const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                        error: (err, _) => Text('Error loading business: $err'),
+                      ),
+                    ],
+                    if (isCustomer) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: uiState.saving
+                              ? null
+                              : _showUpgradeToBusinessOwnerDialog,
+                          icon: const Icon(Icons.store_mall_directory_outlined),
+                          label: const Text('Change Role To Business Owner'),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed:
+                            uiState.saving ||
+                                uiState.uploadingUserImage ||
+                                uiState.uploadingBusinessLogo
+                            ? null
+                            : () => _saveProfile(businessId: businessId),
+                        child: uiState.saving
                             ? const SizedBox(
-                                height: 16,
-                                width: 16,
+                                height: 18,
+                                width: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.upload),
-                        label: const Text('Upload Profile Picture'),
+                            : const Text('Save Profile'),
+                      ),
+                    ),
+                    if (canRequestDelete) ...[
+                      const SizedBox(height: 12),
+                      if (deletePending)
+                        Text(
+                          'Delete request status: Pending',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: uiState.saving || deletePending
+                              ? null
+                              : _requestDeleteAccount,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                          ),
+                          icon: const Icon(Icons.delete_outline),
+                          label: Text(
+                            deletePending
+                                ? 'Delete Account Requested'
+                                : 'Delete Account',
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Full Name'),
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Enter full name'
-                        : null,
-                  ),
-                  const SizedBox(height: 10),
-                  if (isCustomer) ...[
-                    TextFormField(
-                      controller: _shopNameController,
-                      decoration: const InputDecoration(labelText: 'Shop Name'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Enter shop name'
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _addressController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'Address'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Enter address'
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
                   ],
-                  TextFormField(
-                    controller: _emailController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Email (read-only)',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: _phoneController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Mobile Number (cannot be changed)',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: _appShareLinkController,
-                    onChanged: (_) => _updateUi(
-                      (state) =>
-                          state.copyWith(refreshTick: state.refreshTick + 1),
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'App Share Link',
-                      hintText:
-                          'https://play.google.com/store/apps/details?id=...',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                              child: OutlinedButton.icon(
-                                onPressed: _appShareLinkController.text.trim().isEmpty
-                          ? null
-                          : () => _copyToClipboard(
-                              'App share link',
-                              _appShareLinkController.text,
-                            ),
-                      icon: const Icon(Icons.copy),
-                      label: const Text('Copy App Link'),
-                    ),
-                  ),
-                  if (businessAsync != null) ...[
-                    const SizedBox(height: 24),
-                    businessAsync.when(
-                      data: (business) {
-                        _initBusiness(business);
-                        if (business == null) {
-                          return const Text('Business profile not found.');
-                        }
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Business Details',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 36,
-                                  backgroundImage:
-                                      (uiState.businessLogoUrl ?? '').isNotEmpty
-                                      ? NetworkImage(uiState.businessLogoUrl!)
-                                      : null,
-                                  child: (uiState.businessLogoUrl ?? '').isEmpty
-                                      ? const Icon(Icons.store, size: 36)
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                FilledButton.icon(
-                                  onPressed: uiState.uploadingBusinessLogo
-                                      ? null
-                                      : () => _pickAndUploadBusinessLogo(
-                                          business.id,
-                                        ),
-                                  icon: uiState.uploadingBusinessLogo
-                                      ? const SizedBox(
-                                          height: 16,
-                                          width: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.upload),
-                                  label: const Text('Upload Business Logo'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _businessNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Business Name',
-                              ),
-                              validator: (value) =>
-                                  value == null || value.trim().isEmpty
-                                  ? 'Enter business name'
-                                  : null,
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _businessCategoryController,
-                              decoration: const InputDecoration(
-                                labelText: 'Category',
-                              ),
-                              validator: (value) =>
-                                  value == null || value.trim().isEmpty
-                                  ? 'Enter business category'
-                                  : null,
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _businessAddressController,
-                              maxLines: 2,
-                              decoration: const InputDecoration(
-                                labelText: 'Business Address',
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _businessCityController,
-                              decoration: const InputDecoration(
-                                labelText: 'City',
-                              ),
-                              validator: (value) =>
-                                  value == null || value.trim().isEmpty
-                                  ? 'Enter city'
-                                  : null,
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _businessGstController,
-                              textCapitalization:
-                                  TextCapitalization.characters,
-                              decoration: const InputDecoration(
-                                labelText:
-                                    'Business Unique No (GST optional)',
-                                hintText: 'e.g. 27ABCDE1234F1Z5',
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 132,
-                                  child: InkWell(
-                                    onTap: () {
-                                      showCountryPicker(
-                                        context: context,
-                                        showPhoneCode: true,
-                                        onSelect: (country) {
-                                          _updateUi(
-                                            (state) => state.copyWith(
-                                              businessCountry: country,
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                    child: InputDecorator(
-                                      decoration: const InputDecoration(
-                                        labelText: 'Code',
-                                      ),
-                                      child: Text(
-                                        '${uiState.businessCountry.flagEmoji} +${uiState.businessCountry.phoneCode}',
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _businessPhoneController,
-                                    keyboardType: TextInputType.phone,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Business Contact Number',
-                                      hintText: '9876543210',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _businessDescriptionController,
-                              maxLines: 3,
-                              decoration: const InputDecoration(
-                                labelText: 'Business Description',
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _businessShareLinkController,
-                              onChanged: (_) => _updateUi(
-                                (state) => state.copyWith(
-                                  refreshTick: state.refreshTick + 1,
-                                ),
-                              ),
-                              decoration: const InputDecoration(
-                                labelText: 'Business Share Link',
-                                hintText: 'https://your-business-link.com',
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: OutlinedButton.icon(
-                                onPressed:
-                                    _businessShareLinkController.text
-                                        .trim()
-                                        .isEmpty
-                                    ? null
-                                    : () => _copyToClipboard(
-                                        'Business share link',
-                                        _businessShareLinkController.text,
-                                      ),
-                                icon: const Icon(Icons.copy),
-                                label: const Text('Copy Business Link'),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: FilledButton.icon(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => PublicBusinessProfileScreen(
-                                        business: BusinessProfile(
-                                          id: business.id,
-                                          name:
-                                              _businessNameController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.name
-                                              : _businessNameController.text
-                                                    .trim(),
-                                          category:
-                                              _businessCategoryController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.category
-                                              : _businessCategoryController.text
-                                                    .trim(),
-                                          ownerId: business.ownerId,
-                                          city:
-                                              _businessCityController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.city
-                                              : _businessCityController.text
-                                                    .trim(),
-                                          address:
-                                              _businessAddressController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.address
-                                              : _businessAddressController.text
-                                                    .trim(),
-                                          gstNumber:
-                                              _businessGstController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.gstNumber
-                                              : _businessGstController.text
-                                                    .trim()
-                                                    .toUpperCase(),
-                                          status: business.status,
-                                          description:
-                                              _businessDescriptionController
-                                                  .text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.description
-                                              : _businessDescriptionController
-                                                    .text
-                                                    .trim(),
-                                          phone:
-                                              _businessPhoneController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.phone
-                                              : _businessPhoneController.text
-                                                    .trim(),
-                                          logoUrl:
-                                              (uiState.businessLogoUrl ?? '')
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.logoUrl
-                                              : uiState.businessLogoUrl,
-                                          shareLink:
-                                              _businessShareLinkController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? business.shareLink
-                                              : _businessShareLinkController
-                                                    .text
-                                                    .trim(),
-                                          createdAt: business.createdAt,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.remove_red_eye_outlined),
-                                label: const Text('View Public Profile'),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      error: (err, _) => Text('Error loading business: $err'),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed:
-                          uiState.saving ||
-                              uiState.uploadingUserImage ||
-                              uiState.uploadingBusinessLogo
-                          ? null
-                          : () => _saveProfile(businessId: businessId),
-                      child: uiState.saving
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save Profile'),
-                    ),
-                  ),
-                  if (canRequestDelete) ...[
-                    const SizedBox(height: 12),
-                    if (deletePending)
-                      Text(
-                        'Delete request status: Pending',
-                        style: TextStyle(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: uiState.saving || deletePending
-                            ? null
-                            : _requestDeleteAccount,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                        ),
-                        icon: const Icon(Icons.delete_outline),
-                        label: Text(
-                          deletePending
-                              ? 'Delete Account Requested'
-                              : 'Delete Account',
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
                 ),
               ),
             ),

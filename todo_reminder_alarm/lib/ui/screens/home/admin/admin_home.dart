@@ -5,6 +5,7 @@ import 'package:todo_reminder_alarm/providers.dart';
 import 'admin_contact_us_tab.dart';
 import 'admin_businesses_tab.dart';
 import 'admin_orders_tab.dart';
+import 'admin_settings_screen.dart';
 import 'admin_support_tickets_tab.dart';
 import 'admin_users_tab.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/order_history_report_screen.dart';
@@ -87,6 +88,18 @@ class AdminHomeScreen extends ConsumerWidget {
                       );
                     },
                   ),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AdminSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.logout),

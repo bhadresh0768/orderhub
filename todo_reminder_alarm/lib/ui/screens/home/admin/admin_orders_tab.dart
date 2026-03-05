@@ -6,6 +6,7 @@ import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
+import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'admin_customer_detail_screen.dart';
 import 'admin_home_state.dart';
 
@@ -283,7 +284,8 @@ class _AdminOrdersTabState extends ConsumerState<AdminOrdersTab> {
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (value) {
-                ref.read(adminSearchProvider(_searchKey).notifier).state = value;
+                ref.read(adminSearchProvider(_searchKey).notifier).state =
+                    value;
               },
             ),
             const SizedBox(height: 10),
@@ -327,7 +329,8 @@ class _AdminOrdersTabState extends ConsumerState<AdminOrdersTab> {
                   ),
                   TextButton(
                     onPressed: () {
-                      ref.read(adminOrderFromDateProvider.notifier).state = null;
+                      ref.read(adminOrderFromDateProvider.notifier).state =
+                          null;
                       ref.read(adminOrderToDateProvider.notifier).state = null;
                     },
                     child: const Text('Clear'),
@@ -390,8 +393,27 @@ class _AdminOrdersTabState extends ConsumerState<AdminOrdersTab> {
                           ),
                         ],
                       ),
-                      Text(
-                        'Status: ${_capitalize(order.status.name)} • Payment: ${_capitalize(order.payment.status.name)} • Delivery: ${_capitalize(order.delivery.status.name)}',
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            const TextSpan(text: 'Status: '),
+                            TextSpan(
+                              text: OrderSharedHelpers.statusLabel(
+                                OrderSharedHelpers.effectiveStatus(order),
+                              ),
+                              style: TextStyle(
+                                color: OrderSharedHelpers.statusColor(
+                                  OrderSharedHelpers.effectiveStatus(order),
+                                ),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            TextSpan(
+                              text:
+                                  ' • Payment: ${_capitalize(order.payment.status.name)} • Delivery: ${_capitalize(order.delivery.status.name)}',
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

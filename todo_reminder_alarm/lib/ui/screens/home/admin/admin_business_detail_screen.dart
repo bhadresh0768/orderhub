@@ -8,6 +8,7 @@ import 'package:todo_reminder_alarm/models/delivery_agent.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
+import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
 
 enum _AdminBusinessDateFilter {
@@ -165,19 +166,22 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
               final businessOrders = orders
                   .where((order) => order.businessId == business.id)
                   .toList();
-              final filteredOrders = businessOrders
-                  .where((order) {
+              final filteredOrders =
+                  businessOrders.where((order) {
                     if (statusFilter != null && order.status != statusFilter) {
                       return false;
                     }
-                    return _matchesDateFilter(order, dateFilter, fromDate, toDate);
-                  })
-                  .toList()
-                ..sort((a, b) {
-                  final ad = a.createdAt ?? a.updatedAt ?? DateTime(1970);
-                  final bd = b.createdAt ?? b.updatedAt ?? DateTime(1970);
-                  return bd.compareTo(ad);
-                });
+                    return _matchesDateFilter(
+                      order,
+                      dateFilter,
+                      fromDate,
+                      toDate,
+                    );
+                  }).toList()..sort((a, b) {
+                    final ad = a.createdAt ?? a.updatedAt ?? DateTime(1970);
+                    final bd = b.createdAt ?? b.updatedAt ?? DateTime(1970);
+                    return bd.compareTo(ad);
+                  });
 
               final pendingCount = filteredOrders
                   .where((o) => o.status == OrderStatus.pending)
@@ -288,20 +292,21 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     int completedCount,
   ) {
     final owner = ownerAsync.asData?.value;
-    final ownerName =
-        (owner?.name.trim().isNotEmpty ?? false) ? owner!.name.trim() : '-';
-    final ownerPhone =
-        (owner?.phoneNumber?.trim().isNotEmpty ?? false)
-            ? owner!.phoneNumber!.trim()
-            : '-';
-    final ownerEmail =
-        (owner?.email.trim().isNotEmpty ?? false) ? owner!.email.trim() : '-';
-    final businessPhone =
-        (business.phone ?? '').trim().isEmpty ? '-' : business.phone!.trim();
-    final businessUnique =
-        (business.gstNumber ?? '').trim().isEmpty
-            ? '-'
-            : business.gstNumber!.trim();
+    final ownerName = (owner?.name.trim().isNotEmpty ?? false)
+        ? owner!.name.trim()
+        : '-';
+    final ownerPhone = (owner?.phoneNumber?.trim().isNotEmpty ?? false)
+        ? owner!.phoneNumber!.trim()
+        : '-';
+    final ownerEmail = (owner?.email.trim().isNotEmpty ?? false)
+        ? owner!.email.trim()
+        : '-';
+    final businessPhone = (business.phone ?? '').trim().isEmpty
+        ? '-'
+        : business.phone!.trim();
+    final businessUnique = (business.gstNumber ?? '').trim().isEmpty
+        ? '-'
+        : business.gstNumber!.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -322,15 +327,23 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             _infoTile(
               context,
               'Owner Registration Date',
-              owner?.createdAt == null ? '-' : _formatDateTime(owner!.createdAt!),
+              owner?.createdAt == null
+                  ? '-'
+                  : _formatDateTime(owner!.createdAt!),
             ),
             _infoTile(context, 'Business Name', business.name),
             _infoTile(context, 'Category', business.category),
-            _infoTile(context, 'City', business.city.isEmpty ? '-' : business.city),
+            _infoTile(
+              context,
+              'City',
+              business.city.isEmpty ? '-' : business.city,
+            ),
             _infoTile(
               context,
               'Address',
-              (business.address ?? '').trim().isEmpty ? '-' : business.address!.trim(),
+              (business.address ?? '').trim().isEmpty
+                  ? '-'
+                  : business.address!.trim(),
             ),
             _infoTile(context, 'Business Mobile', businessPhone),
             _infoTile(context, 'Business Unique No', businessUnique),
@@ -338,7 +351,9 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             _infoTile(
               context,
               'Business Registration Date',
-              business.createdAt == null ? '-' : _formatDateTime(business.createdAt!),
+              business.createdAt == null
+                  ? '-'
+                  : _formatDateTime(business.createdAt!),
             ),
             _infoTile(context, 'Total Orders', '$totalOrders'),
             _infoTile(context, 'Filtered Orders', '$filteredOrders'),
@@ -369,9 +384,9 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.black54,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.black54),
               ),
               const SizedBox(height: 2),
               Text(
@@ -402,7 +417,9 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
           children: [
             Expanded(
               child: DropdownButtonFormField<OrderStatus?>(
-                initialValue: ref.watch(_adminBusinessStatusFilterProvider(business.id)),
+                initialValue: ref.watch(
+                  _adminBusinessStatusFilterProvider(business.id),
+                ),
                 decoration: const InputDecoration(labelText: 'Status Filter'),
                 items: [
                   const DropdownMenuItem<OrderStatus?>(
@@ -418,8 +435,13 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                 ],
                 onChanged: (value) {
                   ref
-                      .read(_adminBusinessStatusFilterProvider(business.id).notifier)
-                      .state = value;
+                          .read(
+                            _adminBusinessStatusFilterProvider(
+                              business.id,
+                            ).notifier,
+                          )
+                          .state =
+                      value;
                 },
               ),
             ),
@@ -439,15 +461,30 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                 onChanged: (value) {
                   if (value == null) return;
                   ref
-                      .read(_adminBusinessDateFilterProvider(business.id).notifier)
-                      .state = value;
+                          .read(
+                            _adminBusinessDateFilterProvider(
+                              business.id,
+                            ).notifier,
+                          )
+                          .state =
+                      value;
                   if (value != _AdminBusinessDateFilter.custom) {
                     ref
-                        .read(_adminBusinessFromDateProvider(business.id).notifier)
-                        .state = null;
+                            .read(
+                              _adminBusinessFromDateProvider(
+                                business.id,
+                              ).notifier,
+                            )
+                            .state =
+                        null;
                     ref
-                        .read(_adminBusinessToDateProvider(business.id).notifier)
-                        .state = null;
+                            .read(
+                              _adminBusinessToDateProvider(
+                                business.id,
+                              ).notifier,
+                            )
+                            .state =
+                        null;
                   } else if (fromDate == null || toDate == null) {
                     _pickCustomRange(context, ref);
                   }
@@ -474,11 +511,19 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
               TextButton(
                 onPressed: () {
                   ref
-                      .read(_adminBusinessFromDateProvider(business.id).notifier)
-                      .state = null;
+                          .read(
+                            _adminBusinessFromDateProvider(
+                              business.id,
+                            ).notifier,
+                          )
+                          .state =
+                      null;
                   ref
-                      .read(_adminBusinessToDateProvider(business.id).notifier)
-                      .state = null;
+                          .read(
+                            _adminBusinessToDateProvider(business.id).notifier,
+                          )
+                          .state =
+                      null;
                 },
                 child: const Text('Clear'),
               ),
@@ -494,6 +539,8 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             ),
           ),
         ...filteredOrders.map((order) {
+          final effectiveStatus = OrderSharedHelpers.effectiveStatus(order);
+          final statusColor = OrderSharedHelpers.statusColor(effectiveStatus);
           return Card(
             child: ListTile(
               onTap: () {
@@ -503,8 +550,19 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                   ),
                 );
               },
-              title: Text(
-                'Order ${order.displayOrderNumber} • ${_statusLabel(order.status)}',
+              title: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: 'Order ${order.displayOrderNumber} • '),
+                    TextSpan(
+                      text: _statusLabel(effectiveStatus),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               subtitle: Text(
                 'Order by: ${order.customerName}\n'

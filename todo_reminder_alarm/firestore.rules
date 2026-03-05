@@ -250,5 +250,10 @@ service cloud.firestore {
         signedIn() && isBusinessOwnerOf(resource.data.businessId)
       );
     }
+
+    match /appConfig/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
   }
 }

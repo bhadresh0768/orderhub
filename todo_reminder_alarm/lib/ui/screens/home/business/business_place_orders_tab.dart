@@ -598,7 +598,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                 );
                               },
                               title: Text(
-                                '${order.businessName} • ${OrderSharedHelpers.capitalize(effectiveStatus.name)}',
+                                '${order.businessName} • ${OrderSharedHelpers.statusLabel(effectiveStatus)}',
                               ),
                               subtitleTextStyle: Theme.of(
                                 context,
@@ -638,8 +638,8 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   OrderStatusChip(
-                                    label: OrderSharedHelpers.capitalize(
-                                      effectiveStatus.name,
+                                    label: OrderSharedHelpers.statusLabel(
+                                      effectiveStatus,
                                     ),
                                     backgroundColor: statusColor.withValues(
                                       alpha: 0.12,

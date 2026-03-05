@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
@@ -32,9 +34,7 @@ class MyApp extends ConsumerWidget {
       theme: lightTheme(),
       darkTheme: darkTheme(),
       builder: (context, child) {
-        return _InternetStatusOverlay(
-          child: child ?? const SizedBox.shrink(),
-        );
+        return _InternetStatusOverlay(child: child ?? const SizedBox.shrink());
       },
       routes: {
         '/': (_) => const OrderStatusListener(child: AuthGate()),
@@ -175,13 +175,13 @@ class _AuthGateState extends ConsumerState<AuthGate> {
             ref.read(pushNotificationServiceProvider).initForUser(user.uid);
             switch (profile.role) {
               case UserRole.admin:
-                return const AdminHomeScreen();
+                return const _AppUpdateGate(child: AdminHomeScreen());
               case UserRole.businessOwner:
-                return const BusinessHomeScreen();
+                return const _AppUpdateGate(child: BusinessHomeScreen());
               case UserRole.deliveryBoy:
-                return const DeliveryBoyHomeScreen();
+                return const _AppUpdateGate(child: DeliveryBoyHomeScreen());
               case UserRole.customer:
-                return const CustomerHomeScreen();
+                return const _AppUpdateGate(child: CustomerHomeScreen());
             }
           },
           loading: () =>
@@ -192,6 +192,128 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+    );
+  }
+}
+
+class _AppUpdateGate extends ConsumerStatefulWidget {
+  const _AppUpdateGate({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_AppUpdateGate> createState() => _AppUpdateGateState();
+}
+
+class _AppUpdateGateState extends ConsumerState<_AppUpdateGate> {
+  bool _dialogOpen = false;
+  String? _lastPromptedVersion;
+
+  @override
+  Widget build(BuildContext context) {
+    final config = ref.watch(appUpdateConfigProvider).value;
+    final appVersion = ref.watch(appVersionProvider).value;
+
+    final shouldPrompt =
+        config != null &&
+        config.enabled &&
+        appVersion != null &&
+        _isVersionNewer(config.latestVersion, appVersion) &&
+        _lastPromptedVersion != config.latestVersion &&
+        !_dialogOpen;
+
+    if (shouldPrompt) {
+      _dialogOpen = true;
+      _lastPromptedVersion = config.latestVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await _showUpdateDialog(
+          config.latestVersion,
+          config.storeUrl,
+          config.notes,
+        );
+        if (mounted) {
+          setState(() {
+            _dialogOpen = false;
+          });
+        }
+      });
+    }
+
+    return widget.child;
+  }
+
+  List<int> _parseVersion(String raw) {
+    final clean = raw.trim().split('+').first;
+    final parts = clean.split('.');
+    final numbers = parts.map((p) => int.tryParse(p) ?? 0).toList();
+    while (numbers.length < 3) {
+      numbers.add(0);
+    }
+    return numbers.take(3).toList();
+  }
+
+  bool _isVersionNewer(String latest, String current) {
+    final a = _parseVersion(latest);
+    final b = _parseVersion(current);
+    for (var i = 0; i < 3; i++) {
+      if (a[i] > b[i]) return true;
+      if (a[i] < b[i]) return false;
+    }
+    return false;
+  }
+
+  Future<void> _openStoreLink(String link) async {
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.VIEW',
+        data: link,
+      );
+      await intent.launch();
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: link));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open store. Link copied.')),
+      );
+    }
+  }
+
+  Future<void> _showUpdateDialog(
+    String latestVersion,
+    String storeUrl,
+    String? notes,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Available'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('A newer app version ($latestVersion) is available.'),
+            if ((notes ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('What\'s new:\n${notes!.trim()}'),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _openStoreLink(storeUrl);
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -208,8 +330,12 @@ class _AutoProvisionDeliveryBoyProfile extends ConsumerStatefulWidget {
 
 class _AutoProvisionDeliveryBoyProfileState
     extends ConsumerState<_AutoProvisionDeliveryBoyProfile> {
-  void _updateUi(_AutoProvisionUiState Function(_AutoProvisionUiState state) update) {
-    final notifier = ref.read(_autoProvisionUiProvider(widget.user.uid).notifier);
+  void _updateUi(
+    _AutoProvisionUiState Function(_AutoProvisionUiState state) update,
+  ) {
+    final notifier = ref.read(
+      _autoProvisionUiProvider(widget.user.uid).notifier,
+    );
     notifier.state = update(notifier.state);
   }
 
@@ -248,14 +374,13 @@ class _AutoProvisionDeliveryBoyProfileState
       await firestore.createUserProfile(profile);
       if (!mounted) return;
       _updateUi(
-        (state) => state.copyWith(
-          matchedDeliveryBoy: true,
-          loading: false,
-        ),
+        (state) => state.copyWith(matchedDeliveryBoy: true, loading: false),
       );
     } catch (err) {
       if (!mounted) return;
-      _updateUi((state) => state.copyWith(error: err.toString(), loading: false));
+      _updateUi(
+        (state) => state.copyWith(error: err.toString(), loading: false),
+      );
     }
   }
 
@@ -269,18 +394,16 @@ class _AutoProvisionDeliveryBoyProfileState
       return Scaffold(body: Center(child: Text('Error: ${ui.error}')));
     }
     if (ui.matchedDeliveryBoy) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return const SignUpScreen();
   }
 }
 
-final _autoProvisionUiProvider =
-    StateProvider.autoDispose.family<_AutoProvisionUiState, String>(
-  (ref, _) => const _AutoProvisionUiState(),
-);
+final _autoProvisionUiProvider = StateProvider.autoDispose
+    .family<_AutoProvisionUiState, String>(
+      (ref, _) => const _AutoProvisionUiState(),
+    );
 
 class _AutoProvisionUiState {
   const _AutoProvisionUiState({

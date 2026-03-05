@@ -6,8 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'models/app_user.dart';
+import 'models/app_update_config.dart';
 import 'models/business.dart';
 import 'models/catalog.dart';
 import 'models/contact_us_message.dart';
@@ -96,7 +98,9 @@ final internetConnectedProvider = StreamProvider<bool>((ref) async* {
   final initial = await connectivity.checkConnectivity();
   yield initial.any((result) => result != ConnectivityResult.none);
   yield* connectivity.onConnectivityChanged
-      .map((results) => results.any((result) => result != ConnectivityResult.none))
+      .map(
+        (results) => results.any((result) => result != ConnectivityResult.none),
+      )
       .distinct();
 });
 
@@ -166,12 +170,16 @@ final catalogCategoriesProvider =
 
 final catalogProductsProvider =
     StreamProvider.family<List<CatalogProduct>, String>((ref, businessId) {
-      return ref.read(firestoreServiceProvider).catalogProductsStream(businessId);
+      return ref
+          .read(firestoreServiceProvider)
+          .catalogProductsStream(businessId);
     });
 
 final catalogVariantsProvider =
     StreamProvider.family<List<CatalogVariant>, String>((ref, productId) {
-      return ref.read(firestoreServiceProvider).catalogVariantsStream(productId);
+      return ref
+          .read(firestoreServiceProvider)
+          .catalogVariantsStream(productId);
     });
 
 final allOrdersProvider = StreamProvider<List<Order>>((ref) {
@@ -191,6 +199,15 @@ final allSupportTicketsProvider = StreamProvider<List<SupportTicket>>((ref) {
 
 final allContactUsProvider = StreamProvider<List<ContactUsMessage>>((ref) {
   return ref.read(firestoreServiceProvider).allContactUsStream();
+});
+
+final appUpdateConfigProvider = StreamProvider<AppUpdateConfig?>((ref) {
+  return ref.read(firestoreServiceProvider).appUpdateConfigStream();
+});
+
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final packageInfo = await PackageInfo.fromPlatform();
+  return packageInfo.version.trim();
 });
 
 final deliveryAgentsForBusinessProvider =
