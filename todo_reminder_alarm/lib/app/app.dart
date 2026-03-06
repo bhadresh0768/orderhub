@@ -233,9 +233,7 @@ class _AppUpdateGateState extends ConsumerState<_AppUpdateGate> {
           config.notes,
         );
         if (mounted) {
-          setState(() {
-            _dialogOpen = false;
-          });
+          _dialogOpen = false;
         }
       });
     }

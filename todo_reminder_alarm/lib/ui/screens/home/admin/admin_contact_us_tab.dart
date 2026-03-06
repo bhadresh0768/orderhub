@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import 'package:todo_reminder_alarm/providers.dart';
+
+final _adminContactSearchProvider = StateProvider.autoDispose<String>(
+  (ref) => '',
+);
 
 class AdminContactUsTab extends ConsumerStatefulWidget {
   const AdminContactUsTab({super.key});
@@ -27,7 +32,7 @@ class _AdminContactUsTabState extends ConsumerState<AdminContactUsTab> {
   @override
   Widget build(BuildContext context) {
     final contactAsync = ref.watch(allContactUsProvider);
-    final query = _searchController.text.trim().toLowerCase();
+    final query = ref.watch(_adminContactSearchProvider).trim().toLowerCase();
     return contactAsync.when(
       data: (messages) {
         final filtered = messages.where((message) {
@@ -45,7 +50,9 @@ class _AdminContactUsTabState extends ConsumerState<AdminContactUsTab> {
                 labelText: 'Search contact requests',
                 prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (value) {
+                ref.read(_adminContactSearchProvider.notifier).state = value;
+              },
             ),
             const SizedBox(height: 12),
             if (filtered.isEmpty) const Text('No contact requests found.'),

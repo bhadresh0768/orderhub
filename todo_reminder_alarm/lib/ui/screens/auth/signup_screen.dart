@@ -82,7 +82,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     super.initState();
     final existingUser = ref.read(firebaseAuthProvider).currentUser;
     if (existingUser != null) {
-      _updateUi((state) => state.copyWith(profileOnlyMode: true));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _updateUi((state) => state.copyWith(profileOnlyMode: true));
+      });
       _nameController.text = existingUser.displayName ?? '';
       _emailController.text = existingUser.email ?? '';
       _mobileController.text = existingUser.phoneNumber ?? '';

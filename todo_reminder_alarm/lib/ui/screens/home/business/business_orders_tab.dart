@@ -466,6 +466,29 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     );
   }
 
+  Future<bool> _confirmZeroAmountDelivery(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Amount is 0'),
+        content: const Text(
+          'This order amount is 0. Do you still want to mark it as delivered?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Future<void> _handleOrderAction(
     BuildContext context,
     Order order,
@@ -481,6 +504,12 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       );
     } else if (value == 'mark_delivered') {
       if (order.status == OrderStatus.pending) return;
+      final amount = order.payment.amount ?? 0;
+      if (amount.abs() < 0.000001) {
+        final shouldContinue = await _confirmZeroAmountDelivery(context);
+        if (!shouldContinue) return;
+      }
+      if (!context.mounted) return;
       final paymentChoice = await _askPaymentOnDelivery(context, order);
       if (paymentChoice == null) return;
       await firestore.updateOrder(order.id, {

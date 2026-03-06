@@ -1,11 +1,37 @@
 import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:uuid/uuid.dart';
 
 import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/contact_us_message.dart';
 import 'package:todo_reminder_alarm/providers.dart';
+
+final _contactUsUiProvider = StateProvider.autoDispose<_ContactUsUiState>(
+  (ref) => const _ContactUsUiState(),
+);
+
+class _ContactUsUiState {
+  const _ContactUsUiState({this.submitting = false, this.selectedCountryCode});
+
+  final bool submitting;
+  final String? selectedCountryCode;
+
+  _ContactUsUiState copyWith({
+    bool? submitting,
+    Object? selectedCountryCode = _contactCountryUnset,
+  }) {
+    return _ContactUsUiState(
+      submitting: submitting ?? this.submitting,
+      selectedCountryCode: selectedCountryCode == _contactCountryUnset
+          ? this.selectedCountryCode
+          : selectedCountryCode as String?,
+    );
+  }
+}
+
+const _contactCountryUnset = Object();
 
 class ContactUsScreen extends ConsumerStatefulWidget {
   const ContactUsScreen({super.key, required this.user});
@@ -21,8 +47,13 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _mobileController;
   final _descriptionController = TextEditingController();
-  bool _submitting = false;
-  String _countryCode = '+91';
+  String _initialCountryCode = '+91';
+
+  _ContactUsUiState get _ui => ref.read(_contactUsUiProvider);
+  void _updateUi(_ContactUsUiState Function(_ContactUsUiState state) update) {
+    final notifier = ref.read(_contactUsUiProvider.notifier);
+    notifier.state = update(notifier.state);
+  }
 
   @override
   void initState() {
@@ -37,7 +68,7 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
     if (text.isEmpty) return;
     final countryMatch = RegExp(r'^\+\d{1,4}').firstMatch(text);
     if (countryMatch != null) {
-      _countryCode = countryMatch.group(0)!;
+      _initialCountryCode = countryMatch.group(0)!;
       final rest = text.substring(countryMatch.end).replaceAll(
         RegExp(r'[^0-9]'),
         '',
@@ -58,15 +89,16 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_submitting) return;
-    setState(() => _submitting = true);
+    final activeCountryCode = _ui.selectedCountryCode ?? _initialCountryCode;
+    if (_ui.submitting) return;
+    _updateUi((state) => state.copyWith(submitting: true));
     try {
       final message = ContactUsMessage(
         id: const Uuid().v4(),
         userId: widget.user.id,
         userRole: widget.user.role,
         name: _nameController.text.trim(),
-        mobileNumber: '$_countryCode ${_mobileController.text.trim()}',
+        mobileNumber: '$activeCountryCode ${_mobileController.text.trim()}',
         description: _descriptionController.text.trim(),
         createdAt: DateTime.now(),
       );
@@ -83,13 +115,15 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
       ).showSnackBar(SnackBar(content: Text('Failed to submit: $err')));
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        _updateUi((state) => state.copyWith(submitting: false));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_contactUsUiProvider);
+    final countryCode = ui.selectedCountryCode ?? _initialCountryCode;
     return Scaffold(
       appBar: AppBar(title: const Text('Contact Us')),
       body: SafeArea(
@@ -129,13 +163,16 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
                               showCountryPicker(
                                 context: context,
                                 onSelect: (country) {
-                                  setState(() {
-                                    _countryCode = '+${country.phoneCode}';
-                                  });
+                                  _updateUi(
+                                    (state) => state.copyWith(
+                                      selectedCountryCode:
+                                          '+${country.phoneCode}',
+                                    ),
+                                  );
                                 },
                               );
                             },
-                            child: Text(_countryCode),
+                            child: Text(countryCode),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -179,9 +216,11 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: _submitting ? null : _submit,
+                          onPressed: ui.submitting ? null : _submit,
                           child: Text(
-                            _submitting ? 'Submitting...' : 'Submit Contact Us',
+                            ui.submitting
+                                ? 'Submitting...'
+                                : 'Submit Contact Us',
                           ),
                         ),
                       ),

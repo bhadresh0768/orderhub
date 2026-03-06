@@ -484,7 +484,6 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
               .where(
                 (order) => order.delivery.status != DeliveryStatus.delivered,
               )
-              .where((order) => _matchesRange(order, completedTab: false))
               .toList();
           final completedOrders = orders
               .where(
@@ -497,74 +496,6 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
             length: 2,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<_DeliveryDateFilter>(
-                          initialValue: uiState.filter,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Filter',
-                          ),
-                          items: _DeliveryDateFilter.values
-                              .map(
-                                (value) => DropdownMenuItem(
-                                  value: value,
-                                  child: Text(_filterLabel(value)),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              ref.read(_deliveryBoyUiProvider.notifier).state =
-                                  uiState.copyWith(filter: value);
-                              if (value == _DeliveryDateFilter.custom &&
-                                  (uiState.customFrom == null ||
-                                      uiState.customTo == null)) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  if (!mounted) return;
-                                  _pickCustomRange(ref.read(_deliveryBoyUiProvider));
-                                });
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (uiState.filter == _DeliveryDateFilter.custom)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            (uiState.customFrom != null &&
-                                    uiState.customTo != null)
-                                ? '${_formatDate(uiState.customFrom!)} to ${_formatDate(uiState.customTo!)}'
-                                : 'No date range selected',
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => _pickCustomRange(uiState),
-                          child: const Text('Select'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            ref.read(_deliveryBoyUiProvider.notifier).state =
-                                uiState.copyWith(
-                                  customFrom: null,
-                                  customTo: null,
-                                );
-                          },
-                          child: const Text('Clear'),
-                        ),
-                      ],
-                    ),
-                  ),
                 const TabBar(
                   tabs: [
                     Tab(text: 'Upcoming Delivery'),
@@ -579,14 +510,91 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                         upcomingOrders,
                         businessAddressById: businessAddressById,
                         allowActions: true,
-                        emptyText: 'No upcoming deliveries in this range.',
+                        emptyText: 'No upcoming deliveries.',
                       ),
-                      _buildOrdersList(
-                        context,
-                        completedOrders,
-                        businessAddressById: businessAddressById,
-                        allowActions: false,
-                        emptyText: 'No completed deliveries in this range.',
+                      Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child:
+                                      DropdownButtonFormField<_DeliveryDateFilter>(
+                                    initialValue: uiState.filter,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Filter',
+                                    ),
+                                    items: _DeliveryDateFilter.values
+                                        .map(
+                                          (value) => DropdownMenuItem(
+                                            value: value,
+                                            child: Text(_filterLabel(value)),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        ref.read(_deliveryBoyUiProvider.notifier).state =
+                                            uiState.copyWith(filter: value);
+                                        if (value == _DeliveryDateFilter.custom &&
+                                            (uiState.customFrom == null ||
+                                                uiState.customTo == null)) {
+                                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                                            if (!mounted) return;
+                                            _pickCustomRange(
+                                              ref.read(_deliveryBoyUiProvider),
+                                            );
+                                          });
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (uiState.filter == _DeliveryDateFilter.custom)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      (uiState.customFrom != null &&
+                                              uiState.customTo != null)
+                                          ? '${_formatDate(uiState.customFrom!)} to ${_formatDate(uiState.customTo!)}'
+                                          : 'No date range selected',
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => _pickCustomRange(uiState),
+                                    child: const Text('Select'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      ref.read(_deliveryBoyUiProvider.notifier).state =
+                                          uiState.copyWith(
+                                            customFrom: null,
+                                            customTo: null,
+                                          );
+                                    },
+                                    child: const Text('Clear'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Expanded(
+                            child: _buildOrdersList(
+                              context,
+                              completedOrders,
+                              businessAddressById: businessAddressById,
+                              allowActions: false,
+                              emptyText: 'No completed deliveries in this range.',
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

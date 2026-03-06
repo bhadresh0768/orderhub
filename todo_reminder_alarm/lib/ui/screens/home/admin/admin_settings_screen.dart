@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import 'package:todo_reminder_alarm/models/app_update_config.dart';
 import 'package:todo_reminder_alarm/providers.dart';
+
+final _adminSettingsSavingProvider = StateProvider.autoDispose<bool>(
+  (ref) => false,
+);
+final _adminSettingsEnabledOverrideProvider = StateProvider.autoDispose<bool?>(
+  (ref) => null,
+);
 
 class AdminSettingsScreen extends ConsumerStatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -19,8 +27,6 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   final _notesController = TextEditingController();
 
   bool _didInit = false;
-  bool _enabled = true;
-  bool _saving = false;
 
   @override
   void dispose() {
@@ -37,12 +43,11 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     _versionController.text = config.latestVersion;
     _storeUrlController.text = config.storeUrl;
     _notesController.text = config.notes ?? '';
-    _enabled = config.enabled;
   }
 
-  Future<void> _save() async {
+  Future<void> _save({required bool enabled}) async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    ref.read(_adminSettingsSavingProvider.notifier).state = true;
     try {
       await ref
           .read(firestoreServiceProvider)
@@ -53,7 +58,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
               notes: _notesController.text.trim().isEmpty
                   ? null
                   : _notesController.text.trim(),
-              enabled: _enabled,
+              enabled: enabled,
             ),
           );
       if (!mounted) return;
@@ -67,7 +72,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
       ).showSnackBar(SnackBar(content: Text('Failed to save settings: $err')));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        ref.read(_adminSettingsSavingProvider.notifier).state = false;
       }
     }
   }
@@ -76,6 +81,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   Widget build(BuildContext context) {
     final configAsync = ref.watch(appUpdateConfigProvider);
     final currentVersionAsync = ref.watch(appVersionProvider);
+    final saving = ref.watch(_adminSettingsSavingProvider);
+    final enabledOverride = ref.watch(_adminSettingsEnabledOverrideProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Settings')),
       body: SafeArea(
@@ -85,6 +92,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
           error: (err, _) => Center(child: Text('Error: $err')),
           data: (config) {
             _initFromConfig(config);
+            final enabled = enabledOverride ?? config?.enabled ?? true;
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -112,10 +120,18 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Enable update popup'),
-                          value: _enabled,
-                          onChanged: _saving
+                          value: enabled,
+                          onChanged: saving
                               ? null
-                              : (value) => setState(() => _enabled = value),
+                              : (value) {
+                                  ref
+                                          .read(
+                                            _adminSettingsEnabledOverrideProvider
+                                                .notifier,
+                                          )
+                                          .state =
+                                      value;
+                                },
                         ),
                         Form(
                           key: _formKey,
@@ -170,8 +186,10 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               SizedBox(
                                 width: double.infinity,
                                 child: FilledButton(
-                                  onPressed: _saving ? null : _save,
-                                  child: _saving
+                                  onPressed: saving
+                                      ? null
+                                      : () => _save(enabled: enabled),
+                                  child: saving
                                       ? const SizedBox(
                                           height: 16,
                                           width: 16,
