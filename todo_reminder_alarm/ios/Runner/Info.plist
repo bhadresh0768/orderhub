@@ -45,6 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- AdMob app ID (replace with your production app ID before release). -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Allow camera access to capture item reference photos for orders.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

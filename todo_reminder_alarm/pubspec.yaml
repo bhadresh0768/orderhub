@@ -56,6 +56,7 @@ dependencies:
   app_links: ^6.4.1
   country_picker: ^2.0.27
   connectivity_plus: ^6.1.5
+  google_mobile_ads: ^6.0.0
 
 dev_dependencies:
   flutter_test:

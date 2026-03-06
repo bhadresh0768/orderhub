@@ -11,6 +11,9 @@ final _adminSettingsSavingProvider = StateProvider.autoDispose<bool>(
 final _adminSettingsEnabledOverrideProvider = StateProvider.autoDispose<bool?>(
   (ref) => null,
 );
+final _adminSettingsShowAdsOverrideProvider = StateProvider.autoDispose<bool?>(
+  (ref) => null,
+);
 
 class AdminSettingsScreen extends ConsumerStatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -45,7 +48,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     _notesController.text = config.notes ?? '';
   }
 
-  Future<void> _save({required bool enabled}) async {
+  Future<void> _save({required bool enabled, required bool showAds}) async {
     if (!_formKey.currentState!.validate()) return;
     ref.read(_adminSettingsSavingProvider.notifier).state = true;
     try {
@@ -59,6 +62,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   ? null
                   : _notesController.text.trim(),
               enabled: enabled,
+              showAds: showAds,
             ),
           );
       if (!mounted) return;
@@ -77,12 +81,39 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     }
   }
 
+  Future<void> _saveShowAds({required bool showAds}) async {
+    ref.read(_adminSettingsSavingProvider.notifier).state = true;
+    try {
+      await ref.read(firestoreServiceProvider).setShowAdsConfig(showAds);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            showAds
+                ? 'Ads enabled across user screens'
+                : 'Ads hidden across user screens',
+          ),
+        ),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save ad settings: $err')),
+      );
+    } finally {
+      if (mounted) {
+        ref.read(_adminSettingsSavingProvider.notifier).state = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final configAsync = ref.watch(appUpdateConfigProvider);
     final currentVersionAsync = ref.watch(appVersionProvider);
     final saving = ref.watch(_adminSettingsSavingProvider);
     final enabledOverride = ref.watch(_adminSettingsEnabledOverrideProvider);
+    final showAdsOverride = ref.watch(_adminSettingsShowAdsOverrideProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Settings')),
       body: SafeArea(
@@ -93,6 +124,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
           data: (config) {
             _initFromConfig(config);
             final enabled = enabledOverride ?? config?.enabled ?? true;
+            final showAds = showAdsOverride ?? config?.showAds ?? false;
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -188,7 +220,10 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                                 child: FilledButton(
                                   onPressed: saving
                                       ? null
-                                      : () => _save(enabled: enabled),
+                                      : () => _save(
+                                          enabled: enabled,
+                                          showAds: showAds,
+                                        ),
                                   child: saving
                                       ? const SizedBox(
                                           height: 16,
@@ -201,6 +236,53 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ads Settings',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Enable or disable global bottom banner ads for all signed-in users.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show banner ads'),
+                          value: showAds,
+                          onChanged: saving
+                              ? null
+                              : (value) {
+                                  ref
+                                          .read(
+                                            _adminSettingsShowAdsOverrideProvider
+                                                .notifier,
+                                          )
+                                          .state =
+                                      value;
+                                },
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: saving
+                                ? null
+                                : () => _saveShowAds(showAds: showAds),
+                            child: const Text('Save Ads Settings'),
                           ),
                         ),
                       ],

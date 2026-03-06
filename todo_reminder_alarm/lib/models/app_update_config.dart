@@ -6,6 +6,7 @@ class AppUpdateConfig {
     required this.storeUrl,
     this.notes,
     this.enabled = true,
+    this.showAds = false,
     this.updatedAt,
   });
 
@@ -13,6 +14,7 @@ class AppUpdateConfig {
   final String storeUrl;
   final String? notes;
   final bool enabled;
+  final bool showAds;
   final DateTime? updatedAt;
 
   Map<String, dynamic> toMap() {
@@ -21,6 +23,7 @@ class AppUpdateConfig {
       'storeUrl': storeUrl,
       'notes': notes,
       'enabled': enabled,
+      'showAds': showAds,
       'updatedAt': Timestamp.fromDate(updatedAt ?? DateTime.now()),
     };
   }
@@ -35,6 +38,7 @@ class AppUpdateConfig {
       storeUrl: (data['storeUrl'] as String?) ?? '',
       notes: data['notes'] as String?,
       enabled: (data['enabled'] as bool?) ?? true,
+      showAds: (data['showAds'] as bool?) ?? false,
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }

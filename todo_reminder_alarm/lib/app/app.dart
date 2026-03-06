@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../models/app_user.dart';
 import '../models/business.dart';
 import '../models/enums.dart';
 import '../providers.dart';
+import 'ads/ad_units.dart';
 import 'order_status_listener.dart';
 import '../ui/screens/auth/login_screen.dart';
 import '../ui/screens/auth/signup_screen.dart';
@@ -54,9 +57,24 @@ class _InternetStatusOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final internetAsync = ref.watch(internetConnectedProvider);
     final isOnline = internetAsync.value ?? true;
+    final showAds = ref.watch(showAdsProvider);
+    final authUser = ref.watch(authStateProvider).value;
+    final showGlobalBanner = showAds && authUser != null;
     return Stack(
       children: [
-        child,
+        Padding(
+          padding: EdgeInsets.only(
+            bottom: showGlobalBanner ? _GlobalBottomBannerAd.totalHeight : 0,
+          ),
+          child: child,
+        ),
+        if (showGlobalBanner)
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _GlobalBottomBannerAd(),
+          ),
         if (!isOnline)
           Positioned(
             top: 0,
@@ -88,6 +106,90 @@ class _InternetStatusOverlay extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _GlobalBottomBannerAd extends ConsumerStatefulWidget {
+  const _GlobalBottomBannerAd();
+
+  static const double totalHeight = 58;
+
+  @override
+  ConsumerState<_GlobalBottomBannerAd> createState() =>
+      _GlobalBottomBannerAdState();
+}
+
+class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
+  BannerAd? _bannerAd;
+  bool _isLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBanner();
+  }
+
+  void _loadBanner() {
+    if (kIsWeb) return;
+    final adUnitId = AdUnitIds.globalBottomBanner;
+    if (adUnitId.isEmpty) return;
+
+    final ad = BannerAd(
+      adUnitId: adUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) {
+            ad.dispose();
+            return;
+          }
+          setState(() {
+            _bannerAd = ad as BannerAd;
+            _isLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+          if (!mounted) return;
+          setState(() {
+            _bannerAd = null;
+            _isLoaded = false;
+          });
+        },
+      ),
+    );
+    ad.load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isLoaded || _bannerAd == null) {
+      return const SizedBox(height: _GlobalBottomBannerAd.totalHeight);
+    }
+    return Material(
+      color: Colors.white,
+      elevation: 6,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: _GlobalBottomBannerAd.totalHeight,
+          child: Center(
+            child: SizedBox(
+              width: _bannerAd!.size.width.toDouble(),
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

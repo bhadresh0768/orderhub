@@ -182,6 +182,13 @@ class FirestoreService {
     await _appUpdateConfig.set(config.toMap(), SetOptions(merge: true));
   }
 
+  Future<void> setShowAdsConfig(bool showAds) async {
+    await _appUpdateConfig.set({
+      'showAds': showAds,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    }, SetOptions(merge: true));
+  }
+
   Stream<List<Order>> ordersForDeliveryAgentByPhoneStream(String phone) {
     return _orders
         .where('assignedDeliveryAgentPhone', isEqualTo: phone)

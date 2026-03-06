@@ -205,6 +205,11 @@ final appUpdateConfigProvider = StreamProvider<AppUpdateConfig?>((ref) {
   return ref.read(firestoreServiceProvider).appUpdateConfigStream();
 });
 
+final showAdsProvider = Provider<bool>((ref) {
+  final config = ref.watch(appUpdateConfigProvider).value;
+  return config?.showAds ?? false;
+});
+
 final appVersionProvider = FutureProvider<String>((ref) async {
   final packageInfo = await PackageInfo.fromPlatform();
   return packageInfo.version.trim();
