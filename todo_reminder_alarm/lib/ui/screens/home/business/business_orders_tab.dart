@@ -248,6 +248,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   }
 
   Widget _buildOrderCard(BuildContext context, Order order) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isBusinessOrder =
         order.requesterType == OrderRequesterType.businessOwner;
     final sourceLabel = isBusinessOrder ? 'Business Order' : 'Customer Order';
@@ -257,18 +258,26 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final requestedAddress = _requestedByAddress(order);
     final paymentCollector = _paymentCollectorLabel(order);
     final paymentColor = order.payment.status == PaymentStatus.done
-        ? Colors.green
-        : Colors.red;
+        ? const Color(0xFF1A7F47)
+        : const Color(0xFFC4432A);
     final priorityColor = order.priority == OrderPriority.fast
-        ? Colors.red
-        : Theme.of(context).colorScheme.onSurface;
+        ? const Color(0xFFD65A31)
+        : colorScheme.onSurface;
     final isFast = order.priority == OrderPriority.fast;
-    final lineStyle = Theme.of(
-      context,
-    ).textTheme.bodyLarge?.copyWith(fontSize: 16);
+    final lineStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      fontSize: 16,
+      height: 1.38,
+      color: colorScheme.onSurface.withValues(alpha: 0.92),
+    );
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+      color: const Color(0xFF1F2A37),
+    );
     return OrderCardShell(
       isHighlighted: isFast,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -277,7 +286,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
         );
       },
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -287,14 +296,16 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                 Expanded(
                   child: Text(
                     'Order ${order.displayOrderNumber} • $sourceLabel',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(fontSize: 18),
+                    style: titleStyle,
                   ),
                 ),
                 const SizedBox(width: 8),
                 widget.allowActions
                     ? PopupMenuButton<String>(
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          color: colorScheme.onSurface.withValues(alpha: 0.75),
+                        ),
                         onSelected: (value) =>
                             _handleOrderAction(context, order, value),
                         itemBuilder: (context) {
@@ -326,11 +337,11 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                     : const Icon(Icons.chevron_right),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
             Text('Order by: $requestedBy', style: lineStyle),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text('Address: $requestedAddress', style: lineStyle),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text.rich(
               TextSpan(
                 children: [
@@ -348,7 +359,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               ),
               style: lineStyle,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text.rich(
               TextSpan(
                 children: [
@@ -374,14 +385,16 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               ),
               style: lineStyle,
             ),
-            if (paymentCollector != null)
+            if (paymentCollector != null) ...[
+              const SizedBox(height: 8),
               Text('Collected by: $paymentCollector', style: lineStyle),
+            ],
             if ((order.notes ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 'Remark: ${order.notes!.trim()}',
                 style: lineStyle?.copyWith(
-                  color: Colors.red.shade300,
+                  color: const Color(0xFFB54708),
                   fontWeight: FontWeight.w600,
                 ),
               ),

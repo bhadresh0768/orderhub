@@ -17,6 +17,19 @@ ThemeData lightTheme() {
       foregroundColor: Color(0xFF414143),
       elevation: 0,
     ),
+    cardTheme: CardThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: const Color(0x3D0F3D3E),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
   );
 }
 

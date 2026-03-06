@@ -16,18 +16,22 @@ class OrderCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = isHighlighted
+        ? const Color(0xFFE2634D)
+        : const Color(0xFFE7EBF0);
     return Card(
       margin: margin,
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isHighlighted
-            ? BorderSide(color: Colors.red.shade400, width: 1.8)
-            : BorderSide.none,
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: borderColor, width: isHighlighted ? 1.4 : 1),
       ),
       child: onTap == null
           ? child
           : InkWell(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               onTap: onTap,
               child: child,
             ),
