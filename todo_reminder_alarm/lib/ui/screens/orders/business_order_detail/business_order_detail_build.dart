@@ -94,7 +94,16 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
           IconButton(
             tooltip: 'Share on WhatsApp',
             onPressed: _shareOrderDetailsOnWhatsApp,
-            icon: const Icon(Icons.chat, color: Colors.green),
+            icon: ClipOval(
+              child: Image.asset(
+                'assets/images/whatsapp_share.png',
+                width: 24,
+                height: 24,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.chat, color: Colors.green),
+              ),
+            ),
           ),
         ],
       ),
