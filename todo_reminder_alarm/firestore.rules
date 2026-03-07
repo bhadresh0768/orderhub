@@ -64,6 +64,18 @@ service cloud.firestore {
         request.resource.data.payment.collectedByName == resource.data.payment.collectedByName;
     }
 
+    function businessOwnerCanFinalizePaymentOnLockedOrder() {
+      return signedIn() &&
+        isBusinessOwnerOf(resource.data.businessId) &&
+        isOrderLocked() &&
+        resource.data.payment.status != 'done' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'payment',
+          'updatedAt'
+        ]) &&
+        request.resource.data.payment.status == 'done';
+    }
+
     function categoryBelongsTo(businessId, categoryId) {
       return categoryId == null ||
         (exists(/databases/$(database)/documents/catalogCategories/$(categoryId)) &&
@@ -111,18 +123,19 @@ service cloud.firestore {
       allow create: if signedIn() &&
         request.resource.data.customerId == request.auth.uid &&
         request.resource.data.status == 'pending';
-      allow update: if isAdmin() || (
-        !isOrderLocked() &&
-        signedIn() && (
-          isBusinessOwnerOf(resource.data.businessId) ||
-          requesterCanEditPendingOrder() ||
-          (
-            isDeliveryBoy() &&
-            resource.data.assignedDeliveryAgentPhone == myPhone() &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['delivery', 'status', 'payment', 'updatedAt'])
+      allow update: if isAdmin() ||
+        businessOwnerCanFinalizePaymentOnLockedOrder() || (
+          !isOrderLocked() &&
+          signedIn() && (
+            isBusinessOwnerOf(resource.data.businessId) ||
+            requesterCanEditPendingOrder() ||
+            (
+              isDeliveryBoy() &&
+              resource.data.assignedDeliveryAgentPhone == myPhone() &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['delivery', 'status', 'payment', 'updatedAt'])
+            )
           )
-        )
-      );
+        );
       allow delete: if isAdmin() || (
         isRequesterOfOrder() &&
         resource.data.status == 'pending' &&

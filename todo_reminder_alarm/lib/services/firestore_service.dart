@@ -182,9 +182,19 @@ class FirestoreService {
     await _appUpdateConfig.set(config.toMap(), SetOptions(merge: true));
   }
 
-  Future<void> setShowAdsConfig(bool showAds) async {
+  Future<void> setShowAdsConfig({
+    required bool showAdsAdmin,
+    required bool showAdsBusiness,
+    required bool showAdsCustomer,
+    required bool showAdsDelivery,
+  }) async {
     await _appUpdateConfig.set({
-      'showAds': showAds,
+      'showAds':
+          showAdsAdmin || showAdsBusiness || showAdsCustomer || showAdsDelivery,
+      'showAdsAdmin': showAdsAdmin,
+      'showAdsBusiness': showAdsBusiness,
+      'showAdsCustomer': showAdsCustomer,
+      'showAdsDelivery': showAdsDelivery,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
   }
@@ -469,6 +479,13 @@ class FirestoreService {
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     await _users.doc(uid).update({
       ...data,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deactivateExpiredSubscription(String uid) async {
+    await _users.doc(uid).update({
+      'subscriptionActive': false,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
   }

@@ -18,6 +18,26 @@ class OrderSharedHelpers {
     return '${date.year}-$mm-$dd';
   }
 
+  static String formatDateTime(DateTime date) {
+    final local = date.toLocal();
+    final dd = local.day.toString().padLeft(2, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final yyyy = local.year.toString();
+    final hour24 = local.hour;
+    final hour12 = hour24 == 0
+        ? 12
+        : (hour24 > 12 ? hour24 - 12 : hour24);
+    final hh = hour12.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    final meridiem = hour24 >= 12 ? 'PM' : 'AM';
+    return '$dd/$mm/$yyyy $hh:$min $meridiem';
+  }
+
+  static String formatDateTimeOrDash(DateTime? date) {
+    if (date == null) return '-';
+    return formatDateTime(date);
+  }
+
   static bool isInDateRange(DateTime date, DateTime from, DateTime to) {
     final start = DateTime(from.year, from.month, from.day);
     final endExclusive = DateTime(

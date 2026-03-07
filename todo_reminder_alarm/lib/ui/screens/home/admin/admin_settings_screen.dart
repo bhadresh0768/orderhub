@@ -11,9 +11,14 @@ final _adminSettingsSavingProvider = StateProvider.autoDispose<bool>(
 final _adminSettingsEnabledOverrideProvider = StateProvider.autoDispose<bool?>(
   (ref) => null,
 );
-final _adminSettingsShowAdsOverrideProvider = StateProvider.autoDispose<bool?>(
-  (ref) => null,
-);
+final _adminSettingsShowAdsAdminOverrideProvider =
+    StateProvider.autoDispose<bool?>((ref) => null);
+final _adminSettingsShowAdsBusinessOverrideProvider =
+    StateProvider.autoDispose<bool?>((ref) => null);
+final _adminSettingsShowAdsCustomerOverrideProvider =
+    StateProvider.autoDispose<bool?>((ref) => null);
+final _adminSettingsShowAdsDeliveryOverrideProvider =
+    StateProvider.autoDispose<bool?>((ref) => null);
 
 class AdminSettingsScreen extends ConsumerStatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -48,7 +53,13 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     _notesController.text = config.notes ?? '';
   }
 
-  Future<void> _save({required bool enabled, required bool showAds}) async {
+  Future<void> _save({
+    required bool enabled,
+    required bool showAdsAdmin,
+    required bool showAdsBusiness,
+    required bool showAdsCustomer,
+    required bool showAdsDelivery,
+  }) async {
     if (!_formKey.currentState!.validate()) return;
     ref.read(_adminSettingsSavingProvider.notifier).state = true;
     try {
@@ -62,7 +73,15 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   ? null
                   : _notesController.text.trim(),
               enabled: enabled,
-              showAds: showAds,
+              showAds:
+                  showAdsAdmin ||
+                  showAdsBusiness ||
+                  showAdsCustomer ||
+                  showAdsDelivery,
+              showAdsAdmin: showAdsAdmin,
+              showAdsBusiness: showAdsBusiness,
+              showAdsCustomer: showAdsCustomer,
+              showAdsDelivery: showAdsDelivery,
             ),
           );
       if (!mounted) return;
@@ -81,17 +100,35 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     }
   }
 
-  Future<void> _saveShowAds({required bool showAds}) async {
+  Future<void> _saveShowAds({
+    required bool showAdsAdmin,
+    required bool showAdsBusiness,
+    required bool showAdsCustomer,
+    required bool showAdsDelivery,
+  }) async {
     ref.read(_adminSettingsSavingProvider.notifier).state = true;
     try {
-      await ref.read(firestoreServiceProvider).setShowAdsConfig(showAds);
+      await ref
+          .read(firestoreServiceProvider)
+          .setShowAdsConfig(
+            showAdsAdmin: showAdsAdmin,
+            showAdsBusiness: showAdsBusiness,
+            showAdsCustomer: showAdsCustomer,
+            showAdsDelivery: showAdsDelivery,
+          );
       if (!mounted) return;
+      final enabledCount = [
+        showAdsAdmin,
+        showAdsBusiness,
+        showAdsCustomer,
+        showAdsDelivery,
+      ].where((e) => e).length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            showAds
-                ? 'Ads enabled across user screens'
-                : 'Ads hidden across user screens',
+            enabledCount == 0
+                ? 'Ads hidden for all user categories'
+                : 'Ads enabled for $enabledCount user categor${enabledCount == 1 ? 'y' : 'ies'}',
           ),
         ),
       );
@@ -113,7 +150,18 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     final currentVersionAsync = ref.watch(appVersionProvider);
     final saving = ref.watch(_adminSettingsSavingProvider);
     final enabledOverride = ref.watch(_adminSettingsEnabledOverrideProvider);
-    final showAdsOverride = ref.watch(_adminSettingsShowAdsOverrideProvider);
+    final showAdsAdminOverride = ref.watch(
+      _adminSettingsShowAdsAdminOverrideProvider,
+    );
+    final showAdsBusinessOverride = ref.watch(
+      _adminSettingsShowAdsBusinessOverrideProvider,
+    );
+    final showAdsCustomerOverride = ref.watch(
+      _adminSettingsShowAdsCustomerOverrideProvider,
+    );
+    final showAdsDeliveryOverride = ref.watch(
+      _adminSettingsShowAdsDeliveryOverrideProvider,
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Settings')),
       body: SafeArea(
@@ -124,7 +172,21 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
           data: (config) {
             _initFromConfig(config);
             final enabled = enabledOverride ?? config?.enabled ?? true;
-            final showAds = showAdsOverride ?? config?.showAds ?? false;
+            final legacyShowAds = config?.showAds ?? false;
+            final showAdsAdmin =
+                showAdsAdminOverride ?? config?.showAdsAdmin ?? legacyShowAds;
+            final showAdsBusiness =
+                showAdsBusinessOverride ??
+                config?.showAdsBusiness ??
+                legacyShowAds;
+            final showAdsCustomer =
+                showAdsCustomerOverride ??
+                config?.showAdsCustomer ??
+                legacyShowAds;
+            final showAdsDelivery =
+                showAdsDeliveryOverride ??
+                config?.showAdsDelivery ??
+                legacyShowAds;
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -222,7 +284,10 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                                       ? null
                                       : () => _save(
                                           enabled: enabled,
-                                          showAds: showAds,
+                                          showAdsAdmin: showAdsAdmin,
+                                          showAdsBusiness: showAdsBusiness,
+                                          showAdsCustomer: showAdsCustomer,
+                                          showAdsDelivery: showAdsDelivery,
                                         ),
                                   child: saving
                                       ? const SizedBox(
@@ -255,20 +320,68 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Enable or disable global bottom banner ads for all signed-in users.',
+                          'Enable/disable bottom banner ads by user category.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 10),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Show banner ads'),
-                          value: showAds,
+                          title: const Text('Show ads for Admin'),
+                          value: showAdsAdmin,
                           onChanged: saving
                               ? null
                               : (value) {
                                   ref
                                           .read(
-                                            _adminSettingsShowAdsOverrideProvider
+                                            _adminSettingsShowAdsAdminOverrideProvider
+                                                .notifier,
+                                          )
+                                          .state =
+                                      value;
+                                },
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show ads for Business'),
+                          value: showAdsBusiness,
+                          onChanged: saving
+                              ? null
+                              : (value) {
+                                  ref
+                                          .read(
+                                            _adminSettingsShowAdsBusinessOverrideProvider
+                                                .notifier,
+                                          )
+                                          .state =
+                                      value;
+                                },
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show ads for Customer'),
+                          value: showAdsCustomer,
+                          onChanged: saving
+                              ? null
+                              : (value) {
+                                  ref
+                                          .read(
+                                            _adminSettingsShowAdsCustomerOverrideProvider
+                                                .notifier,
+                                          )
+                                          .state =
+                                      value;
+                                },
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show ads for Delivery'),
+                          value: showAdsDelivery,
+                          onChanged: saving
+                              ? null
+                              : (value) {
+                                  ref
+                                          .read(
+                                            _adminSettingsShowAdsDeliveryOverrideProvider
                                                 .notifier,
                                           )
                                           .state =
@@ -281,7 +394,12 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                           child: FilledButton(
                             onPressed: saving
                                 ? null
-                                : () => _saveShowAds(showAds: showAds),
+                                : () => _saveShowAds(
+                                    showAdsAdmin: showAdsAdmin,
+                                    showAdsBusiness: showAdsBusiness,
+                                    showAdsCustomer: showAdsCustomer,
+                                    showAdsDelivery: showAdsDelivery,
+                                  ),
                             child: const Text('Save Ads Settings'),
                           ),
                         ),

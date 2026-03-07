@@ -18,6 +18,7 @@ import 'package:todo_reminder_alarm/ui/screens/orders/order_history_report_scree
 import 'package:todo_reminder_alarm/ui/screens/profile/profile_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/profile/public_business_profile_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/contact_us_screen.dart';
+import 'package:todo_reminder_alarm/ui/screens/support/invite_friends_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/support_tickets_screen.dart';
 
 part 'customer_home_state.dart';

@@ -275,6 +275,16 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       height: 1.2,
       color: const Color(0xFF1F2A37),
     );
+    final canApprove = order.status == OrderStatus.pending;
+    final canMarkDelivered =
+        order.status == OrderStatus.approved ||
+        order.status == OrderStatus.inProgress;
+    final canSetPaymentDone =
+        order.status != OrderStatus.pending &&
+        order.payment.status != PaymentStatus.done;
+    final canShowActionMenu =
+        widget.allowActions &&
+        (canApprove || canMarkDelivered || canSetPaymentDone);
     return OrderCardShell(
       isHighlighted: isFast,
       margin: const EdgeInsets.only(bottom: 14),
@@ -300,7 +310,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                widget.allowActions
+                canShowActionMenu
                     ? PopupMenuButton<String>(
                         icon: Icon(
                           Icons.more_vert_rounded,
@@ -309,24 +319,18 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                         onSelected: (value) =>
                             _handleOrderAction(context, order, value),
                         itemBuilder: (context) {
-                          final canApprove =
-                              order.status == OrderStatus.pending;
-                          final canUpdateAfterAccept =
-                              order.status == OrderStatus.approved ||
-                              order.status == OrderStatus.inProgress;
                           return [
                             if (canApprove)
                               const PopupMenuItem(
                                 value: 'approve',
                                 child: Text('Approve Order'),
                               ),
-                            if (canUpdateAfterAccept)
+                            if (canMarkDelivered)
                               const PopupMenuItem(
                                 value: 'mark_delivered',
                                 child: Text('Mark Delivered'),
                               ),
-                            if (canUpdateAfterAccept &&
-                                order.payment.status != PaymentStatus.done)
+                            if (canSetPaymentDone)
                               const PopupMenuItem(
                                 value: 'payment_done',
                                 child: Text('Set Payment Done'),
@@ -502,71 +506,117 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     return result ?? false;
   }
 
+  Future<void> _showZeroAmountPaymentAlert(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Amount is 0'),
+        content: const Text(
+          'Payment amount is 0. Please set a valid amount before marking payment done.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleOrderAction(
     BuildContext context,
     Order order,
     String value,
   ) async {
     final firestore = ref.read(firestoreServiceProvider);
-    if (value == 'approve') {
-      if (order.status != OrderStatus.pending) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BusinessOrderDetailScreen(order: order),
-        ),
-      );
-    } else if (value == 'mark_delivered') {
-      if (order.status == OrderStatus.pending) return;
-      final amount = order.payment.amount ?? 0;
-      if (amount.abs() < 0.000001) {
-        final shouldContinue = await _confirmZeroAmountDelivery(context);
-        if (!shouldContinue) return;
+    try {
+      if (value == 'approve') {
+        if (order.status != OrderStatus.pending) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BusinessOrderDetailScreen(order: order),
+          ),
+        );
+      } else if (value == 'mark_delivered') {
+        if (order.status == OrderStatus.pending) return;
+        final amount = order.payment.amount ?? 0;
+        if (amount.abs() < 0.000001) {
+          final shouldContinue = await _confirmZeroAmountDelivery(context);
+          if (!shouldContinue) return;
+        }
+        (PaymentStatus, PaymentMethod)? paymentChoice;
+        if (order.payment.status == PaymentStatus.done) {
+          paymentChoice = (PaymentStatus.done, order.payment.method);
+        } else {
+          if (!context.mounted) return;
+          paymentChoice = await _askPaymentOnDelivery(context, order);
+          if (paymentChoice == null) return;
+        }
+        await firestore.updateOrder(order.id, {
+          'status': enumToString(OrderStatus.completed),
+          'delivery': {
+            ...order.delivery.toMap(),
+            'status': enumToString(DeliveryStatus.delivered),
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+            'deliveredAt': Timestamp.fromDate(DateTime.now()),
+          },
+          'payment': {
+            ...order.payment.toMap(),
+            'status': enumToString(paymentChoice.$1),
+            'method': enumToString(paymentChoice.$2),
+            'collectedBy': paymentChoice.$1 == PaymentStatus.done
+                ? enumToString(PaymentCollectedBy.businessOwner)
+                : null,
+            'collectedByName': paymentChoice.$1 == PaymentStatus.done
+                ? widget.profile.name
+                : null,
+            'collectedAt': paymentChoice.$1 == PaymentStatus.done
+                ? Timestamp.fromDate(DateTime.now())
+                : null,
+            'collectionNote': paymentChoice.$1 == PaymentStatus.done
+                ? order.payment.collectionNote
+                : null,
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+          },
+        });
+      } else if (value == 'payment_done') {
+        if (order.status == OrderStatus.pending) return;
+        final amount = order.payment.amount ?? 0;
+        if (amount.abs() < 0.000001) {
+          await _showZeroAmountPaymentAlert(context);
+          return;
+        }
+        if (!context.mounted) return;
+        final paymentChoice = await PaymentDialogs.showSetPaymentDoneDialog(
+          context,
+          initialMethod: order.payment.method,
+          initialRemark: order.payment.remark,
+        );
+        if (paymentChoice == null) return;
+        final payment = PaymentInfo(
+          status: PaymentStatus.done,
+          method: paymentChoice.$1,
+          amount: order.payment.amount,
+          remark: paymentChoice.$2,
+          confirmedByCustomer: order.payment.confirmedByCustomer ?? false,
+          collectedBy: PaymentCollectedBy.businessOwner,
+          collectedByName: widget.profile.name,
+          collectedAt: DateTime.now(),
+          collectionNote: order.payment.collectionNote,
+          updatedAt: DateTime.now(),
+        );
+        await firestore.updateOrder(order.id, {'payment': payment.toMap()});
       }
+    } catch (e) {
       if (!context.mounted) return;
-      final paymentChoice = await _askPaymentOnDelivery(context, order);
-      if (paymentChoice == null) return;
-      await firestore.updateOrder(order.id, {
-        'status': enumToString(OrderStatus.completed),
-        'delivery': {
-          ...order.delivery.toMap(),
-          'status': enumToString(DeliveryStatus.delivered),
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-          'deliveredAt': Timestamp.fromDate(DateTime.now()),
-        },
-        'payment': {
-          ...order.payment.toMap(),
-          'status': enumToString(paymentChoice.$1),
-          'method': enumToString(paymentChoice.$2),
-          'collectedBy': paymentChoice.$1 == PaymentStatus.done
-              ? enumToString(PaymentCollectedBy.businessOwner)
-              : null,
-          'collectedByName': paymentChoice.$1 == PaymentStatus.done
-              ? widget.profile.name
-              : null,
-          'collectedAt': paymentChoice.$1 == PaymentStatus.done
-              ? Timestamp.fromDate(DateTime.now())
-              : null,
-          'collectionNote': paymentChoice.$1 == PaymentStatus.done
-              ? order.payment.collectionNote
-              : null,
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        },
-      });
-    } else if (value == 'payment_done') {
-      if (order.status == OrderStatus.pending) return;
-      final payment = PaymentInfo(
-        status: PaymentStatus.done,
-        method: order.payment.method,
-        amount: order.payment.amount,
-        remark: order.payment.remark,
-        confirmedByCustomer: order.payment.confirmedByCustomer ?? false,
-        collectedBy: PaymentCollectedBy.businessOwner,
-        collectedByName: widget.profile.name,
-        collectedAt: DateTime.now(),
-        collectionNote: order.payment.collectionNote,
-        updatedAt: DateTime.now(),
+      final message =
+          e is FirebaseException && e.code == 'permission-denied'
+          ? 'Permission denied. Please deploy latest Firestore rules and try again.'
+          : 'Failed to update order. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
       );
-      await firestore.updateOrder(order.id, {'payment': payment.toMap()});
     }
   }
 }

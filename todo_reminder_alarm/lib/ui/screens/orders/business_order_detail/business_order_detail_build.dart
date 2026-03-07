@@ -19,6 +19,69 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
     final isAccepted = _isAccepted;
     final canEditAfterAccept = !isLocked && isAccepted;
     final missingIncludedPrice = _hasMissingIncludedUnitPrice();
+    final labelStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(color: Colors.black54);
+    final valueStyle = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500, height: 1.25);
+    Widget detailRow(
+      String label,
+      String value, {
+      Color? valueColor,
+      FontWeight? valueWeight,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 120, child: Text('$label:', style: labelStyle)),
+            Expanded(
+              child: Text(
+                value,
+                style: valueStyle?.copyWith(
+                  color: valueColor,
+                  fontWeight: valueWeight,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    Widget metricTile(
+      String label,
+      String value, {
+      bool emphasize = false,
+    }) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: emphasize ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text('Order ${_order.displayOrderNumber} Details'),
@@ -42,7 +105,7 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
           children: [
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -76,122 +139,127 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                       ),
                       const SizedBox(height: 8),
                     ],
-                    Text(
-                      'Type: ${isBusinessOrder ? 'Business Order' : 'Customer Order'}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Chip(
+                          label: Text(_statusLabel(_order.status)),
+                          side: BorderSide.none,
+                          backgroundColor: _orderStatusColor(
+                            _order.status,
+                          ).withValues(alpha: 0.14),
+                          labelStyle: TextStyle(
+                            color: _orderStatusColor(_order.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Chip(
+                          label: Text(
+                            'Delivery ${_capitalize(_order.delivery.status.name)}',
+                          ),
+                          side: BorderSide.none,
+                          backgroundColor: _deliveryStatusColor(
+                            _order.delivery.status,
+                          ).withValues(alpha: 0.14),
+                          labelStyle: TextStyle(
+                            color: _deliveryStatusColor(_order.delivery.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Chip(
+                          label: Text(
+                            'Payment ${_paymentStatusLabel(_order.payment.status)}',
+                          ),
+                          side: BorderSide.none,
+                          backgroundColor: _paymentStatusColor(
+                            _order.payment.status,
+                          ).withValues(alpha: 0.14),
+                          labelStyle: TextStyle(
+                            color: _paymentStatusColor(_order.payment.status),
+                            fontWeight: FontWeight.w700,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Order by: $requester',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    const SizedBox(height: 12),
+                    detailRow(
+                      'Type',
+                      isBusinessOrder ? 'Business Order' : 'Customer Order',
                     ),
-                    Text(
-                      'Address: $requestedAddress',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                    detailRow('Order by', requester),
+                    detailRow('Address', requestedAddress),
                     if (requestedContact != null)
-                      Text(
-                        'Contact: $requestedContact',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    Text(
-                      'Priority: ${_capitalize(_order.priority.name)}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      detailRow('Contact', requestedContact),
+                    detailRow('Priority', _capitalize(_order.priority.name)),
+                    detailRow(
+                      'Amount',
+                      _formatAmount(_order.payment.amount),
+                      valueColor: _paymentStatusColor(_order.payment.status),
+                      valueWeight: FontWeight.w700,
                     ),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: 'Status: '),
-                          TextSpan(
-                            text: _statusLabel(_order.status),
-                            style: TextStyle(
-                              color: _orderStatusColor(_order.status),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      style: Theme.of(context).textTheme.titleMedium,
+                    detailRow('Delivery Agent', _order.assignedDeliveryAgentName ?? 'Not assigned'),
+                    const Divider(height: 20),
+                    detailRow(
+                      'Order Created',
+                      OrderSharedHelpers.formatDateTimeOrDash(_order.createdAt),
                     ),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: 'Delivery: '),
-                          TextSpan(
-                            text: _capitalize(_order.delivery.status.name),
-                            style: TextStyle(
-                              color: _deliveryStatusColor(
-                                _order.delivery.status,
-                              ),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                    detailRow(
+                      'Order Delivered',
+                      OrderSharedHelpers.formatDateTimeOrDash(
+                        _order.delivery.deliveredAt,
                       ),
-                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: 'Payment: '),
-                          TextSpan(
-                            text:
-                                '${_paymentStatusLabel(_order.payment.status)} (${_paymentMethodLabel(_order.payment.method)})',
-                            style: TextStyle(
-                              color: _paymentStatusColor(_order.payment.status),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const TextSpan(text: ' • Amount: '),
-                          TextSpan(
-                            text: _formatAmount(_order.payment.amount),
-                            style: TextStyle(
-                              color: _paymentStatusColor(_order.payment.status),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                    detailRow(
+                      'Payment Date',
+                      OrderSharedHelpers.formatDateTimeOrDash(
+                        _order.payment.collectedAt,
                       ),
-                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    detailRow(
+                      'Payment Method',
+                      _paymentMethodLabel(_order.payment.method),
                     ),
                     if (_order.payment.collectedBy != null &&
                         _order.payment.status == PaymentStatus.done)
-                      Text(
-                        'Collected by: ${_order.payment.collectedBy == PaymentCollectedBy.deliveryBoy ? 'Delivery Boy' : 'Business'}'
+                      detailRow(
+                        'Collected by',
+                        '${_order.payment.collectedBy == PaymentCollectedBy.deliveryBoy ? 'Delivery Boy' : 'Business'}'
                         '${(_order.payment.collectedByName ?? '').trim().isEmpty ? '' : ' (${_order.payment.collectedByName})'}',
-                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    Text(
-                      'Delivery Agent: ${_order.assignedDeliveryAgentName ?? 'Not assigned'}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
                     if (_clean(_order.notes) != null)
-                      Text(
-                        'Order Remark: ${_clean(_order.notes)}',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: Colors.red.shade300,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      detailRow(
+                        'Order Remark',
+                        _clean(_order.notes)!,
+                        valueColor: Colors.red.shade400,
+                        valueWeight: FontWeight.w600,
                       ),
                     if (_clean(_order.delivery.note) != null)
-                      Text(
-                        'Delivery Remark: ${_clean(_order.delivery.note)}',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      detailRow(
+                        'Delivery Remark',
+                        _clean(_order.delivery.note)!,
                       ),
                     if (_clean(_order.payment.remark) != null)
-                      Text(
-                        'Payment Remark: ${_clean(_order.payment.remark)}',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      detailRow(
+                        'Payment Remark',
+                        _clean(_order.payment.remark)!,
                       ),
                     if (_clean(_order.payment.collectionNote) != null)
-                      Text(
-                        'Delivery Boy Remark: ${_clean(_order.payment.collectionNote)}',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      detailRow(
+                        'Delivery Boy Remark',
+                        _clean(_order.payment.collectionNote)!,
                       ),
                     const SizedBox(height: 8),
                     Text(
                       'Included Items: $includedCount / ${_order.items.length}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -209,288 +277,408 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 10),
-                    ..._order.items.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final item = entry.value;
-                      final itemImageAttachments = item.attachments
-                          .where(_isImageAttachment)
-                          .toList();
-                      final included = _itemIncluded[index];
-                      final qty = item.quantity;
-                      final unitPrice = _toDouble(
-                        _itemPriceControllers[index].text,
-                      );
-                      final lineSubtotal = included ? qty * unitPrice : 0;
-                      final lineGst =
-                          included &&
-                              _itemGstIncluded[index] &&
-                              billing.gstPercent > 0
-                          ? lineSubtotal * billing.gstPercent / 100
-                          : 0.0;
-                      final lineTotal = lineSubtotal + lineGst;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '${item.title} • Qty ${_itemQuantityLabel(item)}',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                ),
-                                if (itemImageAttachments.isNotEmpty) ...[
-                                  const SizedBox(width: 10),
-                                  InkWell(
-                                    onTap: () => _showImageGallery(
-                                      itemImageAttachments,
-                                      0,
+                    if (isLocked) ...[
+                      ..._order.items.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+                        final included = _itemIncluded[index];
+                        final qty = item.quantity;
+                        final unitPrice = _toDouble(
+                          _itemPriceControllers[index].text,
+                        );
+                        final lineSubtotal = included ? qty * unitPrice : 0;
+                        final lineGst =
+                            included &&
+                                _itemGstIncluded[index] &&
+                                billing.gstPercent > 0
+                            ? lineSubtotal * billing.gstPercent / 100
+                            : 0.0;
+                        final lineTotal = lineSubtotal + lineGst;
+                        final unavailable = _itemUnavailableReasonControllers[index]
+                            .text
+                            .trim();
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${item.title} • Qty ${_itemQuantityLabel(item)}',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              detailRow(
+                                'Included',
+                                included ? 'Yes' : 'No',
+                                valueColor: included
+                                    ? const Color(0xFF1A7F47)
+                                    : const Color(0xFFC4432A),
+                                valueWeight: FontWeight.w700,
+                              ),
+                              if (!included && unavailable.isNotEmpty)
+                                detailRow('Unavailable', unavailable),
+                              detailRow(
+                                'Unit Price',
+                                _formatAmount(included ? unitPrice : null),
+                              ),
+                              detailRow(
+                                'GST',
+                                _itemGstIncluded[index] ? 'Included' : 'No',
+                              ),
+                              detailRow(
+                                'Line Total',
+                                _formatAmount(lineTotal),
+                                valueWeight: FontWeight.w700,
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: metricTile(
+                              'Common GST %',
+                              _formatAmount(billing.gstPercent),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: metricTile(
+                              'Extra Charges',
+                              _formatAmount(billing.extra),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: metricTile(
+                              'Subtotal',
+                              _formatAmount(billing.subtotal),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: metricTile(
+                              'GST Amount',
+                              _formatAmount(billing.gstAmount),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      metricTile(
+                        'Grand Total',
+                        _formatAmount(billing.total),
+                        emphasize: true,
+                      ),
+                    ] else ...[
+                      ..._order.items.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+                        final itemImageAttachments = item.attachments
+                            .where(_isImageAttachment)
+                            .toList();
+                        final included = _itemIncluded[index];
+                        final qty = item.quantity;
+                        final unitPrice = _toDouble(
+                          _itemPriceControllers[index].text,
+                        );
+                        final lineSubtotal = included ? qty * unitPrice : 0;
+                        final lineGst =
+                            included &&
+                                _itemGstIncluded[index] &&
+                                billing.gstPercent > 0
+                            ? lineSubtotal * billing.gstPercent / 100
+                            : 0.0;
+                        final lineTotal = lineSubtotal + lineGst;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${item.title} • Qty ${_itemQuantityLabel(item)}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
                                     ),
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Stack(
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          child: Image.network(
-                                            itemImageAttachments.first.url,
-                                            width: 72,
-                                            height: 72,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) => Container(
+                                  ),
+                                  if (itemImageAttachments.isNotEmpty) ...[
+                                    const SizedBox(width: 10),
+                                    InkWell(
+                                      onTap: () => _showImageGallery(
+                                        itemImageAttachments,
+                                        0,
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Stack(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            child: Image.network(
+                                              itemImageAttachments.first.url,
                                               width: 72,
                                               height: 72,
-                                              color: Colors.black12,
-                                              alignment: Alignment.center,
-                                              child: const Icon(
-                                                Icons
-                                                    .image_not_supported_outlined,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) =>
+                                                  Container(
+                                                    width: 72,
+                                                    height: 72,
+                                                    color: Colors.black12,
+                                                    alignment: Alignment.center,
+                                                    child: const Icon(
+                                                      Icons
+                                                          .image_not_supported_outlined,
+                                                    ),
+                                                  ),
+                                            ),
+                                          ),
+                                          Positioned(
+                                            top: 5,
+                                            right: 5,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.70,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                '${itemImageAttachments.length}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 12,
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        Positioned(
-                                          top: 5,
-                                          right: 5,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.70,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                            ),
-                                            child: Text(
-                                              '${itemImageAttachments.length}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 12,
-                                              ),
-                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                value: included,
+                                onChanged: canEditAfterAccept
+                                    ? (value) => _updateUi((state) {
+                                        final updated = List<bool>.from(
+                                          state.itemIncluded,
+                                        );
+                                        updated[index] = value ?? true;
+                                        return state.copyWith(
+                                          itemIncluded: updated,
+                                        );
+                                      })
+                                    : null,
+                                title: const Text('Include in Delivery'),
+                              ),
+                              if (!included)
+                                TextFormField(
+                                  controller:
+                                      _itemUnavailableReasonControllers[index],
+                                  enabled: canEditAfterAccept,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Unavailable Reason',
+                                    hintText: 'Not available',
+                                  ),
+                                  onChanged: canEditAfterAccept
+                                      ? (_) => _updateUi(
+                                          (state) => state.copyWith(
+                                            refreshTick: state.refreshTick + 1,
                                           ),
-                                        ),
-                                      ],
+                                        )
+                                      : null,
+                                ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _itemPriceControllers[index],
+                                      enabled: included && canEditAfterAccept,
+                                      onTap: () => _clearDefaultNumericOnTap(
+                                        _itemPriceControllers[index],
+                                      ),
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Unit Price',
+                                      ),
+                                      onChanged: canEditAfterAccept
+                                          ? (_) => _updateUi(
+                                              (state) => state.copyWith(
+                                                refreshTick:
+                                                    state.refreshTick + 1,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: CheckboxListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      value: _itemGstIncluded[index],
+                                      onChanged:
+                                          (included && canEditAfterAccept)
+                                          ? (value) => _updateUi((state) {
+                                              final updated = List<bool>.from(
+                                                state.itemGstIncluded,
+                                              );
+                                              updated[index] = value ?? false;
+                                              return state.copyWith(
+                                                itemGstIncluded: updated,
+                                              );
+                                            })
+                                          : null,
+                                      title: const Text('GST'),
                                     ),
                                   ),
                                 ],
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              controlAffinity: ListTileControlAffinity.leading,
-                              value: included,
-                              onChanged: canEditAfterAccept
-                                  ? (value) => _updateUi((state) {
-                                      final updated = List<bool>.from(
-                                        state.itemIncluded,
-                                      );
-                                      updated[index] = value ?? true;
-                                      return state.copyWith(
-                                        itemIncluded: updated,
-                                      );
-                                    })
-                                  : null,
-                              title: const Text('Include in Delivery'),
-                            ),
-                            if (!included)
-                              TextFormField(
-                                controller:
-                                    _itemUnavailableReasonControllers[index],
-                                enabled: canEditAfterAccept,
-                                decoration: const InputDecoration(
-                                  labelText: 'Unavailable Reason',
-                                  hintText: 'Not available',
-                                ),
-                                onChanged: canEditAfterAccept
-                                    ? (_) => _updateUi(
-                                        (state) => state.copyWith(
-                                          refreshTick: state.refreshTick + 1,
-                                        ),
-                                      )
-                                    : null,
                               ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _itemPriceControllers[index],
-                                    enabled: included && canEditAfterAccept,
-                                    onTap: () => _clearDefaultNumericOnTap(
-                                      _itemPriceControllers[index],
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Unit Price',
-                                    ),
-                                    onChanged: canEditAfterAccept
-                                        ? (_) => _updateUi(
-                                            (state) => state.copyWith(
-                                              refreshTick:
-                                                  state.refreshTick + 1,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: CheckboxListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    dense: true,
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                    value: _itemGstIncluded[index],
-                                    onChanged: (included && canEditAfterAccept)
-                                        ? (value) => _updateUi((state) {
-                                            final updated = List<bool>.from(
-                                              state.itemGstIncluded,
-                                            );
-                                            updated[index] = value ?? false;
-                                            return state.copyWith(
-                                              itemGstIncluded: updated,
-                                            );
-                                          })
-                                        : null,
-                                    title: const Text('GST'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              'Line Total: ${_formatAmount(lineTotal)}',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _gstPercentController,
-                            enabled: canEditAfterAccept,
-                            onTap: () => _clearDefaultNumericOnTap(
-                              _gstPercentController,
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Common GST %',
-                              hintText: 'e.g. 18',
-                            ),
-                            onChanged: canEditAfterAccept
-                                ? (_) => _updateUi(
-                                    (state) => state.copyWith(
-                                      refreshTick: state.refreshTick + 1,
-                                    ),
-                                  )
-                                : null,
+                              Text(
+                                'Line Total: ${_formatAmount(lineTotal)}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _extraChargesController,
-                            enabled: canEditAfterAccept,
-                            onTap: () => _clearDefaultNumericOnTap(
-                              _extraChargesController,
+                        );
+                      }),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _gstPercentController,
+                              enabled: canEditAfterAccept,
+                              onTap: () => _clearDefaultNumericOnTap(
+                                _gstPercentController,
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Common GST %',
+                                hintText: 'e.g. 18',
+                              ),
+                              onChanged: canEditAfterAccept
+                                  ? (_) => _updateUi(
+                                      (state) => state.copyWith(
+                                        refreshTick: state.refreshTick + 1,
+                                      ),
+                                    )
+                                  : null,
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _extraChargesController,
+                              enabled: canEditAfterAccept,
+                              onTap: () => _clearDefaultNumericOnTap(
+                                _extraChargesController,
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Extra Charges',
+                                hintText: 'e.g. 50',
+                              ),
+                              onChanged: canEditAfterAccept
+                                  ? (_) => _updateUi(
+                                      (state) => state.copyWith(
+                                        refreshTick: state.refreshTick + 1,
+                                      ),
+                                    )
+                                  : null,
                             ),
-                            decoration: const InputDecoration(
-                              labelText: 'Extra Charges',
-                              hintText: 'e.g. 50',
-                            ),
-                            onChanged: canEditAfterAccept
-                                ? (_) => _updateUi(
-                                    (state) => state.copyWith(
-                                      refreshTick: state.refreshTick + 1,
-                                    ),
-                                  )
-                                : null,
+                          ),
+                        ],
+                      ),
+                      if (!isAccepted) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Pricing is disabled until order is accepted.',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(
+                            color: Colors.orange[800],
                           ),
                         ),
                       ],
-                    ),
-                    if (!isAccepted) ...[
-                      const SizedBox(height: 6),
+                      if (canEditAfterAccept && missingIncludedPrice) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Enter unit price for all included items to enable Save Pricing.',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(
+                            color: Colors.red[700],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Text('Subtotal: ${_formatAmount(billing.subtotal)}'),
+                      Text('GST Amount: ${_formatAmount(billing.gstAmount)}'),
                       Text(
-                        'Pricing is disabled until order is accepted.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.orange[800],
+                        'Grand Total: ${_formatAmount(billing.total)}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed:
+                              (_saving ||
+                                  !canEditAfterAccept ||
+                                  missingIncludedPrice)
+                              ? null
+                              : _saveBilling,
+                          child: Text(_saving ? 'Saving...' : 'Save Pricing'),
                         ),
                       ),
                     ],
-                    if (canEditAfterAccept && missingIncludedPrice) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Enter unit price for all included items to enable Save Pricing.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.red[700],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    Text('Subtotal: ${_formatAmount(billing.subtotal)}'),
-                    Text('GST Amount: ${_formatAmount(billing.gstAmount)}'),
-                    Text(
-                      'Grand Total: ${_formatAmount(billing.total)}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed:
-                            (_saving ||
-                                !canEditAfterAccept ||
-                                missingIncludedPrice)
-                            ? null
-                            : _saveBilling,
-                        child: Text(_saving ? 'Saving...' : 'Save Pricing'),
-                      ),
-                    ),
                   ],
                 ),
               ),

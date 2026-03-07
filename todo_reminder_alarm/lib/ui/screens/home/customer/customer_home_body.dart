@@ -248,6 +248,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
 
   Drawer _buildDrawer(List<Order> orders) {
     return Drawer(
+      backgroundColor: Colors.white,
       child: SafeArea(
         child: ListView(
           children: [
@@ -303,6 +304,18 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ContactUsScreen(user: widget.profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.group_add_outlined),
+              title: const Text('Invite Friends'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const InviteFriendsScreen(),
                   ),
                 );
               },

@@ -62,6 +62,33 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
     return value[0].toUpperCase() + value.substring(1);
   }
 
+  Widget _detailRow(
+    BuildContext context, {
+    required String label,
+    required String value,
+    Color? valueColor,
+    FontWeight? valueWeight,
+  }) {
+    final labelStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(color: Colors.black54);
+    final rowValueStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: valueColor ?? Colors.black87,
+      fontWeight: valueWeight ?? FontWeight.w500,
+      height: 1.25,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 120, child: Text('$label:', style: labelStyle)),
+          Expanded(child: Text(value, style: rowValueStyle)),
+        ],
+      ),
+    );
+  }
+
   ({String address, String? contact}) _splitLegacyAddress(String value) {
     final raw = value.trim();
     if (raw.isEmpty) return (address: '-', contact: null);
@@ -185,58 +212,126 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
           children: [
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       currentOrder.businessName,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Address: $deliveryAddress'),
-                    if (deliveryContact != null)
-                      Text('Contact: $deliveryContact'),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: 'Status: '),
-                          TextSpan(
-                            text: _statusLabel(effectiveStatus),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Text(
-                      'Payment: ${_capitalize(currentOrder.payment.status.name)}',
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Chip(
+                          label: Text(_statusLabel(effectiveStatus)),
+                          side: BorderSide.none,
+                          backgroundColor: statusColor.withValues(alpha: 0.14),
+                          labelStyle: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Chip(
+                          label: Text(
+                            'Delivery ${_capitalize(currentOrder.delivery.status.name)}',
+                          ),
+                          side: BorderSide.none,
+                          backgroundColor: Colors.blueGrey.withValues(
+                            alpha: 0.12,
+                          ),
+                          labelStyle: const TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Chip(
+                          label: Text(
+                            'Payment ${_capitalize(currentOrder.payment.status.name)}',
+                          ),
+                          side: BorderSide.none,
+                          backgroundColor: Colors.orange.withValues(alpha: 0.12),
+                          labelStyle: const TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Delivery: ${_capitalize(currentOrder.delivery.status.name)}',
+                    const SizedBox(height: 12),
+                    _detailRow(
+                      context,
+                      label: 'Address',
+                      value: deliveryAddress,
                     ),
-                    Text('Amount: ${_money(currentOrder.payment.amount)}'),
-                    Text(
-                      'Created: ${created == null ? '-' : created.toLocal().toString()}',
+                    if (deliveryContact != null)
+                      _detailRow(
+                        context,
+                        label: 'Contact',
+                        value: deliveryContact,
+                      ),
+                    _detailRow(
+                      context,
+                      label: 'Amount',
+                      value: _money(currentOrder.payment.amount),
+                      valueColor: statusColor,
+                      valueWeight: FontWeight.w700,
                     ),
-                    Text(
-                      'Scheduled: ${schedule == null ? '-' : schedule.toLocal().toString()}',
+                    const Divider(height: 20),
+                    _detailRow(
+                      context,
+                      label: 'Order Created',
+                      value: OrderSharedHelpers.formatDateTimeOrDash(created),
+                    ),
+                    _detailRow(
+                      context,
+                      label: 'Order Delivered',
+                      value: OrderSharedHelpers.formatDateTimeOrDash(
+                        currentOrder.delivery.deliveredAt,
+                      ),
+                    ),
+                    _detailRow(
+                      context,
+                      label: 'Payment Date',
+                      value: OrderSharedHelpers.formatDateTimeOrDash(
+                        currentOrder.payment.collectedAt,
+                      ),
+                    ),
+                    _detailRow(
+                      context,
+                      label: 'Scheduled',
+                      value: OrderSharedHelpers.formatDateTimeOrDash(schedule),
                     ),
                     if (_clean(currentOrder.notes) != null)
-                      Text('Order Remark: ${_clean(currentOrder.notes)}'),
+                      _detailRow(
+                        context,
+                        label: 'Order Remark',
+                        value: _clean(currentOrder.notes)!,
+                      ),
                     if (_clean(currentOrder.delivery.note) != null)
-                      Text(
-                        'Delivery Remark: ${_clean(currentOrder.delivery.note)}',
+                      _detailRow(
+                        context,
+                        label: 'Delivery Remark',
+                        value: _clean(currentOrder.delivery.note)!,
                       ),
                     if (_clean(currentOrder.payment.remark) != null)
-                      Text(
-                        'Payment Remark: ${_clean(currentOrder.payment.remark)}',
+                      _detailRow(
+                        context,
+                        label: 'Payment Remark',
+                        value: _clean(currentOrder.payment.remark)!,
                       ),
                     if (_clean(currentOrder.payment.collectionNote) != null)
-                      Text(
-                        'Delivery Boy Remark: ${_clean(currentOrder.payment.collectionNote)}',
+                      _detailRow(
+                        context,
+                        label: 'Delivery Boy Remark',
+                        value: _clean(currentOrder.payment.collectionNote)!,
                       ),
                   ],
                 ),

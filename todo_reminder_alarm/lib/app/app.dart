@@ -120,10 +120,10 @@ class _GlobalBottomBannerAd extends ConsumerStatefulWidget {
       _GlobalBottomBannerAdState();
 }
 
-class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
-  BannerAd? _bannerAd;
-  bool _isLoaded = false;
+final _globalBannerAdProvider = StateProvider<BannerAd?>((ref) => null);
+final _globalBannerLoadedProvider = StateProvider<bool>((ref) => false);
 
+class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
   @override
   void initState() {
     super.initState();
@@ -145,18 +145,19 @@ class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
             ad.dispose();
             return;
           }
-          setState(() {
-            _bannerAd = ad as BannerAd;
-            _isLoaded = true;
-          });
+          final loadedAd = ad as BannerAd;
+          final previous = ref.read(_globalBannerAdProvider);
+          if (previous != null && previous != loadedAd) {
+            previous.dispose();
+          }
+          ref.read(_globalBannerAdProvider.notifier).state = loadedAd;
+          ref.read(_globalBannerLoadedProvider.notifier).state = true;
         },
         onAdFailedToLoad: (ad, _) {
           ad.dispose();
           if (!mounted) return;
-          setState(() {
-            _bannerAd = null;
-            _isLoaded = false;
-          });
+          ref.read(_globalBannerAdProvider.notifier).state = null;
+          ref.read(_globalBannerLoadedProvider.notifier).state = false;
         },
       ),
     );
@@ -165,13 +166,17 @@ class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    ref.read(_globalBannerAdProvider)?.dispose();
+    ref.read(_globalBannerAdProvider.notifier).state = null;
+    ref.read(_globalBannerLoadedProvider.notifier).state = false;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isLoaded || _bannerAd == null) {
+    final bannerAd = ref.watch(_globalBannerAdProvider);
+    final isLoaded = ref.watch(_globalBannerLoadedProvider);
+    if (!isLoaded || bannerAd == null) {
       return const SizedBox(height: _GlobalBottomBannerAd.totalHeight);
     }
     return Material(
@@ -183,9 +188,9 @@ class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
           height: _GlobalBottomBannerAd.totalHeight,
           child: Center(
             child: SizedBox(
-              width: _bannerAd!.size.width.toDouble(),
-              height: _bannerAd!.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
+              width: bannerAd.size.width.toDouble(),
+              height: bannerAd.size.height.toDouble(),
+              child: AdWidget(ad: bannerAd),
             ),
           ),
         ),
@@ -206,6 +211,7 @@ class _AuthGateState extends ConsumerState<AuthGate> {
   StreamSubscription<String>? _deepLinkSub;
   String? _pendingBusinessId;
   bool _openingDeepLink = false;
+  final Set<String> _subscriptionSyncKeys = <String>{};
 
   void _startDeepLinkListener() {
     if (_deepLinkStarted) return;
@@ -271,6 +277,7 @@ class _AuthGateState extends ConsumerState<AuthGate> {
               }
               return const SignUpScreen();
             }
+            _syncExpiredSubscriptionIfNeeded(profile);
             if (!profile.isActive) {
               return const _BlockedUserScreen();
             }
@@ -294,6 +301,26 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+    );
+  }
+
+  void _syncExpiredSubscriptionIfNeeded(AppUser profile) {
+    if (!profile.subscriptionActive) return;
+    final end = profile.subscriptionEndDate;
+    if (end == null) return;
+    final now = DateTime.now();
+    if (!now.isAfter(end)) return;
+
+    final syncKey = '${profile.id}-${end.millisecondsSinceEpoch}';
+    if (_subscriptionSyncKeys.contains(syncKey)) return;
+    _subscriptionSyncKeys.add(syncKey);
+    unawaited(
+      ref
+          .read(firestoreServiceProvider)
+          .deactivateExpiredSubscription(profile.id)
+          .catchError((_) {
+            _subscriptionSyncKeys.remove(syncKey);
+          }),
     );
   }
 }

@@ -94,7 +94,7 @@ class _BusinessHomeBody extends ConsumerWidget {
               profile: profile,
               emptyMessage: 'No completed orders.',
               allowedStatuses: [OrderStatus.completed],
-              allowActions: false,
+              allowActions: true,
             ),
             _PlaceOrdersTab(profile: profile, ownBusiness: ownBusiness),
             _DeliveryTeamTab(profile: profile),
@@ -113,6 +113,7 @@ class _BusinessHomeBody extends ConsumerWidget {
   }) {
     final orders = [...incomingOrders, ...outgoingOrders];
     return Drawer(
+      backgroundColor: Colors.white,
       child: SafeArea(
         child: ListView(
           children: [
@@ -168,6 +169,18 @@ class _BusinessHomeBody extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ContactUsScreen(user: profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.group_add_outlined),
+              title: const Text('Invite Friends'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const InviteFriendsScreen(),
                   ),
                 );
               },

@@ -10,6 +10,7 @@ import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/profile/profile_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/contact_us_screen.dart';
+import 'package:todo_reminder_alarm/ui/screens/support/invite_friends_screen.dart';
 
 enum _DeliveryDateFilter { today, week, month, year, custom }
 
@@ -85,6 +86,7 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
 
   Drawer _buildDrawer(BuildContext context, WidgetRef ref, AppUser profile) {
     return Drawer(
+      backgroundColor: Colors.white,
       child: SafeArea(
         child: ListView(
           children: [
@@ -113,6 +115,18 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ContactUsScreen(user: profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.group_add_outlined),
+              title: const Text('Invite Friends'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const InviteFriendsScreen(),
                   ),
                 );
               },
@@ -429,6 +443,7 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
         title: Text('Delivery Dashboard • ${widget.name}'),
       ),
       drawer: Drawer(
+        backgroundColor: Colors.white,
         child: SafeArea(
           child: ListView(
             children: [
@@ -457,6 +472,18 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ContactUsScreen(user: widget.profile),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.group_add_outlined),
+                title: const Text('Invite Friends'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const InviteFriendsScreen(),
                     ),
                   );
                 },

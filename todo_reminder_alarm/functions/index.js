@@ -1,4 +1,6 @@
 const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
+const logger = require("firebase-functions/logger");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 const {getMessaging} = require("firebase-admin/messaging");
@@ -138,5 +140,56 @@ exports.notifySupportTicketStatusChanged = onDocumentUpdated(
           `Ticket status: ${after.status}`,
           {ticketId: event.params.ticketId, type: "support_ticket_updated"},
       );
+    },
+);
+
+exports.expireSubscriptionsDaily = onSchedule(
+    {
+      schedule: "10 0 * * *",
+      timeZone: "Asia/Kolkata",
+    },
+    async () => {
+      const now = new Date();
+      let updatedCount = 0;
+      let lastDoc = null;
+      const pageSize = 500;
+
+      while (true) {
+        let query = db
+            .collection("users")
+            .where("subscriptionEndDate", "<=", now)
+            .orderBy("subscriptionEndDate")
+            .limit(pageSize);
+        if (lastDoc) {
+          query = query.startAfter(lastDoc);
+        }
+
+        const snapshot = await query.get();
+        if (snapshot.empty) break;
+
+        const batch = db.batch();
+        let batchWrites = 0;
+        for (const doc of snapshot.docs) {
+          const user = doc.data();
+          if (user.subscriptionActive !== true) continue;
+          batch.update(doc.ref, {
+            subscriptionActive: false,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          batchWrites++;
+        }
+
+        if (batchWrites > 0) {
+          await batch.commit();
+          updatedCount += batchWrites;
+        }
+
+        lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      }
+
+      logger.info("Subscription expiry completed", {
+        updatedCount,
+        executedAt: now.toISOString(),
+      });
     },
 );

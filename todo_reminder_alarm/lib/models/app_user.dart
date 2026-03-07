@@ -16,6 +16,9 @@ class AppUser {
     this.deleteRequestStatus,
     this.deleteRequestedAt,
     this.isActive = true,
+    this.subscriptionActive = false,
+    this.subscriptionStartDate,
+    this.subscriptionEndDate,
     this.businessId,
     this.createdAt,
   });
@@ -32,8 +35,22 @@ class AppUser {
   final DateTime? deleteRequestedAt;
   final UserRole role;
   final bool isActive;
+  final bool subscriptionActive;
+  final DateTime? subscriptionStartDate;
+  final DateTime? subscriptionEndDate;
   final String? businessId;
   final DateTime? createdAt;
+
+  bool hasActiveSubscriptionAt(DateTime now) {
+    if (!subscriptionActive) return false;
+    if (subscriptionStartDate != null && now.isBefore(subscriptionStartDate!)) {
+      return false;
+    }
+    if (subscriptionEndDate != null && now.isAfter(subscriptionEndDate!)) {
+      return false;
+    }
+    return true;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -50,6 +67,13 @@ class AppUser {
           : Timestamp.fromDate(deleteRequestedAt!),
       'role': enumToString(role),
       'isActive': isActive,
+      'subscriptionActive': subscriptionActive,
+      'subscriptionStartDate': subscriptionStartDate == null
+          ? null
+          : Timestamp.fromDate(subscriptionStartDate!),
+      'subscriptionEndDate': subscriptionEndDate == null
+          ? null
+          : Timestamp.fromDate(subscriptionEndDate!),
       'businessId': businessId,
       'createdAt': Timestamp.fromDate(createdAt ?? DateTime.now()),
     };
@@ -77,6 +101,11 @@ class AppUser {
         UserRole.customer,
       ),
       isActive: (data['isActive'] as bool?) ?? true,
+      subscriptionActive: (data['subscriptionActive'] as bool?) ?? false,
+      subscriptionStartDate: (data['subscriptionStartDate'] as Timestamp?)
+          ?.toDate(),
+      subscriptionEndDate: (data['subscriptionEndDate'] as Timestamp?)
+          ?.toDate(),
       businessId: data['businessId'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );

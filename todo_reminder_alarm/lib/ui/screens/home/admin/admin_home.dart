@@ -10,6 +10,7 @@ import 'admin_support_tickets_tab.dart';
 import 'admin_users_tab.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/order_history_report_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/profile/profile_screen.dart';
+import 'package:todo_reminder_alarm/ui/screens/support/invite_friends_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/support_tickets_screen.dart';
 
 class AdminHomeScreen extends ConsumerWidget {
@@ -39,6 +40,7 @@ class AdminHomeScreen extends ConsumerWidget {
           ),
         ),
         drawer: Drawer(
+          backgroundColor: Colors.white,
           child: SafeArea(
             child: ListView(
               children: [
@@ -96,6 +98,18 @@ class AdminHomeScreen extends ConsumerWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const AdminSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.group_add_outlined),
+                  title: const Text('Invite Friends'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const InviteFriendsScreen(),
                       ),
                     );
                   },

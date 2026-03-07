@@ -207,7 +207,24 @@ final appUpdateConfigProvider = StreamProvider<AppUpdateConfig?>((ref) {
 
 final showAdsProvider = Provider<bool>((ref) {
   final config = ref.watch(appUpdateConfigProvider).value;
-  return config?.showAds ?? false;
+  final user = ref.watch(authStateProvider).value;
+  if (user == null || config == null) return false;
+  final profile = ref.watch(userProfileProvider(user.uid)).value;
+  if (profile == null) return false;
+  if (profile.hasActiveSubscriptionAt(DateTime.now())) return false;
+
+  switch (profile.role.name) {
+    case 'admin':
+      return config.showAdsAdmin;
+    case 'businessOwner':
+      return config.showAdsBusiness;
+    case 'customer':
+      return config.showAdsCustomer;
+    case 'deliveryBoy':
+      return config.showAdsDelivery;
+    default:
+      return false;
+  }
 });
 
 final appVersionProvider = FutureProvider<String>((ref) async {
