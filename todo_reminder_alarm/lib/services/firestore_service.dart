@@ -134,7 +134,6 @@ class FirestoreService {
   Stream<List<Order>> ordersPlacedByBusinessOwnerStream(String ownerId) {
     return _orders
         .where('customerId', isEqualTo: ownerId)
-        .where('requesterType', isEqualTo: 'businessOwner')
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Order.fromDoc).toList());

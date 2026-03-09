@@ -18,7 +18,7 @@ final _signUpUiProvider = StateProvider.autoDispose<_SignUpUiState>(
 class _SignUpUiState {
   const _SignUpUiState({
     required this.selectedCountry,
-    this.role = UserRole.customer,
+    this.role = UserRole.businessOwner,
     this.loading = false,
     this.error,
     this.profileOnlyMode = false,
@@ -210,7 +210,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         .toList();
     final selectedRole = allowedRoles.contains(uiState.role)
         ? uiState.role
-        : UserRole.customer;
+        : UserRole.businessOwner;
     final isBusiness = selectedRole == UserRole.businessOwner;
     final isCustomer = selectedRole == UserRole.customer;
     final existingUser = ref.watch(firebaseAuthProvider).currentUser;
@@ -381,6 +381,36 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             _updateUi((state) => state.copyWith(role: value));
                           }
                         },
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(top: 1),
+                              child: Icon(
+                                Icons.warning_amber_rounded,
+                                size: 18,
+                                color: Colors.orange,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'If you have a valid business registration ID, register as Business.',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       if (isCustomer) ...[
                         const SizedBox(height: 12),

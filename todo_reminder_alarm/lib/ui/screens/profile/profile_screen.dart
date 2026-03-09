@@ -100,6 +100,238 @@ class _UpgradeBusinessData {
   final String? description;
 }
 
+class _UpgradeToBusinessOwnerDialog extends StatefulWidget {
+  const _UpgradeToBusinessOwnerDialog({
+    required this.initialShopName,
+    required this.initialAddress,
+    required this.initialCountry,
+  });
+
+  final String initialShopName;
+  final String initialAddress;
+  final Country initialCountry;
+
+  @override
+  State<_UpgradeToBusinessOwnerDialog> createState() =>
+      _UpgradeToBusinessOwnerDialogState();
+}
+
+class _UpgradeToBusinessOwnerDialogState
+    extends State<_UpgradeToBusinessOwnerDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _businessNameController;
+  final _categoryController = TextEditingController();
+  final _cityController = TextEditingController();
+  late final TextEditingController _addressController;
+  final _gstController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  late final ValueNotifier<Country> _selectedCountry;
+
+  @override
+  void initState() {
+    super.initState();
+    _businessNameController = TextEditingController(
+      text: widget.initialShopName,
+    );
+    _addressController = TextEditingController(text: widget.initialAddress);
+    _selectedCountry = ValueNotifier<Country>(widget.initialCountry);
+  }
+
+  @override
+  void dispose() {
+    _businessNameController.dispose();
+    _categoryController.dispose();
+    _cityController.dispose();
+    _addressController.dispose();
+    _gstController.dispose();
+    _phoneController.dispose();
+    _descriptionController.dispose();
+    _selectedCountry.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + viewInsets.bottom),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Switch to Business Owner',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'After switching, your account will open Business Owner screens by default. This change applies immediately.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _businessNameController,
+                  decoration: const InputDecoration(labelText: 'Business Name'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Enter business name'
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _categoryController,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Enter category'
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _cityController,
+                  decoration: const InputDecoration(labelText: 'City'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Enter city'
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _addressController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Business Address',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 132,
+                      child: InkWell(
+                        onTap: () {
+                          showCountryPicker(
+                            context: context,
+                            showPhoneCode: true,
+                            onSelect: (country) {
+                              _selectedCountry.value = country;
+                            },
+                          );
+                        },
+                        child: ValueListenableBuilder<Country>(
+                          valueListenable: _selectedCountry,
+                          builder: (context, selectedCountry, _) =>
+                              InputDecorator(
+                            decoration: const InputDecoration(labelText: 'Code'),
+                            child: Text(
+                              '${selectedCountry.flagEmoji} +${selectedCountry.phoneCode}',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Business Contact Number',
+                          hintText: '9876543210',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _gstController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'Business Unique No (GST optional)',
+                    hintText: 'e.g. 27ABCDE1234F1Z5',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Business Description',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          if (!_formKey.currentState!.validate()) return;
+                          Navigator.of(context).pop(
+                            _UpgradeBusinessData(
+                              name: _businessNameController.text.trim(),
+                              category: _categoryController.text.trim(),
+                              city: _cityController.text.trim(),
+                              country: _selectedCountry.value,
+                              address: _addressController.text.trim().isEmpty
+                                  ? null
+                                  : _addressController.text.trim(),
+                              phone: _phoneController.text.trim().isEmpty
+                                  ? null
+                                  : _phoneController.text.trim(),
+                              gstNumber: _gstController.text.trim().isEmpty
+                                  ? null
+                                  : _gstController.text.trim().toUpperCase(),
+                              description: _descriptionController
+                                      .text
+                                      .trim()
+                                      .isEmpty
+                                  ? null
+                                  : _descriptionController.text.trim(),
+                            ),
+                          );
+                        },
+                        child: const Text('Switch Role'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, required this.user});
 
@@ -387,186 +619,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _showUpgradeToBusinessOwnerDialog() async {
-    final formKey = GlobalKey<FormState>();
-    final businessNameController = TextEditingController(
-      text: _shopNameController.text.trim(),
-    );
-    final categoryController = TextEditingController();
-    final cityController = TextEditingController();
-    final addressController = TextEditingController(
-      text: _addressController.text.trim(),
-    );
-    final gstController = TextEditingController();
-    final phoneController = TextEditingController();
-    final descriptionController = TextEditingController();
-    Country selectedCountry = _ui.businessCountry;
-
-    final payload = await showDialog<_UpgradeBusinessData>(
+    final payload = await showModalBottomSheet<_UpgradeBusinessData>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Switch to Business Owner'),
-          content: SizedBox(
-            width: 520,
-            child: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'After switching, your account will open Business Owner screens by default. This change applies immediately.',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: businessNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Business Name',
-                      ),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Enter business name'
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: categoryController,
-                      decoration: const InputDecoration(labelText: 'Category'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Enter category'
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: cityController,
-                      decoration: const InputDecoration(labelText: 'City'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Enter city'
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: addressController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Business Address',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 132,
-                          child: InkWell(
-                            onTap: () {
-                              showCountryPicker(
-                                context: context,
-                                showPhoneCode: true,
-                                onSelect: (country) {
-                                  setDialogState(() {
-                                    selectedCountry = country;
-                                  });
-                                },
-                              );
-                            },
-                            child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Code',
-                              ),
-                              child: Text(
-                                '${selectedCountry.flagEmoji} +${selectedCountry.phoneCode}',
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextFormField(
-                            controller: phoneController,
-                            keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(
-                              labelText: 'Business Contact Number',
-                              hintText: '9876543210',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: gstController,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        labelText: 'Business Unique No (GST optional)',
-                        hintText: 'e.g. 27ABCDE1234F1Z5',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: descriptionController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Business Description',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                Navigator.of(context).pop(
-                  _UpgradeBusinessData(
-                    name: businessNameController.text.trim(),
-                    category: categoryController.text.trim(),
-                    city: cityController.text.trim(),
-                    country: selectedCountry,
-                    address: addressController.text.trim().isEmpty
-                        ? null
-                        : addressController.text.trim(),
-                    phone: phoneController.text.trim().isEmpty
-                        ? null
-                        : phoneController.text.trim(),
-                    gstNumber: gstController.text.trim().isEmpty
-                        ? null
-                        : gstController.text.trim().toUpperCase(),
-                    description: descriptionController.text.trim().isEmpty
-                        ? null
-                        : descriptionController.text.trim(),
-                  ),
-                );
-              },
-              child: const Text('Switch Role'),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (context) => _UpgradeToBusinessOwnerDialog(
+        initialShopName: _shopNameController.text.trim(),
+        initialAddress: _addressController.text.trim(),
+        initialCountry: _ui.businessCountry,
       ),
     );
-
-    businessNameController.dispose();
-    categoryController.dispose();
-    cityController.dispose();
-    addressController.dispose();
-    gstController.dispose();
-    phoneController.dispose();
-    descriptionController.dispose();
 
     if (payload == null || !mounted) return;
     await _upgradeCustomerToBusinessOwner(payload);

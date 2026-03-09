@@ -11,6 +11,7 @@ import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/profile/profile_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/contact_us_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/invite_friends_screen.dart';
+import 'package:todo_reminder_alarm/ui/screens/support/privacy_policy_screen.dart';
 
 enum _DeliveryDateFilter { today, week, month, year, custom }
 
@@ -127,6 +128,18 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const InviteFriendsScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Privacy Policy'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PrivacyPolicyScreen(),
                   ),
                 );
               },
