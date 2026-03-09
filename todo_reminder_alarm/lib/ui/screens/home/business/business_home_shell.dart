@@ -52,50 +52,62 @@ class _BusinessHomeBody extends ConsumerWidget {
         }
       }
     }
+    final incomingOrders = incomingAsync.value ?? const <Order>[];
+    final hasUpcoming = incomingOrders.any(
+      (order) =>
+          OrderSharedHelpers.effectiveStatus(
+            order,
+            normalizeApprovedToInProgress: true,
+          ) ==
+          OrderStatus.pending,
+    );
+    final hasProcessing = incomingOrders.any(
+      (order) =>
+          OrderSharedHelpers.effectiveStatus(
+            order,
+            normalizeApprovedToInProgress: true,
+          ) ==
+          OrderStatus.inProgress,
+    );
+    final Color? newOrdersIndicatorColor = hasUpcoming
+        ? Colors.red
+        : (hasProcessing ? Colors.orange : null);
 
     return DefaultTabController(
-      length: 6,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Dashboard'),
-          bottom: const TabBar(
+          bottom: TabBar(
             isScrollable: true,
-            tabs: [
-              Tab(text: 'New Orders'),
-              Tab(text: 'Processing'),
-              Tab(text: 'Completed'),
-              Tab(text: 'Place Orders'),
-              Tab(text: 'Delivery Team'),
-              Tab(text: 'Catalog'),
+            tabs: <Widget>[
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('New Orders'),
+                    if (newOrdersIndicatorColor != null) ...[
+                      const SizedBox(width: 6),
+                      _BlinkingDot(color: newOrdersIndicatorColor),
+                    ],
+                  ],
+                ),
+              ),
+              const Tab(text: 'Place Orders'),
+              const Tab(text: 'Delivery Team'),
+              const Tab(text: 'Catalog'),
             ],
           ),
         ),
         drawer: _buildDrawer(
           context: context,
           ref: ref,
-          incomingOrders: incomingAsync.value ?? const [],
+          incomingOrders: incomingOrders,
           outgoingOrders: outgoingAsync.value ?? const [],
         ),
         body: TabBarView(
           children: [
-            _BusinessOrdersTab(
-              profile: profile,
-              emptyMessage: 'No new incoming orders.',
-              allowedStatuses: [OrderStatus.pending],
-              allowActions: true,
-            ),
-            _BusinessOrdersTab(
-              profile: profile,
-              emptyMessage: 'No processing orders.',
-              allowedStatuses: [OrderStatus.inProgress],
-              allowActions: true,
-            ),
-            _BusinessOrdersTab(
-              profile: profile,
-              emptyMessage: 'No completed orders.',
-              allowedStatuses: [OrderStatus.completed],
-              allowActions: true,
-            ),
+            _BusinessOrdersSection(profile: profile),
             _PlaceOrdersTab(profile: profile, ownBusiness: ownBusiness),
             _DeliveryTeamTab(profile: profile),
             BusinessCatalogScreen(businessId: profile.businessId!),
@@ -208,6 +220,49 @@ class _BusinessHomeBody extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BlinkingDot extends StatefulWidget {
+  const _BlinkingDot({required this.color});
+
+  final Color color;
+
+  @override
+  State<_BlinkingDot> createState() => _BlinkingDotState();
+}
+
+class _BlinkingDotState extends State<_BlinkingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+      lowerBound: 0.2,
+      upperBound: 1,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _controller,
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
       ),
     );
   }

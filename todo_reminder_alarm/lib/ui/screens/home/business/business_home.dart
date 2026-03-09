@@ -32,6 +32,7 @@ import 'package:todo_reminder_alarm/ui/screens/support/support_tickets_screen.da
 
 part 'business_home_state.dart';
 part 'business_home_shell.dart';
+part 'business_orders_section.dart';
 part 'business_orders_tab.dart';
 part 'business_place_orders_tab.dart';
 part 'business_delivery_team_tab.dart';

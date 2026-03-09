@@ -1,4 +1,3 @@
-import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
@@ -13,25 +12,16 @@ final _contactUsUiProvider = StateProvider.autoDispose<_ContactUsUiState>(
 );
 
 class _ContactUsUiState {
-  const _ContactUsUiState({this.submitting = false, this.selectedCountryCode});
+  const _ContactUsUiState({this.submitting = false});
 
   final bool submitting;
-  final String? selectedCountryCode;
 
-  _ContactUsUiState copyWith({
-    bool? submitting,
-    Object? selectedCountryCode = _contactCountryUnset,
-  }) {
+  _ContactUsUiState copyWith({bool? submitting}) {
     return _ContactUsUiState(
       submitting: submitting ?? this.submitting,
-      selectedCountryCode: selectedCountryCode == _contactCountryUnset
-          ? this.selectedCountryCode
-          : selectedCountryCode as String?,
     );
   }
 }
-
-const _contactCountryUnset = Object();
 
 class ContactUsScreen extends ConsumerStatefulWidget {
   const ContactUsScreen({super.key, required this.user});
@@ -47,7 +37,6 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _mobileController;
   final _descriptionController = TextEditingController();
-  String _initialCountryCode = '+91';
 
   _ContactUsUiState get _ui => ref.read(_contactUsUiProvider);
   void _updateUi(_ContactUsUiState Function(_ContactUsUiState state) update) {
@@ -66,17 +55,7 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
   void _prefillPhone(String? rawPhone) {
     final text = (rawPhone ?? '').trim();
     if (text.isEmpty) return;
-    final countryMatch = RegExp(r'^\+\d{1,4}').firstMatch(text);
-    if (countryMatch != null) {
-      _initialCountryCode = countryMatch.group(0)!;
-      final rest = text.substring(countryMatch.end).replaceAll(
-        RegExp(r'[^0-9]'),
-        '',
-      );
-      _mobileController.text = rest;
-      return;
-    }
-    _mobileController.text = text.replaceAll(RegExp(r'[^0-9]'), '');
+    _mobileController.text = text;
   }
 
   @override
@@ -89,7 +68,6 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final activeCountryCode = _ui.selectedCountryCode ?? _initialCountryCode;
     if (_ui.submitting) return;
     _updateUi((state) => state.copyWith(submitting: true));
     try {
@@ -98,7 +76,7 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
         userId: widget.user.id,
         userRole: widget.user.role,
         name: _nameController.text.trim(),
-        mobileNumber: '$activeCountryCode ${_mobileController.text.trim()}',
+        mobileNumber: _mobileController.text.trim(),
         description: _descriptionController.text.trim(),
         createdAt: DateTime.now(),
       );
@@ -123,7 +101,6 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(_contactUsUiProvider);
-    final countryCode = ui.selectedCountryCode ?? _initialCountryCode;
     return Scaffold(
       appBar: AppBar(title: const Text('Contact Us')),
       body: SafeArea(
@@ -155,47 +132,23 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          OutlinedButton(
-                            onPressed: () {
-                              showCountryPicker(
-                                context: context,
-                                onSelect: (country) {
-                                  _updateUi(
-                                    (state) => state.copyWith(
-                                      selectedCountryCode:
-                                          '+${country.phoneCode}',
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                            child: Text(countryCode),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _mobileController,
-                              keyboardType: TextInputType.phone,
-                              decoration: const InputDecoration(
-                                labelText: 'Mobile Number',
-                                hintText: '9876543210',
-                              ),
-                              validator: (value) {
-                                final digits = (value ?? '').replaceAll(
-                                  RegExp(r'[^0-9]'),
-                                  '',
-                                );
-                                if (digits.length < 6) {
-                                  return 'Enter valid mobile number';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                        ],
+                      TextFormField(
+                        controller: _mobileController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Mobile Number',
+                          hintText: '+919876543210',
+                        ),
+                        validator: (value) {
+                          final digits = (value ?? '').replaceAll(
+                            RegExp(r'[^0-9]'),
+                            '',
+                          );
+                          if (digits.length < 6) {
+                            return 'Enter valid mobile number';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
