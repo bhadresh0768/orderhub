@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +24,24 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
     return value[0].toUpperCase() + value.substring(1);
   }
 
+  String _fmtDate(DateTime? date) {
+    if (date == null) return '-';
+    final d = date.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd-$mm-${d.year}';
+  }
+
+  String _subscriptionAlertText(BusinessProfile business) {
+    final end = business.subscriptionEndDate!;
+    final now = DateTime.now();
+    final endDate = DateTime(end.year, end.month, end.day);
+    final currentDate = DateTime(now.year, now.month, now.day);
+    final daysLeft = endDate.difference(currentDate).inDays;
+    final dayLabel = daysLeft == 1 ? 'day' : 'days';
+    return 'Subscription ending in $daysLeft $dayLabel on ${_fmtDate(end)}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +63,9 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
     final gst = TextEditingController(text: business?.gstNumber ?? '');
     final owner = TextEditingController(text: business?.ownerId ?? '');
     var status = business?.status ?? BusinessStatus.pending;
+    var subscriptionActive = business?.subscriptionActive ?? false;
+    DateTime? subscriptionStartDate = business?.subscriptionStartDate;
+    DateTime? subscriptionEndDate = business?.subscriptionEndDate;
 
     await showDialog<void>(
       context: context,
@@ -104,6 +126,65 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                   onChanged: (v) => setLocal(() => status = v ?? status),
                   decoration: const InputDecoration(labelText: 'Status'),
                 ),
+                const Divider(height: 20),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Subscription Active'),
+                  value: subscriptionActive,
+                  onChanged: (v) => setLocal(() => subscriptionActive = v),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Subscription Start: ${_fmtDate(subscriptionStartDate)}',
+                  ),
+                  trailing: TextButton(
+                    onPressed: () async {
+                      final now = DateTime.now();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: subscriptionStartDate ?? now,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(now.year + 10),
+                      );
+                      if (picked != null) {
+                        setLocal(() => subscriptionStartDate = picked);
+                      }
+                    },
+                    child: const Text('Set'),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Subscription End: ${_fmtDate(subscriptionEndDate)}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: subscriptionEndDate ?? now,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(now.year + 10),
+                          );
+                          if (picked != null) {
+                            setLocal(() => subscriptionEndDate = picked);
+                          }
+                        },
+                        child: const Text('Set'),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            setLocal(() => subscriptionEndDate = null),
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -121,6 +202,16 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                 final addressText = address.text.trim();
                 final phoneText = phone.text.trim();
                 final gstText = gst.text.trim();
+                final normalizedSubscriptionEndDate = subscriptionEndDate == null
+                    ? null
+                    : DateTime(
+                        subscriptionEndDate!.year,
+                        subscriptionEndDate!.month,
+                        subscriptionEndDate!.day,
+                        23,
+                        59,
+                        59,
+                      );
                 final data = {
                   'name': nameText,
                   'category': categoryText,
@@ -130,6 +221,22 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                   'gstNumber': gstText.isEmpty ? null : gstText,
                   'ownerId': ownerText,
                   'status': enumToString(status),
+                  'subscriptionActive': subscriptionActive,
+                  'subscriptionStartDate': subscriptionStartDate == null
+                      ? null
+                      : Timestamp.fromDate(subscriptionStartDate!),
+                  'subscriptionEndDate': subscriptionEndDate == null
+                      ? null
+                      : Timestamp.fromDate(
+                          DateTime(
+                            subscriptionEndDate!.year,
+                            subscriptionEndDate!.month,
+                            subscriptionEndDate!.day,
+                            23,
+                            59,
+                            59,
+                          ),
+                        ),
                 };
                 if (business == null) {
                   final id = ref
@@ -148,6 +255,9 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                       phone: phoneText.isEmpty ? null : phoneText,
                       gstNumber: gstText.isEmpty ? null : gstText,
                       status: status,
+                      subscriptionActive: subscriptionActive,
+                      subscriptionStartDate: subscriptionStartDate,
+                      subscriptionEndDate: normalizedSubscriptionEndDate,
                       createdAt: DateTime.now(),
                     ),
                   );
@@ -241,8 +351,17 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                   final total = totalByBusiness[business.id] ?? 0;
                   final completed = completedByBusiness[business.id] ?? 0;
                   final userCreated = userCreatedByBusiness[business.id] ?? 0;
+                  final now = DateTime.now();
+                  final subscriptionEndDate = business.subscriptionEndDate;
+                  final showSubscriptionAlert =
+                      business.subscriptionActive &&
+                      subscriptionEndDate != null &&
+                      !now.isAfter(subscriptionEndDate) &&
+                      !subscriptionEndDate.isAfter(
+                        now.add(const Duration(days: 30)),
+                      );
                   return Card(
-                    child: ListTile(
+                    child: InkWell(
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -251,27 +370,82 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                           ),
                         );
                       },
-                      title: Text(business.name),
-                      subtitle: Text(
-                        '${business.category} • ${business.city}\n'
-                        'Status: ${_capitalize(business.status.name)}\n'
-                        'Completed Orders: $completed • Created by Users: $userCreated • Total: $total',
-                      ),
-                      isThreeLine: true,
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) async {
-                          if (value == 'edit') {
-                            await _showBusinessDialog(business: business);
-                          } else if (value == 'delete') {
-                            await ref
-                                .read(firestoreServiceProvider)
-                                .deleteBusiness(business.id);
-                          }
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'edit', child: Text('Edit')),
-                          PopupMenuItem(value: 'delete', child: Text('Delete')),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        business.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${business.category} • ${business.city}\n'
+                                        'Status: ${_capitalize(business.status.name)}\n'
+                                        '${business.subscriptionActive ? 'Subscription: Active (Ends: ${_fmtDate(business.subscriptionEndDate)})' : 'Subscription: Inactive'}\n'
+                                        'Completed Orders: $completed • Created by Users: $userCreated • Total: $total',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await _showBusinessDialog(
+                                        business: business,
+                                      );
+                                    } else if (value == 'delete') {
+                                      await ref
+                                          .read(firestoreServiceProvider)
+                                          .deleteBusiness(business.id);
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('Edit'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            if (showSubscriptionAlert) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.red.shade300,
+                                  ),
+                                ),
+                                child: Text(
+                                  _subscriptionAlertText(business),
+                                  style: TextStyle(
+                                    color: Colors.red.shade800,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   );

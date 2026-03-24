@@ -206,12 +206,22 @@ final appUpdateConfigProvider = StreamProvider<AppUpdateConfig?>((ref) {
 });
 
 final showAdsProvider = Provider<bool>((ref) {
-  final config = ref.watch(appUpdateConfigProvider).value;
   final user = ref.watch(authStateProvider).value;
-  if (user == null || config == null) return false;
+  if (user == null) return false;
+
+  final config = ref.watch(appUpdateConfigProvider).value;
+  if (config == null) return false;
+
   final profile = ref.watch(userProfileProvider(user.uid)).value;
   if (profile == null) return false;
-  if (profile.hasActiveSubscriptionAt(DateTime.now())) return false;
+
+  final businessId = profile.businessId;
+  if (businessId != null) {
+    final business = ref.watch(businessByIdProvider(businessId)).value;
+    if (business?.hasActiveSubscriptionAt(DateTime.now()) ?? false) {
+      return false;
+    }
+  }
 
   switch (profile.role.name) {
     case 'admin':

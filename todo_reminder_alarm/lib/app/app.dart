@@ -124,6 +124,8 @@ final _globalBannerAdProvider = StateProvider<BannerAd?>((ref) => null);
 final _globalBannerLoadedProvider = StateProvider<bool>((ref) => false);
 
 class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
+  BannerAd? _bannerAd;
+
   @override
   void initState() {
     super.initState();
@@ -146,29 +148,43 @@ class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
             return;
           }
           final loadedAd = ad as BannerAd;
-          final previous = ref.read(_globalBannerAdProvider);
+          final previous = _bannerAd;
           if (previous != null && previous != loadedAd) {
             previous.dispose();
           }
-          ref.read(_globalBannerAdProvider.notifier).state = loadedAd;
-          ref.read(_globalBannerLoadedProvider.notifier).state = true;
+          _bannerAd = loadedAd;
+          _queueBannerStateUpdate(ad: loadedAd, isLoaded: true);
         },
-        onAdFailedToLoad: (ad, _) {
+        onAdFailedToLoad: (ad, error) {
           ad.dispose();
           if (!mounted) return;
-          ref.read(_globalBannerAdProvider.notifier).state = null;
-          ref.read(_globalBannerLoadedProvider.notifier).state = false;
+          debugPrint(
+            'Global banner failed to load: '
+            'code=${error.code}, domain=${error.domain}, message=${error.message}',
+          );
+          _bannerAd = null;
+          _queueBannerStateUpdate(ad: null, isLoaded: false);
         },
       ),
     );
     ad.load();
   }
 
+  void _queueBannerStateUpdate({
+    required BannerAd? ad,
+    required bool isLoaded,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(_globalBannerAdProvider.notifier).state = ad;
+      ref.read(_globalBannerLoadedProvider.notifier).state = isLoaded;
+    });
+  }
+
   @override
   void dispose() {
-    ref.read(_globalBannerAdProvider)?.dispose();
-    ref.read(_globalBannerAdProvider.notifier).state = null;
-    ref.read(_globalBannerLoadedProvider.notifier).state = false;
+    _bannerAd?.dispose();
+    _bannerAd = null;
     super.dispose();
   }
 
@@ -277,7 +293,13 @@ class _AuthGateState extends ConsumerState<AuthGate> {
               }
               return const SignUpScreen();
             }
-            _syncExpiredSubscriptionIfNeeded(profile);
+            final businessId = profile.businessId;
+            if (businessId != null && businessId.isNotEmpty) {
+              final business = ref.watch(businessByIdProvider(businessId)).value;
+              if (business != null) {
+                _syncExpiredSubscriptionIfNeeded(business);
+              }
+            }
             if (!profile.isActive) {
               return const _BlockedUserScreen();
             }
@@ -304,20 +326,20 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     );
   }
 
-  void _syncExpiredSubscriptionIfNeeded(AppUser profile) {
-    if (!profile.subscriptionActive) return;
-    final end = profile.subscriptionEndDate;
+  void _syncExpiredSubscriptionIfNeeded(BusinessProfile business) {
+    if (!business.subscriptionActive) return;
+    final end = business.subscriptionEndDate;
     if (end == null) return;
     final now = DateTime.now();
     if (!now.isAfter(end)) return;
 
-    final syncKey = '${profile.id}-${end.millisecondsSinceEpoch}';
+    final syncKey = '${business.id}-${end.millisecondsSinceEpoch}';
     if (_subscriptionSyncKeys.contains(syncKey)) return;
     _subscriptionSyncKeys.add(syncKey);
     unawaited(
       ref
           .read(firestoreServiceProvider)
-          .deactivateExpiredSubscription(profile.id)
+          .deactivateExpiredBusinessSubscription(business.id)
           .catchError((_) {
             _subscriptionSyncKeys.remove(syncKey);
           }),

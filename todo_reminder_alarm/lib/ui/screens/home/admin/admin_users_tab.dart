@@ -52,10 +52,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     final shop = TextEditingController(text: user.shopName ?? '');
     var role = user.role;
     var isActive = user.isActive;
-    var subscriptionActive = user.subscriptionActive;
-    DateTime? subscriptionStartDate = user.subscriptionStartDate;
-    DateTime? subscriptionEndDate = user.subscriptionEndDate;
-
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -106,65 +102,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   value: isActive,
                   onChanged: (v) => setLocal(() => isActive = v),
                 ),
-                const Divider(height: 20),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Subscription Active'),
-                  value: subscriptionActive,
-                  onChanged: (v) => setLocal(() => subscriptionActive = v),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Subscription Start: ${_fmtDate(subscriptionStartDate)}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: subscriptionStartDate ?? now,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(now.year + 10),
-                      );
-                      if (picked != null) {
-                        setLocal(() => subscriptionStartDate = picked);
-                      }
-                    },
-                    child: const Text('Set'),
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Subscription End: ${_fmtDate(subscriptionEndDate)}',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton(
-                        onPressed: () async {
-                          final now = DateTime.now();
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: subscriptionEndDate ?? now,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(now.year + 10),
-                          );
-                          if (picked != null) {
-                            setLocal(() => subscriptionEndDate = picked);
-                          }
-                        },
-                        child: const Text('Set'),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            setLocal(() => subscriptionEndDate = null),
-                        child: const Text('Clear'),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -187,22 +124,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                       : address.text.trim(),
                   'role': enumToString(role),
                   'isActive': isActive,
-                  'subscriptionActive': subscriptionActive,
-                  'subscriptionStartDate': subscriptionStartDate == null
-                      ? null
-                      : Timestamp.fromDate(subscriptionStartDate!),
-                  'subscriptionEndDate': subscriptionEndDate == null
-                      ? null
-                      : Timestamp.fromDate(
-                          DateTime(
-                            subscriptionEndDate!.year,
-                            subscriptionEndDate!.month,
-                            subscriptionEndDate!.day,
-                            23,
-                            59,
-                            59,
-                          ),
-                        ),
                 });
                 if (!mounted) return;
                 Navigator.of(this.context).pop();
@@ -346,7 +267,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   subtitle: Text(
                     '${user.email.isEmpty ? (user.phoneNumber ?? '-') : user.email}\n'
                     'Status: ${user.isActive ? 'Active' : 'Inactive'}\n'
-                    '${user.subscriptionActive ? 'Subscription: Active (Ends: ${_fmtDate(user.subscriptionEndDate)})' : 'Subscription: Inactive'}',
+                    'Role: ${_capitalize(user.role.name)}',
                   ),
                   isThreeLine: true,
                   onTap: () {

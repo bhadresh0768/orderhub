@@ -482,8 +482,8 @@ class FirestoreService {
     });
   }
 
-  Future<void> deactivateExpiredSubscription(String uid) async {
-    await _users.doc(uid).update({
+  Future<void> deactivateExpiredBusinessSubscription(String businessId) async {
+    await _businesses.doc(businessId).update({
       'subscriptionActive': false,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });

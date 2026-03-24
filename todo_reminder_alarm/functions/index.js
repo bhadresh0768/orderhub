@@ -156,7 +156,7 @@ exports.expireSubscriptionsDaily = onSchedule(
 
       while (true) {
         let query = db
-            .collection("users")
+            .collection("businesses")
             .where("subscriptionEndDate", "<=", now)
             .orderBy("subscriptionEndDate")
             .limit(pageSize);
@@ -170,8 +170,8 @@ exports.expireSubscriptionsDaily = onSchedule(
         const batch = db.batch();
         let batchWrites = 0;
         for (const doc of snapshot.docs) {
-          const user = doc.data();
-          if (user.subscriptionActive !== true) continue;
+          const business = doc.data();
+          if (business.subscriptionActive !== true) continue;
           batch.update(doc.ref, {
             subscriptionActive: false,
             updatedAt: FieldValue.serverTimestamp(),

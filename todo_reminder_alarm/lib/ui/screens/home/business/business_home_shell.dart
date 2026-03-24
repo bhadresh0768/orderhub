@@ -33,6 +33,26 @@ class _BusinessHomeBody extends ConsumerWidget {
 
   final AppUser profile;
 
+  String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    return '$day-$month-${local.year}';
+  }
+
+  String _subscriptionAlertText(DateTime subscriptionEndDate, DateTime now) {
+    final endDate = DateTime(
+      subscriptionEndDate.year,
+      subscriptionEndDate.month,
+      subscriptionEndDate.day,
+    );
+    final currentDate = DateTime(now.year, now.month, now.day);
+    final daysLeft = endDate.difference(currentDate).inDays;
+    final dayLabel = daysLeft == 1 ? 'day' : 'days';
+    return 'Subscription ending in $daysLeft $dayLabel '
+        'on ${_formatDate(subscriptionEndDate)}. Please renew before expiry.';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final incomingAsync = ref.watch(
@@ -72,6 +92,14 @@ class _BusinessHomeBody extends ConsumerWidget {
     final Color? newOrdersIndicatorColor = hasUpcoming
         ? Colors.red
         : (hasProcessing ? Colors.orange : null);
+    final now = DateTime.now();
+    final subscriptionEndDate = ownBusiness?.subscriptionEndDate;
+    final showSubscriptionAlert =
+        ownBusiness != null &&
+        ownBusiness.subscriptionActive &&
+        subscriptionEndDate != null &&
+        !now.isAfter(subscriptionEndDate) &&
+        !subscriptionEndDate.isAfter(now.add(const Duration(days: 30)));
 
     return DefaultTabController(
       length: 4,
@@ -105,12 +133,50 @@ class _BusinessHomeBody extends ConsumerWidget {
           incomingOrders: incomingOrders,
           outgoingOrders: outgoingAsync.value ?? const [],
         ),
-        body: TabBarView(
+        body: Column(
           children: [
-            _BusinessOrdersSection(profile: profile),
-            _PlaceOrdersTab(profile: profile, ownBusiness: ownBusiness),
-            _DeliveryTeamTab(profile: profile),
-            BusinessCatalogScreen(businessId: profile.businessId!),
+            if (showSubscriptionAlert)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade300),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red.shade700,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _subscriptionAlertText(subscriptionEndDate, now),
+                          style: TextStyle(
+                            color: Colors.red.shade800,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _BusinessOrdersSection(profile: profile),
+                  _PlaceOrdersTab(profile: profile, ownBusiness: ownBusiness),
+                  _DeliveryTeamTab(profile: profile),
+                  BusinessCatalogScreen(businessId: profile.businessId!),
+                ],
+              ),
+            ),
           ],
         ),
       ),

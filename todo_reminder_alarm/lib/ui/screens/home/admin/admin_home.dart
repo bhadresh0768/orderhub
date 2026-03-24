@@ -6,6 +6,7 @@ import 'admin_contact_us_tab.dart';
 import 'admin_businesses_tab.dart';
 import 'admin_orders_tab.dart';
 import 'admin_settings_screen.dart';
+import 'admin_subscriptions_tab.dart';
 import 'admin_support_tickets_tab.dart';
 import 'admin_users_tab.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/order_history_report_screen.dart';
@@ -25,7 +26,7 @@ class AdminHomeScreen extends ConsumerWidget {
         : ref.watch(userProfileProvider(authState.uid)).value;
     final allOrders = ref.watch(allOrdersProvider).value ?? [];
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -34,6 +35,7 @@ class AdminHomeScreen extends ConsumerWidget {
             tabs: [
               Tab(text: 'Users'),
               Tab(text: 'Businesses'),
+              Tab(text: 'Subscriptions'),
               Tab(text: 'Orders'),
               Tab(text: 'Support'),
               Tab(text: 'Contact Us'),
@@ -144,6 +146,7 @@ class AdminHomeScreen extends ConsumerWidget {
           children: [
             AdminUsersTab(),
             AdminBusinessesTab(),
+            AdminSubscriptionsTab(),
             AdminOrdersTab(),
             AdminSupportTicketsTab(),
             AdminContactUsTab(),
