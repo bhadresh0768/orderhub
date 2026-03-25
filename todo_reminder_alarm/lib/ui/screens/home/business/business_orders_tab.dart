@@ -301,7 +301,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Text(
@@ -312,6 +312,8 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                 const SizedBox(width: 8),
                 canShowActionMenu
                     ? PopupMenuButton<String>(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                         icon: Icon(
                           Icons.more_vert_rounded,
                           color: colorScheme.onSurface.withValues(alpha: 0.75),
@@ -341,7 +343,7 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
                     : const Icon(Icons.chevron_right),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             Text('Order by: $requestedBy', style: lineStyle),
             const SizedBox(height: 8),
             Text('Address: $requestedAddress', style: lineStyle),
@@ -610,13 +612,12 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       }
     } catch (e) {
       if (!context.mounted) return;
-      final message =
-          e is FirebaseException && e.code == 'permission-denied'
+      final message = e is FirebaseException && e.code == 'permission-denied'
           ? 'Permission denied. Please deploy latest Firestore rules and try again.'
           : 'Failed to update order. Please try again.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 }

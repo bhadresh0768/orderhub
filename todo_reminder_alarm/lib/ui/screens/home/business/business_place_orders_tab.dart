@@ -583,30 +583,105 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           final priorityColor = isFast
                               ? Colors.red
                               : Theme.of(context).colorScheme.onSurface;
+                          final detailStyle = Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                fontSize:
+                                    (Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium?.fontSize ??
+                                        14) +
+                                    3,
+                              );
                           final statusColor = OrderSharedHelpers.statusColor(
                             effectiveStatus,
                           );
                           return OrderCardShell(
                             isHighlighted: isFast,
-                            child: ListTile(
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        CustomerOrderDetailScreen(order: order),
-                                  ),
-                                );
-                              },
-                              title: Text(
-                                '${order.businessName} • ${OrderSharedHelpers.statusLabel(effectiveStatus)}',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      CustomerOrderDetailScreen(order: order),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                14,
+                                10,
+                                14,
                               ),
-                              subtitleTextStyle: Theme.of(
-                                context,
-                              ).textTheme.bodyLarge,
-                              subtitle: Column(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Order ${order.displayOrderNumber}'),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${order.businessName} • ${OrderSharedHelpers.statusLabel(effectiveStatus)}',
+                                          style: detailStyle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      OrderStatusChip(
+                                        label: OrderSharedHelpers.statusLabel(
+                                          effectiveStatus,
+                                        ),
+                                        backgroundColor: statusColor.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        foregroundColor: statusColor,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      PopupMenuButton<String>(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        iconSize: 20,
+                                        tooltip: canEdit
+                                            ? 'Order actions'
+                                            : 'Locked: accepted orders cannot be edited/deleted',
+                                        onSelected: (value) async {
+                                          if (value == 'edit') {
+                                            await _editPlacedOrder(
+                                              order,
+                                              businessById,
+                                            );
+                                          } else if (value == 'delete') {
+                                            await _deletePlacedOrder(order);
+                                          }
+                                        },
+                                        itemBuilder: (_) => [
+                                          const PopupMenuItem(
+                                            value: '__help__',
+                                            enabled: false,
+                                            child: Text(
+                                              'Editable only while order is New',
+                                            ),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'edit',
+                                            enabled: canEdit,
+                                            child: const Text('Edit Order'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'delete',
+                                            enabled: canEdit,
+                                            child: const Text('Delete Order'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Order ${order.displayOrderNumber}',
+                                    style: detailStyle,
+                                  ),
                                   Text.rich(
                                     TextSpan(
                                       children: [
@@ -622,64 +697,21 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                             fontWeight: isFast
                                                 ? FontWeight.w700
                                                 : FontWeight.w500,
+                                            fontSize: detailStyle?.fontSize,
                                           ),
                                         ),
                                       ],
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
-                                    'Payment: ${OrderSharedHelpers.capitalize(order.payment.status.name)} | '
+                                    'Payment: ${OrderSharedHelpers.capitalize(order.payment.status.name)}',
+                                    style: detailStyle,
+                                  ),
+                                  Text(
                                     'Delivery: ${OrderSharedHelpers.capitalize(order.delivery.status.name)}',
-                                  ),
-                                ],
-                              ),
-                              isThreeLine: true,
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  OrderStatusChip(
-                                    label: OrderSharedHelpers.statusLabel(
-                                      effectiveStatus,
-                                    ),
-                                    backgroundColor: statusColor.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    foregroundColor: statusColor,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  PopupMenuButton<String>(
-                                    tooltip: canEdit
-                                        ? 'Order actions'
-                                        : 'Locked: accepted orders cannot be edited/deleted',
-                                    onSelected: (value) async {
-                                      if (value == 'edit') {
-                                        await _editPlacedOrder(
-                                          order,
-                                          businessById,
-                                        );
-                                      } else if (value == 'delete') {
-                                        await _deletePlacedOrder(order);
-                                      }
-                                    },
-                                    itemBuilder: (_) => [
-                                      const PopupMenuItem(
-                                        value: '__help__',
-                                        enabled: false,
-                                        child: Text(
-                                          'Editable only while order is New',
-                                        ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        enabled: canEdit,
-                                        child: const Text('Edit Order'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        enabled: canEdit,
-                                        child: const Text('Delete Order'),
-                                      ),
-                                    ],
+                                    style: detailStyle,
                                   ),
                                 ],
                               ),

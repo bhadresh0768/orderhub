@@ -256,7 +256,9 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
                             'Payment ${_capitalize(currentOrder.payment.status.name)}',
                           ),
                           side: BorderSide.none,
-                          backgroundColor: Colors.orange.withValues(alpha: 0.12),
+                          backgroundColor: Colors.orange.withValues(
+                            alpha: 0.12,
+                          ),
                           labelStyle: const TextStyle(
                             color: Colors.black87,
                             fontWeight: FontWeight.w600,
@@ -338,111 +340,132 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Text('Items', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            if (includedItems.isEmpty)
-              const Text('No items included for delivery.')
-            else
-              ...includedItems.map((item) {
-                final itemImageAttachments = item.attachments
-                    .where(_isImageAttachment)
-                    .toList();
-                final lineSubtotal = (item.unitPrice ?? 0) * item.quantity;
-                final lineGst =
-                    (item.gstIncluded ?? false) &&
-                        (currentOrder.gstPercent ?? 0) > 0
-                    ? lineSubtotal * (currentOrder.gstPercent! / 100)
-                    : 0.0;
-                final lineTotal = lineSubtotal + lineGst;
-                final subtitleParts = [
-                  if ((item.note ?? '').trim().isNotEmpty) item.note!.trim(),
-                  if (item.unitPrice != null)
-                    'Price: ${_money(item.unitPrice)} • Line: ${_money(lineTotal)}',
-                ];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Items',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    if (includedItems.isEmpty)
+                      const Text('No items included for delivery.')
+                    else
+                      ...includedItems.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+                        final itemImageAttachments = item.attachments
+                            .where(_isImageAttachment)
+                            .toList();
+                        final lineSubtotal =
+                            (item.unitPrice ?? 0) * item.quantity;
+                        final lineGst =
+                            (item.gstIncluded ?? false) &&
+                                (currentOrder.gstPercent ?? 0) > 0
+                            ? lineSubtotal * (currentOrder.gstPercent! / 100)
+                            : 0.0;
+                        final lineTotal = lineSubtotal + lineGst;
+                        final subtitleParts = [
+                          if ((item.note ?? '').trim().isNotEmpty)
+                            item.note!.trim(),
+                          if (item.unitPrice != null)
+                            'Price: ${_money(item.unitPrice)} • Line: ${_money(lineTotal)}',
+                        ];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == includedItems.length - 1 ? 0 : 12,
+                          ),
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '${item.title} ${_itemQuantityLabel(item)}',
-                                style: Theme.of(context).textTheme.titleMedium,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${item.title} ${_itemQuantityLabel(item)}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    if (subtitleParts.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text(subtitleParts.join('\n')),
+                                    ],
+                                  ],
+                                ),
                               ),
-                              if (subtitleParts.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(subtitleParts.join('\n')),
+                              if (itemImageAttachments.isNotEmpty) ...[
+                                const SizedBox(width: 10),
+                                InkWell(
+                                  onTap: () => _showImageGallery(
+                                    context,
+                                    itemImageAttachments,
+                                    0,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Image.network(
+                                          itemImageAttachments.first.url,
+                                          width: 72,
+                                          height: 72,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => Container(
+                                            width: 72,
+                                            height: 72,
+                                            color: Colors.black12,
+                                            alignment: Alignment.center,
+                                            child: const Icon(
+                                              Icons
+                                                  .image_not_supported_outlined,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 5,
+                                        right: 5,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.7,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${itemImageAttachments.length}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ],
                           ),
-                        ),
-                        if (itemImageAttachments.isNotEmpty) ...[
-                          const SizedBox(width: 10),
-                          InkWell(
-                            onTap: () => _showImageGallery(
-                              context,
-                              itemImageAttachments,
-                              0,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            child: Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    itemImageAttachments.first.url,
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Container(
-                                      width: 72,
-                                      height: 72,
-                                      color: Colors.black12,
-                                      alignment: Alignment.center,
-                                      child: const Icon(
-                                        Icons.image_not_supported_outlined,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 5,
-                                  right: 5,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      '${itemImageAttachments.length}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              }),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+            ),
             if (unavailableItems.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(

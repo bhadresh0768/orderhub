@@ -53,6 +53,72 @@ class _BusinessHomeBody extends ConsumerWidget {
         'on ${_formatDate(subscriptionEndDate)}. Please renew before expiry.';
   }
 
+  Future<void> _submitRenewalRequest(
+    BuildContext context,
+    WidgetRef ref, {
+    required BusinessProfile business,
+  }) async {
+    final shouldSubmit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Renewal Request'),
+        content: Text(
+          'Send a subscription renewal request for ${business.name} to admin?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (shouldSubmit != true) return;
+
+    try {
+      final request = SubscriptionRenewalRequest(
+        id: const Uuid().v4(),
+        businessId: business.id,
+        businessName: business.name,
+        ownerId: profile.id,
+        ownerName: profile.name,
+        ownerEmail: profile.email,
+        ownerPhone: profile.phoneNumber,
+        businessCity: business.city,
+        status: 'pending',
+        subscriptionEndDate: business.subscriptionEndDate,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      await ref
+          .read(firestoreServiceProvider)
+          .createSubscriptionRenewalRequest(request);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Renewal request sent to admin successfully.'),
+        ),
+      );
+    } on FirebaseException catch (err) {
+      if (!context.mounted) return;
+      final message = err.code == 'permission-denied'
+          ? 'Renewal request could not be sent. Firestore rules for subscription renewal requests need to be deployed.'
+          : 'Failed to send renewal request: ${err.message ?? err.code}';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (err) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send renewal request: $err')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final incomingAsync = ref.watch(
@@ -155,12 +221,32 @@ class _BusinessHomeBody extends ConsumerWidget {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          _subscriptionAlertText(subscriptionEndDate, now),
-                          style: TextStyle(
-                            color: Colors.red.shade800,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _subscriptionAlertText(subscriptionEndDate, now),
+                              style: TextStyle(
+                                color: Colors.red.shade800,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton(
+                              onPressed: ownBusiness == null
+                                  ? null
+                                  : () => _submitRenewalRequest(
+                                      context,
+                                      ref,
+                                      business: ownBusiness!,
+                                    ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red.shade800,
+                                side: BorderSide(color: Colors.red.shade300),
+                              ),
+                              child: const Text('Contact Now'),
+                            ),
+                          ],
                         ),
                       ),
                     ],

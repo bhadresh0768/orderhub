@@ -16,6 +16,7 @@ import 'models/contact_us_message.dart';
 import 'models/delivery_agent.dart';
 import 'models/delivery_address.dart';
 import 'models/order.dart';
+import 'models/subscription_renewal_request.dart';
 import 'models/support_ticket.dart';
 import 'services/auth_service.dart';
 import 'services/ad_consent_service.dart';
@@ -53,10 +54,9 @@ final firebaseMessagingProvider = Provider<FirebaseMessaging>(
 );
 final appLinksProvider = Provider<AppLinks>((ref) => AppLinks());
 final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
-final adConsentProvider =
-    NotifierProvider<AdConsentController, AdConsentState>(
-      AdConsentController.new,
-    );
+final adConsentProvider = NotifierProvider<AdConsentController, AdConsentState>(
+  AdConsentController.new,
+);
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(ref.read(firebaseAuthProvider));
@@ -205,6 +205,13 @@ final allSupportTicketsProvider = StreamProvider<List<SupportTicket>>((ref) {
 final allContactUsProvider = StreamProvider<List<ContactUsMessage>>((ref) {
   return ref.read(firestoreServiceProvider).allContactUsStream();
 });
+
+final subscriptionRenewalRequestsProvider =
+    StreamProvider<List<SubscriptionRenewalRequest>>((ref) {
+      return ref
+          .read(firestoreServiceProvider)
+          .subscriptionRenewalRequestsStream();
+    });
 
 final appUpdateConfigProvider = StreamProvider<AppUpdateConfig?>((ref) {
   return ref.read(firestoreServiceProvider).appUpdateConfigStream();

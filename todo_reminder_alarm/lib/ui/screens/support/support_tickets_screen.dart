@@ -10,10 +10,10 @@ import '../../../models/order.dart';
 import '../../../providers.dart';
 import '../../../models/support_ticket.dart';
 
-final _supportTicketUiProvider =
-    StateProvider.autoDispose.family<_SupportTicketUiState, String>(
-  (ref, _) => const _SupportTicketUiState(),
-);
+final _supportTicketUiProvider = StateProvider.autoDispose
+    .family<_SupportTicketUiState, String>(
+      (ref, _) => const _SupportTicketUiState(),
+    );
 
 class _SupportTicketUiState {
   const _SupportTicketUiState({
@@ -112,9 +112,7 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
         uploaded.add(attachment);
       }
       _updateUi((state) {
-        return state.copyWith(
-          attachments: [...state.attachments, ...uploaded],
-        );
+        return state.copyWith(attachments: [...state.attachments, ...uploaded]);
       });
     } catch (err) {
       _updateUi(
@@ -159,9 +157,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Support ticket submitted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Support ticket submitted')));
     } catch (err) {
       _updateUi((state) => state.copyWith(error: 'Submit failed: $err'));
     } finally {
@@ -174,7 +172,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(_supportTicketUiProvider(_uiKey));
-    final ticketsAsync = ref.watch(supportTicketsForUserProvider(widget.user.id));
+    final ticketsAsync = ref.watch(
+      supportTicketsForUserProvider(widget.user.id),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Help & Support')),
@@ -183,170 +183,186 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Create Ticket',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<SupportIssueType>(
-                      initialValue: ui.issueType,
-                      decoration: const InputDecoration(labelText: 'Issue Type'),
-                      items: SupportIssueType.values
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(_capitalize(e.name)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        _updateUi((state) => state.copyWith(issueType: value));
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<SupportPriority>(
-                      initialValue: ui.priority,
-                      decoration: const InputDecoration(labelText: 'Priority'),
-                      items: SupportPriority.values
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(_capitalize(e.name)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        _updateUi((state) => state.copyWith(priority: value));
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _orderIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Order ID / Order Number (optional)',
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Create Ticket',
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _descriptionController,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        hintText: 'Describe the issue clearly',
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<SupportIssueType>(
+                        initialValue: ui.issueType,
+                        decoration: const InputDecoration(
+                          labelText: 'Issue Type',
+                        ),
+                        items: SupportIssueType.values
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e,
+                                child: Text(_capitalize(e.name)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          _updateUi(
+                            (state) => state.copyWith(issueType: value),
+                          );
+                        },
                       ),
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return 'Description is required';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: ui.attachments.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final attachment = entry.value;
-                        return Chip(
-                          label: Text(
-                            attachment.name,
-                            overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<SupportPriority>(
+                        initialValue: ui.priority,
+                        decoration: const InputDecoration(
+                          labelText: 'Priority',
+                        ),
+                        items: SupportPriority.values
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e,
+                                child: Text(_capitalize(e.name)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          _updateUi((state) => state.copyWith(priority: value));
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _orderIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Order ID / Order Number (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                          hintText: 'Describe the issue clearly',
+                        ),
+                        validator: (value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'Description is required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: ui.attachments.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final attachment = entry.value;
+                          return Chip(
+                            label: Text(
+                              attachment.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onDeleted: () => _updateUi((state) {
+                              final updated = List<OrderAttachment>.from(
+                                state.attachments,
+                              );
+                              updated.removeAt(index);
+                              return state.copyWith(attachments: updated);
+                            }),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: ui.uploading ? null : _pickAttachments,
+                            icon: const Icon(Icons.upload_file),
+                            label: Text(
+                              ui.uploading ? 'Uploading...' : 'Add Attachment',
+                            ),
                           ),
-                          onDeleted: () => _updateUi((state) {
-                            final updated = List<OrderAttachment>.from(
-                              state.attachments,
-                            );
-                            updated.removeAt(index);
-                            return state.copyWith(attachments: updated);
-                          }),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: ui.uploading ? null : _pickAttachments,
-                          icon: const Icon(Icons.upload_file),
-                          label: Text(
-                            ui.uploading
-                                ? 'Uploading...'
-                                : 'Add Attachment',
+                          const SizedBox(width: 8),
+                          if (ui.attachments.isNotEmpty)
+                            Text('Files: ${ui.attachments.length}'),
+                        ],
+                      ),
+                      if (ui.error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          ui.error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: ui.submitting ? null : _submitTicket,
+                          child: Text(
+                            ui.submitting ? 'Submitting...' : 'Submit Ticket',
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        if (ui.attachments.isNotEmpty)
-                          Text('Files: ${ui.attachments.length}'),
-                      ],
-                    ),
-                    if (ui.error != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        ui.error!,
-                        style: const TextStyle(color: Colors.red),
                       ),
                     ],
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: ui.submitting ? null : _submitTicket,
-                        child: Text(
-                          ui.submitting ? 'Submitting...' : 'Submit Ticket',
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text('My Tickets', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          ticketsAsync.when(
-            data: (tickets) {
-              if (tickets.isEmpty) {
-                return const Text('No support tickets yet.');
-              }
-              return Column(
-                children: tickets.map((ticket) {
-                  final created = ticket.createdAt?.toLocal().toString().split('.').first ?? '-';
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      title: Text(
-                        '${_capitalize(ticket.issueType.name)} • ${_capitalize(ticket.status.name)}',
+            const SizedBox(height: 12),
+            Text('My Tickets', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            ticketsAsync.when(
+              data: (tickets) {
+                if (tickets.isEmpty) {
+                  return const Text('No support tickets yet.');
+                }
+                return Column(
+                  children: tickets.map((ticket) {
+                    final created =
+                        ticket.createdAt
+                            ?.toLocal()
+                            .toString()
+                            .split('.')
+                            .first ??
+                        '-';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        title: Text(
+                          '${_capitalize(ticket.issueType.name)} • ${_capitalize(ticket.status.name)}',
+                        ),
+                        subtitle: Text(
+                          'Priority: ${_capitalize(ticket.priority.name)}'
+                          '${ticket.orderId == null ? '' : ' | Order: ${ticket.orderId}'}\n'
+                          '$created\n'
+                          '${ticket.description}'
+                          '${(ticket.adminNote ?? '').trim().isEmpty ? '' : '\nAdmin Note: ${ticket.adminNote!.trim()}'}',
+                        ),
                       ),
-                      subtitle: Text(
-                        'Priority: ${_capitalize(ticket.priority.name)}'
-                        '${ticket.orderId == null ? '' : ' | Order: ${ticket.orderId}'}\n'
-                        '$created\n'
-                        '${ticket.description}'
-                        '${(ticket.adminNote ?? '').trim().isEmpty ? '' : '\nAdmin Note: ${ticket.adminNote!.trim()}'}',
-                      ),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-            loading: () => const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: CircularProgressIndicator(),
+                    );
+                  }).toList(),
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    height: 28,
+                    width: 28,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ),
+              error: (err, _) => Text('Error loading tickets: $err'),
             ),
-            error: (err, _) => Text('Error loading tickets: $err'),
-          ),
           ],
         ),
       ),

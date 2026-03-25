@@ -9,6 +9,7 @@ import '../models/delivery_agent.dart';
 import '../models/delivery_address.dart';
 import '../models/enums.dart';
 import '../models/order.dart';
+import '../models/subscription_renewal_request.dart';
 import '../models/support_ticket.dart';
 
 class FirestoreService {
@@ -38,6 +39,8 @@ class FirestoreService {
       _db.collection('supportTickets');
   CollectionReference<Map<String, dynamic>> get _contactUs =>
       _db.collection('contactUs');
+  CollectionReference<Map<String, dynamic>> get _subscriptionRenewalRequests =>
+      _db.collection('subscriptionRenewalRequests');
   DocumentReference<Map<String, dynamic>> get _appUpdateConfig =>
       _db.collection('appConfig').doc('mobileUpdate');
 
@@ -167,6 +170,16 @@ class FirestoreService {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.map(ContactUsMessage.fromDoc).toList(),
+        );
+  }
+
+  Stream<List<SubscriptionRenewalRequest>> subscriptionRenewalRequestsStream() {
+    return _subscriptionRenewalRequests
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(SubscriptionRenewalRequest.fromDoc).toList(),
         );
   }
 
@@ -524,6 +537,14 @@ class FirestoreService {
     await _contactUs
         .doc(message.id)
         .set(message.toMap(), SetOptions(merge: true));
+  }
+
+  Future<void> createSubscriptionRenewalRequest(
+    SubscriptionRenewalRequest request,
+  ) async {
+    await _subscriptionRenewalRequests
+        .doc(request.businessId)
+        .set(request.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateSupportTicket(

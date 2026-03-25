@@ -336,7 +336,6 @@ class _OrderHistoryReportScreenState
                 effectiveStatus,
               );
               return OrderCardShell(
-                margin: EdgeInsets.zero,
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
