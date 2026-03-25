@@ -8,13 +8,13 @@ class PrivacyPolicyScreen extends ConsumerWidget {
   const PrivacyPolicyScreen({super.key});
 
   static final Uri _privacyPolicyUri = Uri.parse(
-    'https://creativemindapp.blogspot.com/2026/03/privacy-policy.html',
+    'https://mvapptools.blogspot.com/2026/03/privacy-policy.html',
   );
   static final Uri _termsUri = Uri.parse(
-    'https://creativemindapp.blogspot.com/2026/03/terms-conditions.html',
+    'https://mvapptools.blogspot.com/2026/03/terms-conditions.html',
   );
   static final Uri _deletionUri = Uri.parse(
-    'https://creativemindapp.blogspot.com/2026/03/data-deletion-policy.html',
+    'https://mvapptools.blogspot.com/2026/03/data-deletion-policy.html',
   );
 
   Future<void> _openExternal(BuildContext context, Uri uri) async {
@@ -38,7 +38,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('Privacy Policy'),
             subtitle: const Text(
-              'https://creativemindapp.blogspot.com/2026/03/privacy-policy.html',
+              'https://mvapptools.blogspot.com/2026/03/privacy-policy.html',
             ),
             onTap: () => _openExternal(context, _privacyPolicyUri),
           ),
@@ -46,7 +46,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
             leading: const Icon(Icons.rule_outlined),
             title: const Text('Terms & Conditions'),
             subtitle: const Text(
-              'https://creativemindapp.blogspot.com/2026/03/terms-conditions.html',
+              'https://mvapptools.blogspot.com/2026/03/terms-conditions.html',
             ),
             onTap: () => _openExternal(context, _termsUri),
           ),
@@ -54,7 +54,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
             leading: const Icon(Icons.delete_outline),
             title: const Text('Data Deletion Policy'),
             subtitle: const Text(
-              'https://creativemindapp.blogspot.com/2026/03/data-deletion-policy.html',
+              'https://mvapptools.blogspot.com/2026/03/data-deletion-policy.html',
             ),
             onTap: () => _openExternal(context, _deletionUri),
           ),
@@ -62,9 +62,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.shield_outlined),
               title: const Text('Manage Ad Privacy'),
-              subtitle: const Text(
-                'Review or update your ad consent choices',
-              ),
+              subtitle: const Text('Review or update your ad consent choices'),
               onTap: adConsent.initializing
                   ? null
                   : () async {
@@ -73,9 +71,9 @@ class PrivacyPolicyScreen extends ConsumerWidget {
                           .showPrivacyOptionsForm();
                       final error = ref.read(adConsentProvider).error;
                       if (error != null && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(error)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(error)));
                       }
                     },
             ),

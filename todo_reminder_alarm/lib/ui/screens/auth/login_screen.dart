@@ -298,249 +298,287 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final uiState = ref.watch(_loginUiProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
       body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              margin: const EdgeInsets.all(16),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Welcome Back',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 16),
-                    if (uiState.error != null) ...[
-                      Text(
-                        uiState.error!,
-                        style: const TextStyle(color: Colors.red),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - 48,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/images/app_logo.png',
+                        height: 108,
+                        fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (kIsWeb)
-                      SegmentedButton<bool>(
-                        segments: const [
-                          ButtonSegment<bool>(
-                            value: false,
-                            label: Text('Email'),
-                          ),
-                          ButtonSegment<bool>(
-                            value: true,
-                            label: Text('Mobile OTP'),
-                          ),
-                        ],
-                        selected: {uiState.usePhoneLogin},
-                        onSelectionChanged: (selection) {
-                          final usePhone = selection.first;
-                          _otpController.clear();
-                          _updateUi(
-                            (state) => state.copyWith(
-                              usePhoneLogin: usePhone,
-                              error: null,
-                              otpSent: false,
-                              verificationId: null,
-                              webConfirmationResult: null,
-                            ),
-                          );
-                        },
-                      ),
-                    const SizedBox(height: 16),
-                    if (!uiState.usePhoneLogin)
-                      Form(
-                        key: _emailFormKey,
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
+                      const SizedBox(height: 32),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Welcome Back',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineMedium,
                               ),
-                              validator: (value) =>
-                                  value == null || value.isEmpty
-                                  ? 'Enter your email'
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _passwordController,
-                              decoration: const InputDecoration(
-                                labelText: 'Password',
-                              ),
-                              obscureText: true,
-                              validator: (value) =>
-                                  value == null || value.isEmpty
-                                  ? 'Enter your password'
-                                  : null,
-                            ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed: uiState.loading
-                                    ? null
-                                    : _submitEmailLogin,
-                                child: uiState.loading
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text('Login'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Form(
-                        key: _phoneFormKey,
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 132,
-                                  child: InkWell(
-                                    onTap: () {
-                                      showCountryPicker(
-                                        context: context,
-                                        showPhoneCode: true,
-                                        onSelect: (country) {
-                                          _updateUi(
-                                            (state) => state.copyWith(
-                                              selectedCountry: country,
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                    child: InputDecorator(
-                                      decoration: const InputDecoration(
-                                        labelText: 'Code',
-                                      ),
-                                      child: Text(
-                                        '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _phoneController,
-                                    keyboardType: TextInputType.phone,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Mobile Number',
-                                      hintText: '9876543210',
-                                    ),
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty) {
-                                        return 'Enter mobile number';
-                                      }
-                                      final normalized = _normalizePhoneNumber(
-                                        value,
-                                      );
-                                      if (!normalized.startsWith('+') ||
-                                          normalized.length < 8) {
-                                        return 'Enter valid mobile number';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (uiState.otpSent) ...[
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _otpController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'OTP Code',
-                                ),
-                                validator: (value) {
-                                  if (!uiState.otpSent) return null;
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Enter OTP';
-                                  }
-                                  if (value.trim().length < 6) {
-                                    return 'OTP must be 6 digits';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
-                            const SizedBox(height: 20),
-                            if (uiState.otpRequesting) ...[
-                              const LinearProgressIndicator(minHeight: 3),
-                              const SizedBox(height: 8),
-                              const Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text('Sending OTP...'),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed:
-                                    (uiState.loading || uiState.otpRequesting)
-                                    ? null
-                                    : (uiState.otpSent ? _verifyOtp : _sendOtp),
-                                child: uiState.loading
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : uiState.otpRequesting
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Text(
-                                        uiState.otpSent
-                                            ? 'Verify OTP'
-                                            : 'Send OTP',
-                                      ),
-                              ),
-                            ),
-                            if (uiState.otpSent) ...[
-                              const SizedBox(height: 8),
-                              TextButton(
-                                onPressed:
-                                    (uiState.loading ||
-                                        uiState.otpRequesting ||
-                                        uiState.resendCooldownSeconds > 0)
-                                    ? null
-                                    : _sendOtp,
-                                child: const Text('Resend OTP'),
-                              ),
-                              if (uiState.resendCooldownSeconds > 0)
+                              const SizedBox(height: 16),
+                              if (uiState.error != null) ...[
                                 Text(
-                                  'Resend in ${uiState.resendCooldownSeconds}s',
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  uiState.error!,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              if (kIsWeb)
+                                SegmentedButton<bool>(
+                                  segments: const [
+                                    ButtonSegment<bool>(
+                                      value: false,
+                                      label: Text('Email'),
+                                    ),
+                                    ButtonSegment<bool>(
+                                      value: true,
+                                      label: Text('Mobile OTP'),
+                                    ),
+                                  ],
+                                  selected: {uiState.usePhoneLogin},
+                                  onSelectionChanged: (selection) {
+                                    final usePhone = selection.first;
+                                    _otpController.clear();
+                                    _updateUi(
+                                      (state) => state.copyWith(
+                                        usePhoneLogin: usePhone,
+                                        error: null,
+                                        otpSent: false,
+                                        verificationId: null,
+                                        webConfirmationResult: null,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              const SizedBox(height: 16),
+                              if (!uiState.usePhoneLogin)
+                                Form(
+                                  key: _emailFormKey,
+                                  child: Column(
+                                    children: [
+                                      TextFormField(
+                                        controller: _emailController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Email',
+                                        ),
+                                        validator: (value) =>
+                                            value == null || value.isEmpty
+                                            ? 'Enter your email'
+                                            : null,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      TextFormField(
+                                        controller: _passwordController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Password',
+                                        ),
+                                        obscureText: true,
+                                        validator: (value) =>
+                                            value == null || value.isEmpty
+                                            ? 'Enter your password'
+                                            : null,
+                                      ),
+                                      const SizedBox(height: 20),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton(
+                                          onPressed: uiState.loading
+                                              ? null
+                                              : _submitEmailLogin,
+                                          child: uiState.loading
+                                              ? const SizedBox(
+                                                  height: 18,
+                                                  width: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Text('Login'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Form(
+                                  key: _phoneFormKey,
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 132,
+                                            child: InkWell(
+                                              onTap: () {
+                                                showCountryPicker(
+                                                  context: context,
+                                                  showPhoneCode: true,
+                                                  onSelect: (country) {
+                                                    _updateUi(
+                                                      (state) => state.copyWith(
+                                                        selectedCountry:
+                                                            country,
+                                                      ),
+                                                    );
+                                                  },
+                                                );
+                                              },
+                                              child: InputDecorator(
+                                                decoration:
+                                                    const InputDecoration(
+                                                      labelText: 'Code',
+                                                    ),
+                                                child: Text(
+                                                  '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: _phoneController,
+                                              keyboardType: TextInputType.phone,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Mobile Number',
+                                                hintText: '9876543210',
+                                              ),
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'Enter mobile number';
+                                                }
+                                                final normalized =
+                                                    _normalizePhoneNumber(
+                                                      value,
+                                                    );
+                                                if (!normalized.startsWith(
+                                                      '+',
+                                                    ) ||
+                                                    normalized.length < 8) {
+                                                  return 'Enter valid mobile number';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (uiState.otpSent) ...[
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _otpController,
+                                          keyboardType: TextInputType.number,
+                                          decoration: const InputDecoration(
+                                            labelText: 'OTP Code',
+                                          ),
+                                          validator: (value) {
+                                            if (!uiState.otpSent) return null;
+                                            if (value == null ||
+                                                value.trim().isEmpty) {
+                                              return 'Enter OTP';
+                                            }
+                                            if (value.trim().length < 6) {
+                                              return 'OTP must be 6 digits';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ],
+                                      const SizedBox(height: 20),
+                                      if (uiState.otpRequesting) ...[
+                                        const LinearProgressIndicator(
+                                          minHeight: 3,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Text('Sending OTP...'),
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton(
+                                          onPressed:
+                                              (uiState.loading ||
+                                                  uiState.otpRequesting)
+                                              ? null
+                                              : (uiState.otpSent
+                                                    ? _verifyOtp
+                                                    : _sendOtp),
+                                          child: uiState.loading
+                                              ? const SizedBox(
+                                                  height: 18,
+                                                  width: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : uiState.otpRequesting
+                                              ? const SizedBox(
+                                                  height: 18,
+                                                  width: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : Text(
+                                                  uiState.otpSent
+                                                      ? 'Verify OTP'
+                                                      : 'Send OTP',
+                                                ),
+                                        ),
+                                      ),
+                                      if (uiState.otpSent) ...[
+                                        const SizedBox(height: 8),
+                                        TextButton(
+                                          onPressed:
+                                              (uiState.loading ||
+                                                  uiState.otpRequesting ||
+                                                  uiState.resendCooldownSeconds >
+                                                      0)
+                                              ? null
+                                              : _sendOtp,
+                                          child: const Text('Resend OTP'),
+                                        ),
+                                        if (uiState.resendCooldownSeconds > 0)
+                                          Text(
+                                            'Resend in ${uiState.resendCooldownSeconds}s',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                             ],
-                          ],
+                          ),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
