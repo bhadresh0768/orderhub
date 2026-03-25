@@ -178,7 +178,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(_placeOrdersUiProvider(_uiKey));
-    final businessesAsync = ref.watch(businessesProvider);
+    final businessesAsync = ref.watch(approvedBusinessesProvider);
     final businessById = {
       for (final business
           in businessesAsync.asData?.value ?? const <BusinessProfile>[])
@@ -206,9 +206,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                   data: (businesses) {
                     final options = businesses
                         .where(
-                          (business) =>
-                              business.id != widget.profile.businessId &&
-                              business.status != BusinessStatus.suspended,
+                          (business) => business.id != widget.profile.businessId,
                         )
                         .toList();
                     final categories = <String>{

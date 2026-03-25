@@ -1,9 +1,8 @@
 part of 'customer_home.dart';
 
 class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
-  void _onOrderPlaced(String? orderLabel) {
+  void _onOrderPlaced(String? orderLabel, TabController tabController) {
     if (orderLabel == null || !mounted) return;
-    final tabController = DefaultTabController.of(context);
     tabController.animateTo(1);
     ScaffoldMessenger.of(
       context,
@@ -215,8 +214,8 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
 
   @override
   Widget build(BuildContext context) {
-    // Show all stores by default; search/filters are applied client-side.
-    final businessesAsync = ref.watch(businessesProvider);
+    // Show only approved stores; search/filters are applied client-side.
+    final businessesAsync = ref.watch(approvedBusinessesProvider);
     final ordersAsync = ref.watch(ordersForCustomerProvider(widget.profile.id));
 
     return Scaffold(
@@ -235,7 +234,12 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildStoresTab(businessesAsync),
+                  Builder(
+                    builder: (tabContext) => _buildStoresTab(
+                      businessesAsync,
+                      DefaultTabController.of(tabContext),
+                    ),
+                  ),
                   _buildOrdersTab(ordersAsync),
                 ],
               ),
@@ -347,7 +351,10 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     );
   }
 
-  Widget _buildStoresTab(AsyncValue<List<BusinessProfile>> businessesAsync) {
+  Widget _buildStoresTab(
+    AsyncValue<List<BusinessProfile>> businessesAsync,
+    TabController tabController,
+  ) {
     final storeSearch = ref.watch(_customerStoreSearchProvider);
     final categoryFilter = ref.watch(_customerCategoryFilterProvider);
     final cityFilter = ref.watch(_customerCityFilterProvider);
@@ -540,7 +547,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                                         ),
                                       ),
                                     );
-                                _onOrderPlaced(orderId);
+                                _onOrderPlaced(orderId, tabController);
                               },
                               child: const Text('Create Order'),
                             ),
@@ -558,7 +565,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                                         ),
                                       ),
                                     );
-                                _onOrderPlaced(orderId);
+                                _onOrderPlaced(orderId, tabController);
                               },
                               child: const Text('Catalog'),
                             ),
