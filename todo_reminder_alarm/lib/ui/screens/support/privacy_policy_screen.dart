@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class PrivacyPolicyScreen extends StatelessWidget {
+import '../../../providers.dart';
+
+class PrivacyPolicyScreen extends ConsumerWidget {
   const PrivacyPolicyScreen({super.key});
 
   static final Uri _privacyPolicyUri = Uri.parse(
@@ -24,7 +27,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final adConsent = ref.watch(adConsentProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Privacy Policy')),
       body: ListView(
@@ -53,6 +58,27 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             onTap: () => _openExternal(context, _deletionUri),
           ),
+          if (adConsent.privacyOptionsRequired)
+            ListTile(
+              leading: const Icon(Icons.shield_outlined),
+              title: const Text('Manage Ad Privacy'),
+              subtitle: const Text(
+                'Review or update your ad consent choices',
+              ),
+              onTap: adConsent.initializing
+                  ? null
+                  : () async {
+                      await ref
+                          .read(adConsentProvider.notifier)
+                          .showPrivacyOptionsForm();
+                      final error = ref.read(adConsentProvider).error;
+                      if (error != null && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error)),
+                        );
+                      }
+                    },
+            ),
         ],
       ),
     );

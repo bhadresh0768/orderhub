@@ -427,8 +427,6 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     try {
       final picked = await _imagePicker.pickImage(
         source: source,
-        imageQuality: 75,
-        maxWidth: 1800,
       );
       if (picked == null) return;
       final Uint8List bytes = await picked.readAsBytes();
@@ -473,8 +471,6 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     );
     try {
       final picked = await _imagePicker.pickMultiImage(
-        imageQuality: 75,
-        maxWidth: 1800,
       );
       if (picked.isEmpty) return;
       for (final image in picked) {

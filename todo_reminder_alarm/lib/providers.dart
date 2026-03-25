@@ -18,6 +18,7 @@ import 'models/delivery_address.dart';
 import 'models/order.dart';
 import 'models/support_ticket.dart';
 import 'services/auth_service.dart';
+import 'services/ad_consent_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/firestore_service.dart';
 import 'services/item_catalog_service.dart';
@@ -52,6 +53,10 @@ final firebaseMessagingProvider = Provider<FirebaseMessaging>(
 );
 final appLinksProvider = Provider<AppLinks>((ref) => AppLinks());
 final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
+final adConsentProvider =
+    NotifierProvider<AdConsentController, AdConsentState>(
+      AdConsentController.new,
+    );
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(ref.read(firebaseAuthProvider));

@@ -52,6 +52,8 @@
 	<string>Allow camera access to capture item reference photos for orders.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Allow photo library access to attach item reference photos for orders.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>We use your device identifier to support relevant ads and measure ad performance.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

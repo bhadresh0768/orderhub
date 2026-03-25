@@ -24,14 +24,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     return value[0].toUpperCase() + value.substring(1);
   }
 
-  String _fmtDate(DateTime? date) {
-    if (date == null) return '-';
-    final d = date.toLocal();
-    final mm = d.month.toString().padLeft(2, '0');
-    final dd = d.day.toString().padLeft(2, '0');
-    return '${d.year}-$mm-$dd';
-  }
-
   @override
   void initState() {
     super.initState();

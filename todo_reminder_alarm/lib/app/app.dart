@@ -59,7 +59,9 @@ class _InternetStatusOverlay extends ConsumerWidget {
     final isOnline = internetAsync.value ?? true;
     final showAds = ref.watch(showAdsProvider);
     final authUser = ref.watch(authStateProvider).value;
-    final showGlobalBanner = showAds && authUser != null;
+    final adConsent = ref.watch(adConsentProvider);
+    final showGlobalBanner =
+        showAds && authUser != null && adConsent.canRequestAds;
     return Stack(
       children: [
         Padding(
@@ -228,6 +230,12 @@ class _AuthGateState extends ConsumerState<AuthGate> {
   String? _pendingBusinessId;
   bool _openingDeepLink = false;
   final Set<String> _subscriptionSyncKeys = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(adConsentProvider.notifier).initialize());
+  }
 
   void _startDeepLinkListener() {
     if (_deepLinkStarted) return;
