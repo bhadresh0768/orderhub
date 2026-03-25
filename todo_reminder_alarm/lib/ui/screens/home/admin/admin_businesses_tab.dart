@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +5,7 @@ import 'package:todo_reminder_alarm/models/business.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'admin_business_detail_screen.dart';
+import 'admin_edit_dialogs.dart';
 import 'admin_home_state.dart';
 
 class AdminBusinessesTab extends ConsumerStatefulWidget {
@@ -18,11 +18,6 @@ class AdminBusinessesTab extends ConsumerStatefulWidget {
 class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
   final _searchController = TextEditingController();
   static const _searchKey = 'businesses';
-
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return value[0].toUpperCase() + value.substring(1);
-  }
 
   String _fmtDate(DateTime? date) {
     if (date == null) return '-';
@@ -54,236 +49,6 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
     super.dispose();
   }
 
-  Future<void> _showBusinessDialog({BusinessProfile? business}) async {
-    final name = TextEditingController(text: business?.name ?? '');
-    final category = TextEditingController(text: business?.category ?? '');
-    final city = TextEditingController(text: business?.city ?? '');
-    final address = TextEditingController(text: business?.address ?? '');
-    final phone = TextEditingController(text: business?.phone ?? '');
-    final gst = TextEditingController(text: business?.gstNumber ?? '');
-    final owner = TextEditingController(text: business?.ownerId ?? '');
-    var status = business?.status ?? BusinessStatus.pending;
-    var subscriptionActive = business?.subscriptionActive ?? false;
-    DateTime? subscriptionStartDate = business?.subscriptionStartDate;
-    DateTime? subscriptionEndDate = business?.subscriptionEndDate;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: Text(business == null ? 'Add Business' : 'Edit Business'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Business Name'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: category,
-                  decoration: const InputDecoration(labelText: 'Category'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: city,
-                  decoration: const InputDecoration(labelText: 'City'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: address,
-                  decoration: const InputDecoration(labelText: 'Address'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: phone,
-                  decoration: const InputDecoration(labelText: 'Phone'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: gst,
-                  decoration: const InputDecoration(
-                    labelText: 'Business Unique No',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: owner,
-                  decoration: const InputDecoration(labelText: 'Owner UID'),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<BusinessStatus>(
-                  initialValue: status,
-                  items: BusinessStatus.values
-                      .map(
-                        (e) => DropdownMenuItem(
-                          value: e,
-                          child: Text(_capitalize(e.name)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setLocal(() => status = v ?? status),
-                  decoration: const InputDecoration(labelText: 'Status'),
-                ),
-                const Divider(height: 20),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Subscription Active'),
-                  value: subscriptionActive,
-                  onChanged: (v) => setLocal(() => subscriptionActive = v),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Subscription Start: ${_fmtDate(subscriptionStartDate)}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: subscriptionStartDate ?? now,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(now.year + 10),
-                      );
-                      if (picked != null) {
-                        setLocal(() => subscriptionStartDate = picked);
-                      }
-                    },
-                    child: const Text('Set'),
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Subscription End: ${_fmtDate(subscriptionEndDate)}',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton(
-                        onPressed: () async {
-                          final now = DateTime.now();
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: subscriptionEndDate ?? now,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(now.year + 10),
-                          );
-                          if (picked != null) {
-                            setLocal(() => subscriptionEndDate = picked);
-                          }
-                        },
-                        child: const Text('Set'),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            setLocal(() => subscriptionEndDate = null),
-                        child: const Text('Clear'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final nameText = name.text.trim();
-                final categoryText = category.text.trim();
-                final cityText = city.text.trim();
-                final ownerText = owner.text.trim();
-                final addressText = address.text.trim();
-                final phoneText = phone.text.trim();
-                final gstText = gst.text.trim();
-                final normalizedSubscriptionEndDate = subscriptionEndDate == null
-                    ? null
-                    : DateTime(
-                        subscriptionEndDate!.year,
-                        subscriptionEndDate!.month,
-                        subscriptionEndDate!.day,
-                        23,
-                        59,
-                        59,
-                      );
-                final data = {
-                  'name': nameText,
-                  'category': categoryText,
-                  'city': cityText,
-                  'address': addressText.isEmpty ? null : addressText,
-                  'phone': phoneText.isEmpty ? null : phoneText,
-                  'gstNumber': gstText.isEmpty ? null : gstText,
-                  'ownerId': ownerText,
-                  'status': enumToString(status),
-                  'subscriptionActive': subscriptionActive,
-                  'subscriptionStartDate': subscriptionStartDate == null
-                      ? null
-                      : Timestamp.fromDate(subscriptionStartDate!),
-                  'subscriptionEndDate': subscriptionEndDate == null
-                      ? null
-                      : Timestamp.fromDate(
-                          DateTime(
-                            subscriptionEndDate!.year,
-                            subscriptionEndDate!.month,
-                            subscriptionEndDate!.day,
-                            23,
-                            59,
-                            59,
-                          ),
-                        ),
-                };
-                if (business == null) {
-                  final id = ref
-                      .read(firestoreProvider)
-                      .collection('businesses')
-                      .doc()
-                      .id;
-                  await ref.read(firestoreServiceProvider).createBusiness(
-                    BusinessProfile(
-                      id: id,
-                      name: nameText,
-                      category: categoryText,
-                      ownerId: ownerText,
-                      city: cityText,
-                      address: addressText.isEmpty ? null : addressText,
-                      phone: phoneText.isEmpty ? null : phoneText,
-                      gstNumber: gstText.isEmpty ? null : gstText,
-                      status: status,
-                      subscriptionActive: subscriptionActive,
-                      subscriptionStartDate: subscriptionStartDate,
-                      subscriptionEndDate: normalizedSubscriptionEndDate,
-                      createdAt: DateTime.now(),
-                    ),
-                  );
-                } else {
-                  await ref
-                      .read(firestoreServiceProvider)
-                      .updateBusiness(business.id, data);
-                }
-                if (!mounted) return;
-                Navigator.of(this.context).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-    name.dispose();
-    category.dispose();
-    city.dispose();
-    address.dispose();
-    phone.dispose();
-    gst.dispose();
-    owner.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final search = ref.watch(adminSearchProvider(_searchKey));
@@ -293,22 +58,23 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
       data: (businesses) {
         return ordersAsync.when(
           data: (orders) {
-            final totalByBusiness = <String, int>{};
             final completedByBusiness = <String, int>{};
-            final userCreatedByBusiness = <String, int>{};
+            final pendingByBusiness = <String, int>{};
+            final processingByBusiness = <String, int>{};
             for (final order in orders) {
-              totalByBusiness[order.businessId] =
-                  (totalByBusiness[order.businessId] ?? 0) + 1;
-              final isCompleted =
-                  order.delivery.status == DeliveryStatus.delivered ||
-                  order.status == OrderStatus.completed;
-              if (isCompleted) {
-                completedByBusiness[order.businessId] =
-                    (completedByBusiness[order.businessId] ?? 0) + 1;
-              }
-              if (order.requesterType == OrderRequesterType.customer) {
-                userCreatedByBusiness[order.businessId] =
-                    (userCreatedByBusiness[order.businessId] ?? 0) + 1;
+              switch (order.status) {
+                case OrderStatus.pending:
+                  pendingByBusiness[order.businessId] =
+                      (pendingByBusiness[order.businessId] ?? 0) + 1;
+                case OrderStatus.approved:
+                case OrderStatus.inProgress:
+                  processingByBusiness[order.businessId] =
+                      (processingByBusiness[order.businessId] ?? 0) + 1;
+                case OrderStatus.completed:
+                  completedByBusiness[order.businessId] =
+                      (completedByBusiness[order.businessId] ?? 0) + 1;
+                case OrderStatus.cancelled:
+                  break;
               }
             }
 
@@ -340,7 +106,7 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                     ),
                     const SizedBox(width: 8),
                     FilledButton.icon(
-                      onPressed: () => _showBusinessDialog(),
+                      onPressed: () => showAdminBusinessDialog(context, ref),
                       icon: const Icon(Icons.add),
                       label: const Text('Add'),
                     ),
@@ -348,9 +114,9 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                 ),
                 const SizedBox(height: 12),
                 ...filtered.map((business) {
-                  final total = totalByBusiness[business.id] ?? 0;
                   final completed = completedByBusiness[business.id] ?? 0;
-                  final userCreated = userCreatedByBusiness[business.id] ?? 0;
+                  final pending = pendingByBusiness[business.id] ?? 0;
+                  final processing = processingByBusiness[business.id] ?? 0;
                   final now = DateTime.now();
                   final subscriptionEndDate = business.subscriptionEndDate;
                   final showSubscriptionAlert =
@@ -371,13 +137,31 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                         );
                       },
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    width: 56,
+                                    height: 56,
+                                    color: Colors.black12,
+                                    child: (business.logoUrl?.trim().isNotEmpty ??
+                                            false)
+                                        ? Image.network(
+                                            business.logoUrl!.trim(),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) =>
+                                                const Icon(Icons.storefront),
+                                          )
+                                        : const Icon(Icons.storefront),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,40 +170,48 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
                                         business.name,
                                         style: Theme.of(
                                           context,
-                                        ).textTheme.titleMedium,
+                                        ).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '${business.category} • ${business.city}\n'
-                                        'Status: ${_capitalize(business.status.name)}\n'
-                                        '${business.subscriptionActive ? 'Subscription: Active (Ends: ${_fmtDate(business.subscriptionEndDate)})' : 'Subscription: Inactive'}\n'
-                                        'Completed Orders: $completed • Created by Users: $userCreated • Total: $total',
+                                        business.category,
+                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        (business.address ?? '').trim().isEmpty
+                                            ? business.city
+                                            : business.address!.trim(),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
                                   ),
                                 ),
-                                PopupMenuButton<String>(
-                                  onSelected: (value) async {
-                                    if (value == 'edit') {
-                                      await _showBusinessDialog(
-                                        business: business,
-                                      );
-                                    } else if (value == 'delete') {
-                                      await ref
-                                          .read(firestoreServiceProvider)
-                                          .deleteBusiness(business.id);
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _statusChip(
+                                  context,
+                                  label: 'Pending',
+                                  count: pending,
+                                ),
+                                _statusChip(
+                                  context,
+                                  label: 'Processing',
+                                  count: processing,
+                                ),
+                                _statusChip(
+                                  context,
+                                  label: 'Completed',
+                                  count: completed,
                                 ),
                               ],
                             ),
@@ -461,6 +253,28 @@ class _AdminBusinessesTabState extends ConsumerState<AdminBusinessesTab> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, _) =>
           const Center(child: Text('Something went wrong. Please retry.')),
+    );
+  }
+
+  Widget _statusChip(
+    BuildContext context, {
+    required String label,
+    required int count,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(
+          '$label: $count',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -10,6 +10,7 @@ import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
+import 'admin_edit_dialogs.dart';
 
 enum _AdminBusinessDateFilter {
   all,
@@ -141,30 +142,49 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ownerAsync = ref.watch(userProfileProvider(business.ownerId));
+    final businessAsync = ref.watch(businessByIdProvider(business.id));
+    final currentBusiness = businessAsync.value ?? business;
+    final ownerAsync = ref.watch(userProfileProvider(currentBusiness.ownerId));
     final statusFilter = ref.watch(
-      _adminBusinessStatusFilterProvider(business.id),
+      _adminBusinessStatusFilterProvider(currentBusiness.id),
     );
-    final dateFilter = ref.watch(_adminBusinessDateFilterProvider(business.id));
-    final fromDate = ref.watch(_adminBusinessFromDateProvider(business.id));
-    final toDate = ref.watch(_adminBusinessToDateProvider(business.id));
+    final dateFilter = ref.watch(
+      _adminBusinessDateFilterProvider(currentBusiness.id),
+    );
+    final fromDate = ref.watch(
+      _adminBusinessFromDateProvider(currentBusiness.id),
+    );
+    final toDate = ref.watch(_adminBusinessToDateProvider(currentBusiness.id));
     final ordersAsync = ref.watch(allOrdersProvider);
     final agentsAsync = ref.watch(
-      deliveryAgentsForBusinessProvider(business.id),
+      deliveryAgentsForBusinessProvider(currentBusiness.id),
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text('${business.name} Details')),
-      body: DefaultTabController(
-        length: 2,
-        child: SafeArea(
-          top: false,
+      appBar: AppBar(
+        title: Text('${currentBusiness.name} Details'),
+        actions: [
+          IconButton(
+            onPressed: () => showAdminBusinessDialog(
+              context,
+              ref,
+              business: currentBusiness,
+            ),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit',
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: DefaultTabController(
+          length: 2,
           child: ordersAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (err, _) => Center(child: Text('Error: $err')),
             data: (orders) {
               final businessOrders = orders
-                  .where((order) => order.businessId == business.id)
+                  .where((order) => order.businessId == currentBusiness.id)
                   .toList();
               final filteredOrders =
                   businessOrders.where((order) {
@@ -197,62 +217,57 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                   .where((o) => o.status == OrderStatus.completed)
                   .length;
 
-              return Column(
-                children: [
-                  Expanded(
-                    child: ListView(
+              return NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                  SliverToBoxAdapter(
+                    child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      children: [
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildBusinessLogo(),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildBusinessInfo(
-                                    context,
-                                    ownerAsync,
-                                    businessOrders.length,
-                                    filteredOrders.length,
-                                    pendingCount,
-                                    processingCount,
-                                    completedCount,
-                                  ),
-                                ),
-                              ],
-                            ),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: _buildBusinessProfileCard(
+                            context,
+                            currentBusiness,
+                            ownerAsync,
+                            businessOrders.length,
+                            filteredOrders.length,
+                            pendingCount,
+                            processingCount,
+                            completedCount,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        const TabBar(
+                      ),
+                    ),
+                  ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _AdminTabBarHeaderDelegate(
+                      child: Container(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: const TabBar(
                           tabs: [
                             Tab(text: 'Orders'),
                             Tab(text: 'Delivery Agents'),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: TabBarView(
-                      children: [
-                        _buildOrdersTab(
-                          context,
-                          ref,
-                          filteredOrders,
-                          dateFilter,
-                          fromDate,
-                          toDate,
-                        ),
-                        _buildAgentsTab(agentsAsync),
-                      ],
+                      ),
                     ),
                   ),
                 ],
+                body: TabBarView(
+                  children: [
+                    _buildOrdersTab(
+                      context,
+                      ref,
+                      filteredOrders,
+                      dateFilter,
+                      fromDate,
+                      toDate,
+                    ),
+                    _buildAgentsTab(agentsAsync),
+                  ],
+                ),
               );
             },
           ),
@@ -261,29 +276,9 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBusinessLogo() {
-    final logo = business.logoUrl?.trim();
-    final hasLogo = logo != null && logo.isNotEmpty;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 72,
-        height: 72,
-        color: Colors.black12,
-        child: hasLogo
-            ? Image.network(
-                logo,
-                fit: BoxFit.cover,
-                errorBuilder: (_, error, stackTrace) =>
-                    const Icon(Icons.storefront, size: 34),
-              )
-            : const Icon(Icons.storefront, size: 34),
-      ),
-    );
-  }
-
-  Widget _buildBusinessInfo(
+  Widget _buildBusinessProfileCard(
     BuildContext context,
+    BusinessProfile business,
     AsyncValue<AppUser?> ownerAsync,
     int totalOrders,
     int filteredOrders,
@@ -307,96 +302,138 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     final businessUnique = (business.gstNumber ?? '').trim().isEmpty
         ? '-'
         : business.gstNumber!.trim();
+    final fields = <MapEntry<String, String>>[
+      MapEntry('Owner Name', ownerName),
+      MapEntry('Owner Mobile', ownerPhone),
+      MapEntry('Owner Email', ownerEmail),
+      MapEntry(
+        'Owner Registration Date',
+        owner?.createdAt == null ? '-' : _formatDateTime(owner!.createdAt!),
+      ),
+      MapEntry('Business Name', business.name),
+      MapEntry('Category', business.category),
+      MapEntry('City', business.city.isEmpty ? '-' : business.city),
+      MapEntry(
+        'Address',
+        (business.address ?? '').trim().isEmpty ? '-' : business.address!.trim(),
+      ),
+      MapEntry('Business Mobile', businessPhone),
+      MapEntry('Business Unique No', businessUnique),
+      MapEntry('Status', _capitalize(business.status.name)),
+      MapEntry(
+        'Business Registration Date',
+        business.createdAt == null ? '-' : _formatDateTime(business.createdAt!),
+      ),
+      MapEntry('Total Orders', '$totalOrders'),
+      MapEntry('Filtered Orders', '$filteredOrders'),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          business.name,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _infoTile(context, 'Owner Name', ownerName),
-            _infoTile(context, 'Owner Mobile', ownerPhone),
-            _infoTile(context, 'Owner Email', ownerEmail),
-            _infoTile(
-              context,
-              'Owner Registration Date',
-              owner?.createdAt == null
-                  ? '-'
-                  : _formatDateTime(owner!.createdAt!),
+            _buildBusinessLogoFor(business),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    business.name,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${business.category} • ${business.city}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pending: $pendingCount • Processing: $processingCount • Completed: $completedCount',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
             ),
-            _infoTile(context, 'Business Name', business.name),
-            _infoTile(context, 'Category', business.category),
-            _infoTile(
-              context,
-              'City',
-              business.city.isEmpty ? '-' : business.city,
-            ),
-            _infoTile(
-              context,
-              'Address',
-              (business.address ?? '').trim().isEmpty
-                  ? '-'
-                  : business.address!.trim(),
-            ),
-            _infoTile(context, 'Business Mobile', businessPhone),
-            _infoTile(context, 'Business Unique No', businessUnique),
-            _infoTile(context, 'Status', _capitalize(business.status.name)),
-            _infoTile(
-              context,
-              'Business Registration Date',
-              business.createdAt == null
-                  ? '-'
-                  : _formatDateTime(business.createdAt!),
-            ),
-            _infoTile(context, 'Total Orders', '$totalOrders'),
-            _infoTile(context, 'Filtered Orders', '$filteredOrders'),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Pending: $pendingCount • Processing: $processingCount • Completed: $completedCount',
-        ),
+        const SizedBox(height: 16),
+        _buildInfoGrid(context, fields),
       ],
     );
   }
 
+  Widget _buildBusinessLogoFor(BusinessProfile business) {
+    final logo = business.logoUrl?.trim();
+    final hasLogo = logo != null && logo.isNotEmpty;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 72,
+        height: 72,
+        color: Colors.black12,
+        child: hasLogo
+            ? Image.network(
+                logo,
+                fit: BoxFit.cover,
+                errorBuilder: (_, error, stackTrace) =>
+                    const Icon(Icons.storefront, size: 34),
+              )
+            : const Icon(Icons.storefront, size: 34),
+      ),
+    );
+  }
+
+  Widget _buildInfoGrid(
+    BuildContext context,
+    List<MapEntry<String, String>> fields,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
+        final itemWidth = isWide
+            ? (constraints.maxWidth - 12) / 2
+            : constraints.maxWidth;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: fields
+              .map(
+                (field) => SizedBox(
+                  width: itemWidth,
+                  child: _infoTile(context, field.key, field.value),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
   Widget _infoTile(BuildContext context, String label, String value) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final width = (screenWidth - 16 - 16 - 24 - 10) / 2;
-    return SizedBox(
-      width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.black54),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            ),
+            const SizedBox(height: 4),
+            Text(value, style: Theme.of(context).textTheme.bodyMedium),
+          ],
         ),
       ),
     );
@@ -411,7 +448,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     DateTime? toDate,
   ) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
         Row(
           children: [
@@ -579,7 +616,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
 
   Widget _buildAgentsTab(AsyncValue<List<DeliveryAgent>> agentsAsync) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
         agentsAsync.when(
           loading: () => const Padding(
@@ -620,5 +657,31 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+class _AdminTabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _AdminTabBarHeaderDelegate({required this.child});
+
+  final Widget child;
+
+  @override
+  double get minExtent => 56;
+
+  @override
+  double get maxExtent => 56;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _AdminTabBarHeaderDelegate oldDelegate) {
+    return oldDelegate.child != child;
   }
 }

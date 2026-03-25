@@ -10,6 +10,7 @@ import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
+import 'admin_edit_dialogs.dart';
 
 enum _AdminCustomerDateFilter {
   all,
@@ -122,36 +123,52 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
     return text.isEmpty ? '-' : text;
   }
 
+  Widget _buildInfoGrid(
+    BuildContext context,
+    List<MapEntry<String, String>> fields,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
+        final itemWidth = isWide
+            ? (constraints.maxWidth - 12) / 2
+            : constraints.maxWidth;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: fields
+              .map(
+                (field) => SizedBox(
+                  width: itemWidth,
+                  child: _infoTile(context, field.key, field.value),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
   Widget _infoTile(BuildContext context, String label, String value) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final width = (screenWidth - 16 - 16 - 24 - 10) / 2;
-    return SizedBox(
-      width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.black54),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            ),
+            const SizedBox(height: 4),
+            Text(value, style: Theme.of(context).textTheme.bodyMedium),
+          ],
         ),
       ),
     );
@@ -222,22 +239,35 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final customerAsync = ref.watch(userProfileProvider(customer.id));
+    final currentCustomer = customerAsync.value ?? customer;
     final statusFilter = ref.watch(
-      _adminCustomerStatusFilterProvider(customer.id),
+      _adminCustomerStatusFilterProvider(currentCustomer.id),
     );
-    final dateFilter = ref.watch(_adminCustomerDateFilterProvider(customer.id));
-    final fromDate = ref.watch(_adminCustomerFromDateProvider(customer.id));
-    final toDate = ref.watch(_adminCustomerToDateProvider(customer.id));
-    final pageIndex = ref.watch(_adminCustomerPageProvider(customer.id));
+    final dateFilter = ref.watch(
+      _adminCustomerDateFilterProvider(currentCustomer.id),
+    );
+    final fromDate = ref.watch(
+      _adminCustomerFromDateProvider(currentCustomer.id),
+    );
+    final toDate = ref.watch(_adminCustomerToDateProvider(currentCustomer.id));
+    final pageIndex = ref.watch(_adminCustomerPageProvider(currentCustomer.id));
     final ordersAsync = ref.watch(allOrdersProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          customer.name.isEmpty
+          currentCustomer.name.isEmpty
               ? 'Customer Details'
-              : '${customer.name} Details',
+              : '${currentCustomer.name} Details',
         ),
+        actions: [
+          IconButton(
+            onPressed: () => showAdminUserDialog(context, ref, currentCustomer),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit',
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -246,7 +276,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
           error: (err, _) => Center(child: Text('Error: $err')),
           data: (orders) {
             final customerOrders = orders.where(
-              (o) => o.customerId == customer.id,
+              (o) => o.customerId == currentCustomer.id,
             );
             final filteredOrders =
                 customerOrders.where((order) {
@@ -274,7 +304,9 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
             if (safePage != pageIndex) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 ref
-                        .read(_adminCustomerPageProvider(customer.id).notifier)
+                        .read(
+                          _adminCustomerPageProvider(currentCustomer.id).notifier,
+                        )
                         .state =
                     safePage;
               });
@@ -287,6 +319,41 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
             final pageItems = filteredOrders.isEmpty
                 ? <Order>[]
                 : filteredOrders.sublist(start, end);
+            final fields = <MapEntry<String, String>>[
+              MapEntry('Name', _display(currentCustomer.name)),
+              MapEntry('Mobile', _display(currentCustomer.phoneNumber)),
+              MapEntry('Email', _display(currentCustomer.email)),
+              MapEntry('Role', _capitalize(currentCustomer.role.name)),
+              MapEntry(
+                'Status',
+                currentCustomer.isActive ? 'Active' : 'Inactive',
+              ),
+              MapEntry('Shop Name', _display(currentCustomer.shopName)),
+              MapEntry('Address', _display(currentCustomer.address)),
+              MapEntry('App Share Link', _display(currentCustomer.appShareLink)),
+              MapEntry('User ID', currentCustomer.id),
+              MapEntry('Business ID', _display(currentCustomer.businessId)),
+              MapEntry(
+                'Registration Date',
+                currentCustomer.createdAt == null
+                    ? '-'
+                    : _formatDateTime(currentCustomer.createdAt!),
+              ),
+              MapEntry(
+                'Delete Request',
+                _display(currentCustomer.deleteRequestStatus),
+              ),
+              MapEntry(
+                'Delete Requested At',
+                currentCustomer.deleteRequestedAt == null
+                    ? '-'
+                    : _formatDateTime(currentCustomer.deleteRequestedAt!),
+              ),
+              MapEntry(
+                'Total Orders (Filtered)',
+                '${filteredOrders.length}',
+              ),
+            ];
 
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -298,112 +365,50 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             CircleAvatar(
                               radius: 28,
                               backgroundColor: Colors.black12,
                               backgroundImage:
-                                  _display(customer.photoUrl) != '-'
-                                  ? NetworkImage(customer.photoUrl!.trim())
+                                  _display(currentCustomer.photoUrl) != '-'
+                                  ? NetworkImage(currentCustomer.photoUrl!.trim())
                                   : null,
-                              child: _display(customer.photoUrl) == '-'
+                              child: _display(currentCustomer.photoUrl) == '-'
                                   ? const Icon(Icons.person_outline)
                                   : null,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Text(
-                                _display(customer.name),
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _display(currentCustomer.name),
+                                    style: Theme.of(context).textTheme.titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${_capitalize(currentCustomer.role.name)} • ${currentCustomer.isActive ? 'Active' : 'Inactive'}',
+                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _infoTile(context, 'Name', _display(customer.name)),
-                            _infoTile(
-                              context,
-                              'Mobile',
-                              _display(customer.phoneNumber),
-                            ),
-                            _infoTile(
-                              context,
-                              'Email',
-                              _display(customer.email),
-                            ),
-                            _infoTile(
-                              context,
-                              'Role',
-                              _capitalize(customer.role.name),
-                            ),
-                            _infoTile(
-                              context,
-                              'Status',
-                              customer.isActive ? 'Active' : 'Inactive',
-                            ),
-                            _infoTile(
-                              context,
-                              'Shop Name',
-                              _display(customer.shopName),
-                            ),
-                            _infoTile(
-                              context,
-                              'Address',
-                              _display(customer.address),
-                            ),
-                            _infoTile(
-                              context,
-                              'App Share Link',
-                              _display(customer.appShareLink),
-                            ),
-                            _infoTile(context, 'User ID', customer.id),
-                            _infoTile(
-                              context,
-                              'Business ID',
-                              _display(customer.businessId),
-                            ),
-                            _infoTile(
-                              context,
-                              'Registration Date',
-                              customer.createdAt == null
-                                  ? '-'
-                                  : _formatDateTime(customer.createdAt!),
-                            ),
-                            _infoTile(
-                              context,
-                              'Delete Request',
-                              _display(customer.deleteRequestStatus),
-                            ),
-                            _infoTile(
-                              context,
-                              'Delete Requested At',
-                              customer.deleteRequestedAt == null
-                                  ? '-'
-                                  : _formatDateTime(
-                                      customer.deleteRequestedAt!,
-                                    ),
-                            ),
-                            _infoTile(
-                              context,
-                              'Total Orders (Filtered)',
-                              '${filteredOrders.length}',
-                            ),
-                          ],
-                        ),
-                        if (_display(customer.phoneNumber) != '-') ...[
-                          const SizedBox(height: 10),
+                        const SizedBox(height: 16),
+                        _buildInfoGrid(context, fields),
+                        if (_display(currentCustomer.phoneNumber) != '-') ...[
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
                                   onPressed: () => _callCustomer(
                                     context,
-                                    customer.phoneNumber!.trim(),
+                                    currentCustomer.phoneNumber!.trim(),
                                   ),
                                   icon: const Icon(Icons.call_outlined),
                                   label: const Text('Call'),
@@ -414,7 +419,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                                 child: OutlinedButton.icon(
                                   onPressed: () => _openWhatsApp(
                                     context,
-                                    customer.phoneNumber!.trim(),
+                                    currentCustomer.phoneNumber!.trim(),
                                   ),
                                   icon: const Icon(Icons.chat_bubble_outline),
                                   label: const Text('WhatsApp'),
@@ -452,7 +457,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerStatusFilterProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -460,7 +465,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerPageProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -488,7 +493,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerDateFilterProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -496,7 +501,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerPageProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -505,7 +510,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                             ref
                                     .read(
                                       _adminCustomerFromDateProvider(
-                                        customer.id,
+                                        currentCustomer.id,
                                       ).notifier,
                                     )
                                     .state =
@@ -513,7 +518,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                             ref
                                     .read(
                                       _adminCustomerToDateProvider(
-                                        customer.id,
+                                        currentCustomer.id,
                                       ).notifier,
                                     )
                                     .state =
@@ -546,7 +551,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerFromDateProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -554,7 +559,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerToDateProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -562,7 +567,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                           ref
                                   .read(
                                     _adminCustomerDateFilterProvider(
-                                      customer.id,
+                                      currentCustomer.id,
                                     ).notifier,
                                   )
                                   .state =
@@ -644,7 +649,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                               ref
                                       .read(
                                         _adminCustomerPageProvider(
-                                          customer.id,
+                                          currentCustomer.id,
                                         ).notifier,
                                       )
                                       .state =
@@ -659,7 +664,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                               ref
                                       .read(
                                         _adminCustomerPageProvider(
-                                          customer.id,
+                                          currentCustomer.id,
                                         ).notifier,
                                       )
                                       .state =

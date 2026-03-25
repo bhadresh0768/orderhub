@@ -36,103 +36,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     super.dispose();
   }
 
-  Future<void> _editUserDialog(AppUser user) async {
-    final name = TextEditingController(text: user.name);
-    final email = TextEditingController(text: user.email);
-    final phone = TextEditingController(text: user.phoneNumber ?? '');
-    final address = TextEditingController(text: user.address ?? '');
-    final shop = TextEditingController(text: user.shopName ?? '');
-    var role = user.role;
-    var isActive = user.isActive;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('Edit User'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: email,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: phone,
-                  decoration: const InputDecoration(labelText: 'Phone'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: shop,
-                  decoration: const InputDecoration(labelText: 'Shop Name'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: address,
-                  decoration: const InputDecoration(labelText: 'Address'),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<UserRole>(
-                  initialValue: role,
-                  items: UserRole.values
-                      .map(
-                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
-                      )
-                      .toList(),
-                  onChanged: (value) => setLocal(() => role = value ?? role),
-                  decoration: const InputDecoration(labelText: 'Role'),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Active'),
-                  value: isActive,
-                  onChanged: (v) => setLocal(() => isActive = v),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                await ref.read(firestoreServiceProvider).updateUser(user.id, {
-                  'name': name.text.trim(),
-                  'email': email.text.trim(),
-                  'phoneNumber': phone.text.trim(),
-                  'shopName': shop.text.trim().isEmpty
-                      ? null
-                      : shop.text.trim(),
-                  'address': address.text.trim().isEmpty
-                      ? null
-                      : address.text.trim(),
-                  'role': enumToString(role),
-                  'isActive': isActive,
-                });
-                if (!mounted) return;
-                Navigator.of(this.context).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-    name.dispose();
-    email.dispose();
-    phone.dispose();
-    address.dispose();
-    shop.dispose();
-  }
-
   Future<void> _reviewDeleteRequest(
     AppUser user, {
     required bool approve,
@@ -276,21 +179,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                           color: Colors.red,
                         )
                       : null,
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        await _editUserDialog(user);
-                      } else if (value == 'delete') {
-                        await ref
-                            .read(firestoreServiceProvider)
-                            .deleteUser(user.id);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
                 ),
               );
             }),
