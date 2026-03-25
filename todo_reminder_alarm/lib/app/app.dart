@@ -303,7 +303,25 @@ class _AuthGateState extends ConsumerState<AuthGate> {
             }
             final businessId = profile.businessId;
             if (businessId != null && businessId.isNotEmpty) {
-              final business = ref.watch(businessByIdProvider(businessId)).value;
+              final businessAsync = ref.watch(businessByIdProvider(businessId));
+              final business = businessAsync.value;
+              if (businessAsync.isLoading) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (profile.role == UserRole.businessOwner &&
+                  business?.status == BusinessStatus.suspended) {
+                return const _BlockedUserScreen(
+                  message: 'Your business account is suspended by admin.',
+                );
+              }
+              if (profile.role == UserRole.businessOwner &&
+                  business?.status == BusinessStatus.pending) {
+                return const _BlockedUserScreen(
+                  message: 'Your business approval is pending admin review.',
+                );
+              }
               if (business != null) {
                 _syncExpiredSubscriptionIfNeeded(business);
               }
@@ -589,7 +607,11 @@ class _AutoProvisionUiState {
 const _autoProvisionUnset = Object();
 
 class _BlockedUserScreen extends ConsumerWidget {
-  const _BlockedUserScreen();
+  const _BlockedUserScreen({
+    this.message = 'Your account is blocked by admin.',
+  });
+
+  final String message;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -598,7 +620,7 @@ class _BlockedUserScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Your account is blocked by admin.'),
+            Text(message),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () => ref.read(authServiceProvider).signOut(),

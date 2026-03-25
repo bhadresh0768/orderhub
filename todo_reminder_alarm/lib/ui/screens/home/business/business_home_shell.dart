@@ -233,13 +233,11 @@ class _BusinessHomeBody extends ConsumerWidget {
                             ),
                             const SizedBox(height: 10),
                             OutlinedButton(
-                              onPressed: ownBusiness == null
-                                  ? null
-                                  : () => _submitRenewalRequest(
-                                      context,
-                                      ref,
-                                      business: ownBusiness!,
-                                    ),
+                              onPressed: () => _submitRenewalRequest(
+                                context,
+                                ref,
+                                business: ownBusiness!,
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.red.shade800,
                                 side: BorderSide(color: Colors.red.shade300),

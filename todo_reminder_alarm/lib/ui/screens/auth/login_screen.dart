@@ -301,10 +301,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: constraints.maxHeight - 48,
+                minHeight: constraints.maxHeight - 16,
               ),
               child: Center(
                 child: ConstrainedBox(
@@ -317,7 +317,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         height: 180,
                         fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 0),
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
