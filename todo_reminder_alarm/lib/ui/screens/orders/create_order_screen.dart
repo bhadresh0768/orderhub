@@ -15,10 +15,10 @@ import '../../../models/order.dart';
 import '../../../models/payment.dart';
 import '../../../providers.dart';
 
-final _createOrderUiProvider =
-    StateProvider.autoDispose.family<_CreateOrderUiState, String>(
-  (ref, id) => const _CreateOrderUiState(),
-);
+final _createOrderUiProvider = StateProvider.autoDispose
+    .family<_CreateOrderUiState, String>(
+      (ref, id) => const _CreateOrderUiState(),
+    );
 
 class _CreateOrderUiState {
   const _CreateOrderUiState({
@@ -129,8 +129,11 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _defaultDeliveryAddressInitialized = false;
 
-  _CreateOrderUiState get _ui => ref.read(_createOrderUiProvider(_draftOrderId));
-  void _updateUi(_CreateOrderUiState Function(_CreateOrderUiState state) update) {
+  _CreateOrderUiState get _ui =>
+      ref.read(_createOrderUiProvider(_draftOrderId));
+  void _updateUi(
+    _CreateOrderUiState Function(_CreateOrderUiState state) update,
+  ) {
     final notifier = ref.read(_createOrderUiProvider(_draftOrderId).notifier);
     notifier.state = update(notifier.state);
   }
@@ -224,10 +227,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       if (local.length >= 5) {
         if (!mounted) return;
         _updateUi(
-          (state) => state.copyWith(
-            itemSuggestions: local,
-            loadingSuggestions: false,
-          ),
+          (state) =>
+              state.copyWith(itemSuggestions: local, loadingSuggestions: false),
         );
         return;
       }
@@ -419,15 +420,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
 
   Future<void> _pickSingleItemImage(ImageSource source) async {
     _updateUi(
-      (state) => state.copyWith(
-        inlineError: null,
-        uploadingItemImage: true,
-      ),
+      (state) => state.copyWith(inlineError: null, uploadingItemImage: true),
     );
     try {
-      final picked = await _imagePicker.pickImage(
-        source: source,
-      );
+      final picked = await _imagePicker.pickImage(source: source);
       if (picked == null) return;
       final Uint8List bytes = await picked.readAsBytes();
       if (bytes.isEmpty) {
@@ -464,14 +460,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
 
   Future<void> _pickMultipleItemImagesFromGallery() async {
     _updateUi(
-      (state) => state.copyWith(
-        inlineError: null,
-        uploadingItemImage: true,
-      ),
+      (state) => state.copyWith(inlineError: null, uploadingItemImage: true),
     );
     try {
-      final picked = await _imagePicker.pickMultiImage(
-      );
+      final picked = await _imagePicker.pickMultiImage();
       if (picked.isEmpty) return;
       for (final image in picked) {
         final bytes = await image.readAsBytes();
@@ -613,6 +605,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     );
     pageNotifier.dispose();
   }
+
   Future<void> _showDeliveryAddressBottomSheet({
     DeliveryAddressEntry? existing,
     required bool hasAnySavedAddress,
@@ -706,8 +699,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                         onChanged: saving
                             ? null
                             : (next) => setModalState(
-                                  () => isDefault = next ?? false,
-                                ),
+                                () => isDefault = next ?? false,
+                              ),
                       ),
                       if (errorText != null)
                         Padding(
@@ -734,9 +727,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                     final cleanLabel = label.trim();
                                     final cleanAddress = address.trim();
                                     final cleanCity = city.trim();
-                                    final cleanContactPerson =
-                                        contactPerson.trim();
-                                    final cleanContactPhone = contactPhone.trim();
+                                    final cleanContactPerson = contactPerson
+                                        .trim();
+                                    final cleanContactPhone = contactPhone
+                                        .trim();
                                     if (cleanLabel.isEmpty ||
                                         cleanAddress.isEmpty) {
                                       setModalState(() {
@@ -761,7 +755,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                                         city: cleanCity.isEmpty
                                             ? null
                                             : cleanCity,
-                                        contactPerson: cleanContactPerson.isEmpty
+                                        contactPerson:
+                                            cleanContactPerson.isEmpty
                                             ? null
                                             : cleanContactPerson,
                                         contactPhone: cleanContactPhone.isEmpty
@@ -816,9 +811,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     );
 
     if (saved == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Delivery address saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Delivery address saved')));
     }
   }
 
@@ -844,7 +839,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     );
     if (confirm != true) return;
     try {
-      await ref.read(firestoreServiceProvider).deleteDeliveryAddress(address.id);
+      await ref
+          .read(firestoreServiceProvider)
+          .deleteDeliveryAddress(address.id);
       if (!mounted) return;
       if (_ui.deliveryAddressRef == address.id) {
         _updateUi(
@@ -857,7 +854,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     } catch (err) {
       if (!mounted) return;
       _updateUi(
-        (state) => state.copyWith(inlineError: 'Failed to delete address: $err'),
+        (state) =>
+            state.copyWith(inlineError: 'Failed to delete address: $err'),
       );
     }
   }
@@ -892,9 +890,13 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     final deliveryContactName = _ui.deliveryAddressRef == _profileAddressRef
         ? null
         : selectedDeliveryAddress?.contactPerson;
+    final selectedAddressPhone = selectedDeliveryAddress?.contactPhone?.trim();
+    final profilePhone = widget.customer.phoneNumber?.trim();
     final deliveryContactPhone = _ui.deliveryAddressRef == _profileAddressRef
-        ? null
-        : selectedDeliveryAddress?.contactPhone;
+        ? profilePhone
+        : (selectedAddressPhone?.isNotEmpty ?? false)
+        ? selectedAddressPhone
+        : profilePhone;
 
     final firestore = ref.read(firestoreServiceProvider);
     final requesterBusiness = widget.requesterBusiness;
@@ -948,9 +950,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       } else {
         if (existing.status != OrderStatus.pending) {
           _updateUi(
-            (state) => state.copyWith(
-              inlineError: 'Only new orders can be edited.',
-            ),
+            (state) =>
+                state.copyWith(inlineError: 'Only new orders can be edited.'),
           );
           return;
         }
@@ -1016,543 +1017,562 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.requesterBusiness == null
-                          ? 'Requester: ${widget.customer.name}'
-                          : 'Requester: ${widget.requesterBusiness!.name} (Business Owner)',
-                    ),
-                    const SizedBox(height: 12),
-                    deliveryAddressesAsync.when(
-                      data: (addresses) {
-                        if (!_defaultDeliveryAddressInitialized) {
-                          _defaultDeliveryAddressInitialized = true;
-                          final defaultEntry = addresses.where((e) => e.isDefault).firstOrNull;
-                          if (defaultEntry != null &&
-                              _ui.deliveryAddressRef == _profileAddressRef) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (!mounted) return;
-                              _updateUi(
-                                (state) => state.copyWith(
-                                  deliveryAddressRef: defaultEntry.id,
-                                ),
-                              );
-                            });
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.requesterBusiness == null
+                            ? 'Requester: ${widget.customer.name}'
+                            : 'Requester: ${widget.requesterBusiness!.name} (Business Owner)',
+                      ),
+                      const SizedBox(height: 12),
+                      deliveryAddressesAsync.when(
+                        data: (addresses) {
+                          if (!_defaultDeliveryAddressInitialized) {
+                            _defaultDeliveryAddressInitialized = true;
+                            final defaultEntry = addresses
+                                .where((e) => e.isDefault)
+                                .firstOrNull;
+                            if (defaultEntry != null &&
+                                _ui.deliveryAddressRef == _profileAddressRef) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                _updateUi(
+                                  (state) => state.copyWith(
+                                    deliveryAddressRef: defaultEntry.id,
+                                  ),
+                                );
+                              });
+                            }
                           }
-                        }
-                        final selectedRef = addresses.any(
-                          (entry) => entry.id == ui.deliveryAddressRef,
-                        )
-                            ? ui.deliveryAddressRef
-                            : _profileAddressRef;
-                        final addressLabels = <String, String>{
-                          _profileAddressRef:
-                              '${_defaultAddressLabel()} • ${_defaultAddressText()}',
-                          for (final entry in addresses)
-                            entry.id: '${entry.label} • ${entry.fullAddress}',
-                        };
-                        return Column(
+                          final selectedRef =
+                              addresses.any(
+                                (entry) => entry.id == ui.deliveryAddressRef,
+                              )
+                              ? ui.deliveryAddressRef
+                              : _profileAddressRef;
+                          final addressLabels = <String, String>{
+                            _profileAddressRef:
+                                '${_defaultAddressLabel()} • ${_defaultAddressText()}',
+                            for (final entry in addresses)
+                              entry.id: '${entry.label} • ${entry.fullAddress}',
+                          };
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DropdownButtonFormField<String>(
+                                key: ValueKey(selectedRef),
+                                initialValue: selectedRef,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Delivery Address',
+                                ),
+                                items: addressLabels.entries
+                                    .map(
+                                      (entry) => DropdownMenuItem<String>(
+                                        value: entry.key,
+                                        child: Text(
+                                          entry.value,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                selectedItemBuilder: (context) => addressLabels
+                                    .values
+                                    .map(
+                                      (label) => Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          label,
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  _updateUi(
+                                    (state) => state.copyWith(
+                                      deliveryAddressRef: value,
+                                      inlineError: null,
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _showDeliveryAddressBottomSheet(
+                                          hasAnySavedAddress:
+                                              addresses.isNotEmpty,
+                                        ),
+                                    icon: const Icon(
+                                      Icons.add_location_alt_outlined,
+                                    ),
+                                    label: const Text('Add Address'),
+                                  ),
+                                  if (selectedRef != _profileAddressRef)
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        final editing = addresses.firstWhere(
+                                          (entry) => entry.id == selectedRef,
+                                        );
+                                        _showDeliveryAddressBottomSheet(
+                                          existing: editing,
+                                          hasAnySavedAddress:
+                                              addresses.isNotEmpty,
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.edit_location_alt_outlined,
+                                      ),
+                                      label: const Text('Edit Selected'),
+                                    ),
+                                  if (selectedRef != _profileAddressRef)
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        final deleting = addresses.firstWhere(
+                                          (entry) => entry.id == selectedRef,
+                                        );
+                                        _deleteDeliveryAddress(deleting);
+                                      },
+                                      icon: const Icon(Icons.delete_outline),
+                                      label: const Text('Delete Selected'),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                        loading: () =>
+                            const LinearProgressIndicator(minHeight: 2),
+                        error: (_, _) => Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            DropdownButtonFormField<String>(
-                              key: ValueKey(selectedRef),
-                              initialValue: selectedRef,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Delivery Address',
-                              ),
-                              items: addressLabels.entries
-                                  .map(
-                                    (entry) => DropdownMenuItem<String>(
-                                      value: entry.key,
-                                      child: Text(
-                                        entry.value,
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              selectedItemBuilder: (context) => addressLabels.values
-                                  .map(
-                                    (label) => Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        label,
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                if (value == null) return;
-                                _updateUi(
-                                  (state) => state.copyWith(
-                                    deliveryAddressRef: value,
-                                    inlineError: null,
-                                  ),
-                                );
-                              },
+                            const Text(
+                              'Address book temporarily unavailable. Please retry.',
+                              style: TextStyle(color: Colors.red),
                             ),
                             const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () => _showDeliveryAddressBottomSheet(
-                                    hasAnySavedAddress: addresses.isNotEmpty,
-                                  ),
-                                  icon: const Icon(Icons.add_location_alt_outlined),
-                                  label: const Text('Add Address'),
-                                ),
-                                if (selectedRef != _profileAddressRef)
-                                  OutlinedButton.icon(
-                                    onPressed: () {
-                                      final editing = addresses.firstWhere(
-                                        (entry) => entry.id == selectedRef,
-                                      );
-                                      _showDeliveryAddressBottomSheet(
-                                        existing: editing,
-                                        hasAnySavedAddress: addresses.isNotEmpty,
-                                      );
-                                    },
-                                    icon: const Icon(Icons.edit_location_alt_outlined),
-                                    label: const Text('Edit Selected'),
-                                  ),
-                                if (selectedRef != _profileAddressRef)
-                                  OutlinedButton.icon(
-                                    onPressed: () {
-                                      final deleting = addresses.firstWhere(
-                                        (entry) => entry.id == selectedRef,
-                                      );
-                                      _deleteDeliveryAddress(deleting);
-                                    },
-                                    icon: const Icon(Icons.delete_outline),
-                                    label: const Text('Delete Selected'),
-                                  ),
-                              ],
+                            OutlinedButton.icon(
+                              onPressed: () => ref.invalidate(
+                                deliveryAddressesProvider(widget.customer.id),
+                              ),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
                             ),
                           ],
-                        );
-                      },
-                      loading: () => const LinearProgressIndicator(minHeight: 2),
-                      error: (_, _) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Address book temporarily unavailable. Please retry.',
-                            style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _itemController,
+                        onChanged: _onItemQueryChanged,
+                        decoration: const InputDecoration(
+                          labelText: 'Item / Service',
+                        ),
+                      ),
+                      if (ui.loadingSuggestions) ...[
+                        const SizedBox(height: 8),
+                        const LinearProgressIndicator(minHeight: 2),
+                      ],
+                      if (ui.itemSuggestions.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: () => ref.invalidate(
-                              deliveryAddressesProvider(widget.customer.id),
-                            ),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: ui.itemSuggestions.length,
+                            itemBuilder: (context, index) {
+                              final suggestion = ui.itemSuggestions[index];
+                              return ListTile(
+                                dense: true,
+                                title: Text(suggestion),
+                                onTap: () => _selectSuggestion(suggestion),
+                              );
+                            },
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _itemController,
-                      onChanged: _onItemQueryChanged,
-                      decoration: const InputDecoration(
-                        labelText: 'Item / Service',
-                      ),
-                    ),
-                    if (ui.loadingSuggestions) ...[
-                      const SizedBox(height: 8),
-                      const LinearProgressIndicator(minHeight: 2),
-                    ],
-                    if (ui.itemSuggestions.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        constraints: const BoxConstraints(maxHeight: 220),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: ui.itemSuggestions.length,
-                          itemBuilder: (context, index) {
-                            final suggestion = ui.itemSuggestions[index];
-                            return ListTile(
-                              dense: true,
-                              title: Text(suggestion),
-                              onTap: () => _selectSuggestion(suggestion),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _quantityController,
-                      decoration: const InputDecoration(labelText: 'Quantity'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _packSizeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Pack Size (optional)',
-                        hintText: 'e.g. 1 L pouch, 500 g pack',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<QuantityUnit>(
-                      initialValue: ui.itemUnit,
-                      decoration: const InputDecoration(labelText: 'Unit'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: QuantityUnit.piece,
-                          child: Text('Piece (pc)'),
-                        ),
-                        DropdownMenuItem(
-                          value: QuantityUnit.kilogram,
-                          child: Text('Kilogram (kg)'),
-                        ),
-                        DropdownMenuItem(
-                          value: QuantityUnit.gram,
-                          child: Text('Gram (g)'),
-                        ),
-                        DropdownMenuItem(
-                          value: QuantityUnit.liter,
-                          child: Text('Liter (L)'),
                         ),
                       ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        _updateUi((state) => state.copyWith(itemUnit: value));
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _itemNoteController,
-                      decoration: const InputDecoration(
-                        labelText: 'Item Note (optional)',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.tonalIcon(
-                      onPressed: ui.uploadingItemImage
-                          ? null
-                          : _showItemImageSourceSheet,
-                      icon: const Icon(Icons.add_a_photo_outlined),
-                      label: Text(
-                        ui.uploadingItemImage
-                            ? 'Uploading...'
-                            : 'Upload Item Image',
-                      ),
-                    ),
-                    if (ui.itemAttachmentsDraft.isNotEmpty)
-                      Column(
-                        children: ui.itemAttachmentsDraft.asMap().entries.map((
-                          entry,
-                        ) {
-                          final index = entry.key;
-                          final attachment = entry.value;
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                attachment.url,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const Icon(
-                                  Icons.image_not_supported_outlined,
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              attachment.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () {
-                                final updated = [
-                                  ...ui.itemAttachmentsDraft,
-                                ]..removeAt(index);
-                                _updateUi(
-                                  (state) => state.copyWith(
-                                    itemAttachmentsDraft: updated,
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    const SizedBox(height: 8),
-                    FilledButton.tonal(
-                      onPressed: _addOrUpdateItem,
-                      style: ui.editingItemIndex != null
-                          ? FilledButton.styleFrom(
-                              backgroundColor: Colors.red.shade100,
-                              foregroundColor: Colors.red.shade800,
-                            )
-                          : null,
-                      child: Text(
-                        ui.editingItemIndex == null
-                            ? 'Add Item'
-                            : 'Update Item',
-                      ),
-                    ),
-                    if (ui.editingItemIndex != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          'Tap "Update Item" to save item changes.',
-                          style: TextStyle(
-                            color: Colors.red.shade400,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _quantityController,
+                        decoration: const InputDecoration(
+                          labelText: 'Quantity',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
                         ),
                       ),
-                    if (ui.editingItemIndex != null)
-                      TextButton(
-                        onPressed: _clearItemForm,
-                        child: const Text('Cancel Edit'),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _packSizeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Pack Size (optional)',
+                          hintText: 'e.g. 1 L pouch, 500 g pack',
+                        ),
                       ),
-                    const SizedBox(height: 8),
-                    if (ui.items.isNotEmpty)
-                      Column(
-                        children: ui.items.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final item = entry.value;
-                          final conversion = _conversionHint(item);
-                          final imageCount = item.attachments.length;
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: imageCount == 0
-                                ? null
-                                : InkWell(
-                                    borderRadius: BorderRadius.circular(8),
-                                    onTap: () => _showItemImageGallery(
-                                      item.attachments,
-                                      initialIndex: 0,
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<QuantityUnit>(
+                        initialValue: ui.itemUnit,
+                        decoration: const InputDecoration(labelText: 'Unit'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: QuantityUnit.piece,
+                            child: Text('Piece (pc)'),
+                          ),
+                          DropdownMenuItem(
+                            value: QuantityUnit.kilogram,
+                            child: Text('Kilogram (kg)'),
+                          ),
+                          DropdownMenuItem(
+                            value: QuantityUnit.gram,
+                            child: Text('Gram (g)'),
+                          ),
+                          DropdownMenuItem(
+                            value: QuantityUnit.liter,
+                            child: Text('Liter (L)'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          _updateUi((state) => state.copyWith(itemUnit: value));
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _itemNoteController,
+                        decoration: const InputDecoration(
+                          labelText: 'Item Note (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: ui.uploadingItemImage
+                            ? null
+                            : _showItemImageSourceSheet,
+                        icon: const Icon(Icons.add_a_photo_outlined),
+                        label: Text(
+                          ui.uploadingItemImage
+                              ? 'Uploading...'
+                              : 'Upload Item Image',
+                        ),
+                      ),
+                      if (ui.itemAttachmentsDraft.isNotEmpty)
+                        Column(
+                          children: ui.itemAttachmentsDraft.asMap().entries.map(
+                            (entry) {
+                              final index = entry.key;
+                              final attachment = entry.value;
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    attachment.url,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(
+                                      Icons.image_not_supported_outlined,
                                     ),
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(
-                                            item.attachments.first.url,
-                                            width: 48,
-                                            height: 48,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) => Container(
+                                  ),
+                                ),
+                                title: Text(
+                                  attachment.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () {
+                                    final updated = [...ui.itemAttachmentsDraft]
+                                      ..removeAt(index);
+                                    _updateUi(
+                                      (state) => state.copyWith(
+                                        itemAttachmentsDraft: updated,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ).toList(),
+                        ),
+                      const SizedBox(height: 8),
+                      FilledButton.tonal(
+                        onPressed: _addOrUpdateItem,
+                        style: ui.editingItemIndex != null
+                            ? FilledButton.styleFrom(
+                                backgroundColor: Colors.red.shade100,
+                                foregroundColor: Colors.red.shade800,
+                              )
+                            : null,
+                        child: Text(
+                          ui.editingItemIndex == null
+                              ? 'Add Item'
+                              : 'Update Item',
+                        ),
+                      ),
+                      if (ui.editingItemIndex != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            'Tap "Update Item" to save item changes.',
+                            style: TextStyle(
+                              color: Colors.red.shade400,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      if (ui.editingItemIndex != null)
+                        TextButton(
+                          onPressed: _clearItemForm,
+                          child: const Text('Cancel Edit'),
+                        ),
+                      const SizedBox(height: 8),
+                      if (ui.items.isNotEmpty)
+                        Column(
+                          children: ui.items.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final item = entry.value;
+                            final conversion = _conversionHint(item);
+                            final imageCount = item.attachments.length;
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: imageCount == 0
+                                  ? null
+                                  : InkWell(
+                                      borderRadius: BorderRadius.circular(8),
+                                      onTap: () => _showItemImageGallery(
+                                        item.attachments,
+                                        initialIndex: 0,
+                                      ),
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Image.network(
+                                              item.attachments.first.url,
                                               width: 48,
                                               height: 48,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .surfaceContainerHighest,
-                                              ),
-                                              child: const Icon(
-                                                Icons.image_not_supported_outlined,
-                                                size: 20,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        if (imageCount > 1)
-                                          Positioned(
-                                            right: -6,
-                                            top: -6,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 5,
-                                                    vertical: 1,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black87,
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                '$imageCount',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w600,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(
+                                                width: 48,
+                                                height: 48,
+                                                alignment: Alignment.center,
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .surfaceContainerHighest,
+                                                ),
+                                                child: const Icon(
+                                                  Icons
+                                                      .image_not_supported_outlined,
+                                                  size: 20,
                                                 ),
                                               ),
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ),
-                            title: Text(
-                              '${item.title}, Qty - ${_itemQuantityLabel(item)}',
-                            ),
-                            subtitle: Text(
-                              [
-                                if (item.packSize != null &&
-                                    item.packSize!.isNotEmpty)
-                                  'Pack: ${item.packSize!}',
-                                if (item.note != null && item.note!.isNotEmpty)
-                                  item.note!,
-                                if (conversion != null) '~ $conversion',
-                              ].join('  '),
-                            ),
-                            trailing: Wrap(
-                              spacing: 0,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () => _editItem(index),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () {
-                                    final updatedItems = [...ui.items]
-                                      ..removeAt(index);
-                                    final currentEditing = ui.editingItemIndex;
-                                    int? nextEditing = currentEditing;
-                                    if (currentEditing == index) {
-                                      nextEditing = null;
-                                    } else if (currentEditing != null &&
-                                        currentEditing > index) {
-                                      nextEditing = currentEditing - 1;
-                                    }
-                                    _updateUi(
-                                      (state) => state.copyWith(
-                                        items: updatedItems,
-                                        editingItemIndex: nextEditing,
+                                          if (imageCount > 1)
+                                            Positioned(
+                                              right: -6,
+                                              top: -6,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 5,
+                                                      vertical: 1,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black87,
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Text(
+                                                  '$imageCount',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                    );
-                                    if (currentEditing == index) {
-                                      _clearItemForm();
-                                    }
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<OrderPriority>(
-                      initialValue: ui.priority,
-                      decoration: const InputDecoration(labelText: 'Priority'),
-                      items: OrderPriority.values
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        _updateUi((state) => state.copyWith(priority: value));
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<PaymentMethod>(
-                      initialValue: ui.paymentMethod,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment Method',
-                      ),
-                      items: PaymentMethod.values
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(_paymentMethodLabel(value)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        _updateUi(
-                          (state) => state.copyWith(paymentMethod: value),
-                        );
-                      },
-                    ),
-                    if (ui.paymentMethod == PaymentMethod.onlineTransfer) ...[
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _paymentRemarkController,
-                        decoration: const InputDecoration(
-                          labelText:
-                              'Online Payment Remark (GPay, PhonePe, etc.)',
+                                    ),
+                              title: Text(
+                                '${item.title}, Qty - ${_itemQuantityLabel(item)}',
+                              ),
+                              subtitle: Text(
+                                [
+                                  if (item.packSize != null &&
+                                      item.packSize!.isNotEmpty)
+                                    'Pack: ${item.packSize!}',
+                                  if (item.note != null &&
+                                      item.note!.isNotEmpty)
+                                    item.note!,
+                                  if (conversion != null) '~ $conversion',
+                                ].join('  '),
+                              ),
+                              trailing: Wrap(
+                                spacing: 0,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () => _editItem(index),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () {
+                                      final updatedItems = [...ui.items]
+                                        ..removeAt(index);
+                                      final currentEditing =
+                                          ui.editingItemIndex;
+                                      int? nextEditing = currentEditing;
+                                      if (currentEditing == index) {
+                                        nextEditing = null;
+                                      } else if (currentEditing != null &&
+                                          currentEditing > index) {
+                                        nextEditing = currentEditing - 1;
+                                      }
+                                      _updateUi(
+                                        (state) => state.copyWith(
+                                          items: updatedItems,
+                                          editingItemIndex: nextEditing,
+                                        ),
+                                      );
+                                      if (currentEditing == index) {
+                                        _clearItemForm();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<OrderPriority>(
+                        initialValue: ui.priority,
+                        decoration: const InputDecoration(
+                          labelText: 'Priority',
+                        ),
+                        items: OrderPriority.values
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          _updateUi((state) => state.copyWith(priority: value));
+                        },
                       ),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: ui.confirmedOnline,
-                        onChanged: (value) => _updateUi(
-                          (state) => state.copyWith(
-                            confirmedOnline: value ?? false,
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<PaymentMethod>(
+                        initialValue: ui.paymentMethod,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Method',
+                        ),
+                        items: PaymentMethod.values
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(_paymentMethodLabel(value)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          _updateUi(
+                            (state) => state.copyWith(paymentMethod: value),
+                          );
+                        },
+                      ),
+                      if (ui.paymentMethod == PaymentMethod.onlineTransfer) ...[
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _paymentRemarkController,
+                          decoration: const InputDecoration(
+                            labelText:
+                                'Online Payment Remark (GPay, PhonePe, etc.)',
                           ),
                         ),
-                        title: const Text('Customer confirmed payment'),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: ui.confirmedOnline,
+                          onChanged: (value) => _updateUi(
+                            (state) =>
+                                state.copyWith(confirmedOnline: value ?? false),
+                          ),
+                          title: const Text('Customer confirmed payment'),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _notesController,
+                        decoration: const InputDecoration(labelText: 'Notes'),
+                        maxLines: 2,
                       ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _notesController,
-                      decoration: const InputDecoration(labelText: 'Notes'),
-                      maxLines: 2,
-                    ),
-                    if (ui.inlineError != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        ui.inlineError!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: ui.loading ? null : _submit,
-                        child: ui.loading
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                      if (ui.inlineError != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          ui.inlineError!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: ui.loading ? null : _submit,
+                          child: ui.loading
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  widget.existingOrder == null
+                                      ? 'Place Order'
+                                      : 'Update Order',
                                 ),
-                              )
-                            : Text(
-                                widget.existingOrder == null
-                                    ? 'Place Order'
-                                    : 'Update Order',
-                              ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
           ],
         ),
       ),

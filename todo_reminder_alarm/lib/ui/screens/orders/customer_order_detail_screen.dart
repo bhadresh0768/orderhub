@@ -1,5 +1,8 @@
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
@@ -159,9 +162,38 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _callBusinessNow(BuildContext context, String phone) async {
+    final normalizedPhone = phone.trim();
+    if (normalizedPhone.isEmpty) return;
+
+    final uri = Uri(scheme: 'tel', path: normalizedPhone);
+    try {
+      final launched = await launchUrl(uri);
+      if (launched) return;
+    } catch (_) {}
+
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.DIAL',
+        data: 'tel:$normalizedPhone',
+      );
+      await intent.launch();
+      return;
+    } catch (_) {}
+
+    await Clipboard.setData(ClipboardData(text: normalizedPhone));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Call unavailable. Number copied to clipboard.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final liveOrderAsync = ref.watch(orderByIdProvider(order.id));
+    final businessAsync = ref.watch(businessByIdProvider(order.businessId));
     final currentOrder = liveOrderAsync.asData?.value;
     if (currentOrder == null) {
       return Scaffold(
@@ -192,15 +224,7 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
     final created = currentOrder.createdAt;
     final legacySplit = _splitLegacyAddress(currentOrder.deliveryAddress ?? '');
     final deliveryAddress = legacySplit.address;
-    final contactName = (currentOrder.deliveryContactName ?? '').trim();
-    final contactPhone = (currentOrder.deliveryContactPhone ?? '').trim();
-    final deliveryContact = contactName.isNotEmpty && contactPhone.isNotEmpty
-        ? '$contactName ($contactPhone)'
-        : contactName.isNotEmpty
-        ? contactName
-        : contactPhone.isNotEmpty
-        ? contactPhone
-        : legacySplit.contact;
+    final businessPhone = businessAsync.asData?.value?.phone?.trim();
     final statusColor = OrderSharedHelpers.statusColor(effectiveStatus);
 
     return Scaffold(
@@ -273,12 +297,25 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
                       label: 'Address',
                       value: deliveryAddress,
                     ),
-                    if (deliveryContact != null)
+                    if ((businessPhone ?? '').isNotEmpty) ...[
                       _detailRow(
                         context,
-                        label: 'Contact',
-                        value: deliveryContact,
+                        label: 'Business Mobile',
+                        value: businessPhone!,
                       ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                _callBusinessNow(context, businessPhone),
+                            icon: const Icon(Icons.call_outlined),
+                            label: const Text('Call Now'),
+                          ),
+                        ),
+                      ),
+                    ],
                     _detailRow(
                       context,
                       label: 'Amount',

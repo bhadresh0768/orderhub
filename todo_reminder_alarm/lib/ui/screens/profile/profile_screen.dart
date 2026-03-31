@@ -240,9 +240,10 @@ class _UpgradeToBusinessOwnerDialogState
                         },
                         child: ValueListenableBuilder<Country>(
                           valueListenable: _selectedCountry,
-                          builder: (context, selectedCountry, _) =>
-                              InputDecorator(
-                            decoration: const InputDecoration(labelText: 'Code'),
+                          builder: (context, selectedCountry, _) => InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Code',
+                            ),
                             child: Text(
                               '${selectedCountry.flagEmoji} +${selectedCountry.phoneCode}',
                             ),
@@ -309,10 +310,8 @@ class _UpgradeToBusinessOwnerDialogState
                               gstNumber: _gstController.text.trim().isEmpty
                                   ? null
                                   : _gstController.text.trim().toUpperCase(),
-                              description: _descriptionController
-                                      .text
-                                      .trim()
-                                      .isEmpty
+                              description:
+                                  _descriptionController.text.trim().isEmpty
                                   ? null
                                   : _descriptionController.text.trim(),
                             ),
@@ -408,7 +407,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _businessCityController.text = business.city;
     _businessAddressController.text = business.address ?? '';
     _businessGstController.text = business.gstNumber ?? '';
-    _businessPhoneController.text = business.phone ?? '';
+    _businessPhoneController.text = (business.phone ?? '').trim().isNotEmpty
+        ? business.phone!
+        : (widget.user.phoneNumber ?? '');
     _businessDescriptionController.text = business.description ?? '';
     _businessShareLinkController.text = business.shareLink ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -516,6 +517,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _updateUi((state) => state.copyWith(saving: true, error: null));
     try {
       final firestore = ref.read(firestoreServiceProvider);
+      final normalizedUserPhone = _phoneController.text.trim();
       final normalizedBusinessPhone = _normalizePhoneNumber(
         _businessPhoneController.text,
         _ui.businessCountry,
@@ -552,9 +554,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'description': _businessDescriptionController.text.trim().isEmpty
               ? null
               : _businessDescriptionController.text.trim(),
-          'phone': _businessPhoneController.text.trim().isEmpty
-              ? null
-              : normalizedBusinessPhone,
+          'phone': normalizedBusinessPhone.isNotEmpty
+              ? normalizedBusinessPhone
+              : (normalizedUserPhone.isNotEmpty ? normalizedUserPhone : null),
           'shareLink': businessShareLink,
           'logoUrl': _ui.businessLogoUrl,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -651,9 +653,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ownerId: widget.user.id,
               city: data.city,
               address: data.address,
-              phone: (data.phone ?? '').trim().isEmpty
-                  ? null
-                  : _normalizePhoneNumber(data.phone!, data.country),
+              phone: (data.phone ?? '').trim().isNotEmpty
+                  ? _normalizePhoneNumber(data.phone!, data.country)
+                  : ((widget.user.phoneNumber ?? '').trim().isNotEmpty
+                        ? widget.user.phoneNumber!.trim()
+                        : null),
               gstNumber: data.gstNumber,
               description: data.description,
               shareLink: businessDeepLink(businessId),

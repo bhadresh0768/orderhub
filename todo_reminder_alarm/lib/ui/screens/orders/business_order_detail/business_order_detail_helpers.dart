@@ -142,6 +142,68 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
     return _splitLegacyAddress(direct).contact;
   }
 
+  String? _extractPhoneFromText(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+
+    final bracketMatch = RegExp(r'\(([^()]+)\)\s*$').firstMatch(text);
+    final candidate = (bracketMatch?.group(1) ?? text).trim();
+    final digits = _digitsOnly(candidate);
+    if (digits.length < 7) return null;
+    return candidate;
+  }
+
+  bool _isSamePhoneContact(String? contact, String? phone) {
+    final contactPhone = _extractPhoneFromText(contact);
+    final directPhone = phone?.trim();
+    if (contactPhone == null || directPhone == null || directPhone.isEmpty) {
+      return false;
+    }
+    return _digitsOnly(contactPhone) == _digitsOnly(directPhone);
+  }
+
+  String? _requestedByPhone() {
+    final directPhone = (_order.deliveryContactPhone ?? '').trim();
+    if (directPhone.isNotEmpty) return directPhone;
+
+    final direct = (_order.deliveryAddress ?? '').trim();
+    if (direct.isNotEmpty) {
+      final legacyPhone = _extractPhoneFromText(
+        _splitLegacyAddress(direct).contact,
+      );
+      if (legacyPhone != null) return legacyPhone;
+    }
+    return null;
+  }
+
+  Future<void> _callCustomerNow(String phone) async {
+    final normalizedPhone = phone.trim();
+    if (normalizedPhone.isEmpty) return;
+
+    final uri = Uri(scheme: 'tel', path: normalizedPhone);
+    try {
+      final launched = await launchUrl(uri);
+      if (launched) return;
+    } catch (_) {}
+
+    try {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.DIAL',
+        data: 'tel:$normalizedPhone',
+      );
+      await intent.launch();
+      return;
+    } catch (_) {}
+
+    await Clipboard.setData(ClipboardData(text: normalizedPhone));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Call unavailable. Number copied to clipboard.'),
+      ),
+    );
+  }
+
   void _showLockedMessage() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

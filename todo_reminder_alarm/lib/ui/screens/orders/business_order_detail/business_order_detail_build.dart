@@ -13,6 +13,10 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
         : _order.customerName;
     final requestedAddress = _requestedByAddress();
     final requestedContact = _requestedByContact();
+    final requestedPhone = _requestedByPhone();
+    final showContact =
+        requestedContact != null &&
+        (!_isSamePhoneContact(requestedContact, requestedPhone));
     final includedCount = _itemIncluded.where((value) => value).length;
     final billing = _billingPreview();
     final isLocked = _isLocked;
@@ -50,11 +54,8 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
         ),
       );
     }
-    Widget metricTile(
-      String label,
-      String value, {
-      bool emphasize = false,
-    }) {
+
+    Widget metricTile(String label, String value, {bool emphasize = false}) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(10),
@@ -82,6 +83,7 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
         ),
       );
     }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Order ${_order.displayOrderNumber} Details'),
@@ -201,8 +203,21 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                     ),
                     detailRow('Order by', requester),
                     detailRow('Address', requestedAddress),
-                    if (requestedContact != null)
-                      detailRow('Contact', requestedContact),
+                    if (showContact) detailRow('Contact', requestedContact),
+                    if (requestedPhone != null) ...[
+                      detailRow('Mobile', requestedPhone),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _callCustomerNow(requestedPhone),
+                            icon: const Icon(Icons.call_outlined),
+                            label: const Text('Call Now'),
+                          ),
+                        ),
+                      ),
+                    ],
                     detailRow('Priority', _capitalize(_order.priority.name)),
                     detailRow(
                       'Amount',
@@ -210,7 +225,10 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                       valueColor: _paymentStatusColor(_order.payment.status),
                       valueWeight: FontWeight.w700,
                     ),
-                    detailRow('Delivery Agent', _order.assignedDeliveryAgentName ?? 'Not assigned'),
+                    detailRow(
+                      'Delivery Agent',
+                      _order.assignedDeliveryAgentName ?? 'Not assigned',
+                    ),
                     const Divider(height: 20),
                     detailRow(
                       'Order Created',
@@ -237,7 +255,7 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                       detailRow(
                         'Collected by',
                         '${_order.payment.collectedBy == PaymentCollectedBy.deliveryBoy ? 'Delivery Boy' : 'Business'}'
-                        '${(_order.payment.collectedByName ?? '').trim().isEmpty ? '' : ' (${_order.payment.collectedByName})'}',
+                            '${(_order.payment.collectedByName ?? '').trim().isEmpty ? '' : ' (${_order.payment.collectedByName})'}',
                       ),
                     if (_clean(_order.notes) != null)
                       detailRow(
@@ -264,9 +282,7 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                     const SizedBox(height: 8),
                     Text(
                       'Included Items: $includedCount / ${_order.items.length}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -303,9 +319,9 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                             ? lineSubtotal * billing.gstPercent / 100
                             : 0.0;
                         final lineTotal = lineSubtotal + lineGst;
-                        final unavailable = _itemUnavailableReasonControllers[index]
-                            .text
-                            .trim();
+                        final unavailable =
+                            _itemUnavailableReasonControllers[index].text
+                                .trim();
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(12),
@@ -449,17 +465,16 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                                               width: 72,
                                               height: 72,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, _, _) =>
-                                                  Container(
-                                                    width: 72,
-                                                    height: 72,
-                                                    color: Colors.black12,
-                                                    alignment: Alignment.center,
-                                                    child: const Icon(
-                                                      Icons
-                                                          .image_not_supported_outlined,
-                                                    ),
-                                                  ),
+                                              errorBuilder: (_, _, _) => Container(
+                                                width: 72,
+                                                height: 72,
+                                                color: Colors.black12,
+                                                alignment: Alignment.center,
+                                                child: const Icon(
+                                                  Icons
+                                                      .image_not_supported_outlined,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                           Positioned(
@@ -649,22 +664,16 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                         const SizedBox(height: 6),
                         Text(
                           'Pricing is disabled until order is accepted.',
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(
-                            color: Colors.orange[800],
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.orange[800]),
                         ),
                       ],
                       if (canEditAfterAccept && missingIncludedPrice) ...[
                         const SizedBox(height: 6),
                         Text(
                           'Enter unit price for all included items to enable Save Pricing.',
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(
-                            color: Colors.red[700],
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.red[700]),
                         ),
                       ],
                       const SizedBox(height: 10),
