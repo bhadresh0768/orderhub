@@ -28,6 +28,7 @@ class _LoginUiState {
     this.verificationId,
     this.resendToken,
     this.webConfirmationResult,
+    this.autoVerifiedCredential,
     this.error,
   });
 
@@ -40,6 +41,7 @@ class _LoginUiState {
   final String? verificationId;
   final int? resendToken;
   final ConfirmationResult? webConfirmationResult;
+  final PhoneAuthCredential? autoVerifiedCredential;
   final String? error;
 
   _LoginUiState copyWith({
@@ -52,6 +54,7 @@ class _LoginUiState {
     Object? verificationId = _loginUnset,
     Object? resendToken = _loginUnset,
     Object? webConfirmationResult = _loginUnset,
+    Object? autoVerifiedCredential = _loginUnset,
     Object? error = _loginUnset,
   }) {
     return _LoginUiState(
@@ -71,6 +74,9 @@ class _LoginUiState {
       webConfirmationResult: webConfirmationResult == _loginUnset
           ? this.webConfirmationResult
           : webConfirmationResult as ConfirmationResult?,
+      autoVerifiedCredential: autoVerifiedCredential == _loginUnset
+          ? this.autoVerifiedCredential
+          : autoVerifiedCredential as PhoneAuthCredential?,
       error: error == _loginUnset ? this.error : error as String?,
     );
   }
@@ -132,6 +138,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  void _resetOtpFlow({bool clearOtpInput = true}) {
+    _resendTimer?.cancel();
+    if (clearOtpInput) {
+      _otpController.clear();
+    }
+    _updateUi(
+      (state) => state.copyWith(
+        otpRequesting: false,
+        otpSent: false,
+        resendCooldownSeconds: 0,
+        verificationId: null,
+        resendToken: null,
+        webConfirmationResult: null,
+        autoVerifiedCredential: null,
+      ),
+    );
+  }
+
   void _startResendCooldown([int seconds = 30]) {
     _resendTimer?.cancel();
     if (!mounted) return;
@@ -174,12 +198,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   String _normalizePhoneNumber(String value) {
     final raw = value.trim().replaceAll(RegExp(r'[\s-]'), '');
+    if (raw.isEmpty) return '';
     if (raw.startsWith('+')) return raw;
     if (raw.startsWith('00') && raw.length > 2) return '+${raw.substring(2)}';
     if (RegExp(r'^\d+$').hasMatch(raw)) {
       return '+${_ui.selectedCountry.phoneCode}$raw';
     }
     return value.trim();
+  }
+
+  bool _isValidPhoneNumber(String value) {
+    final normalized = _normalizePhoneNumber(value);
+    return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(normalized);
   }
 
   Future<void> _sendOtp() async {
@@ -195,6 +225,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _updateUi(
           (state) => state.copyWith(
             webConfirmationResult: confirmation,
+            autoVerifiedCredential: null,
             otpRequesting: false,
             otpSent: true,
           ),
@@ -215,6 +246,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   (state) => state.copyWith(
                     verificationId: verificationId,
                     resendToken: resendToken,
+                    autoVerifiedCredential: null,
                     otpRequesting: false,
                     otpSent: true,
                   ),
@@ -225,11 +257,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ).showSnackBar(SnackBar(content: Text('OTP sent to $phone')));
               },
               verificationCompleted: (credential) async {
-                await ref
-                    .read(authServiceProvider)
-                    .signInWithPhoneCredential(credential);
                 if (!mounted) return;
-                _updateUi((state) => state.copyWith(otpRequesting: false));
+                _updateUi(
+                  (state) => state.copyWith(
+                    autoVerifiedCredential: credential,
+                    otpRequesting: false,
+                    otpSent: true,
+                    error: null,
+                  ),
+                );
               },
               verificationFailed: (e) {
                 if (!mounted) return;
@@ -252,12 +288,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _updateUi(
         (state) => state.copyWith(otpRequesting: false, error: err.toString()),
       );
-    } finally {
-      if (mounted) {
-        if (!_ui.otpSent) {
-          _updateUi((state) => state.copyWith(otpRequesting: false));
-        }
-      }
     }
   }
 
@@ -273,6 +303,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
         await confirmation.confirm(_otpController.text.trim());
       } else {
+        final autoVerifiedCredential = _ui.autoVerifiedCredential;
+        if (autoVerifiedCredential != null) {
+          await ref
+              .read(authServiceProvider)
+              .signInWithPhoneCredential(autoVerifiedCredential);
+          return;
+        }
         final verificationId = _ui.verificationId;
         if (verificationId == null) {
           _updateUi((state) => state.copyWith(error: 'Please send OTP first.'));
@@ -432,6 +469,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                   context: context,
                                                   showPhoneCode: true,
                                                   onSelect: (country) {
+                                                    if (country.countryCode !=
+                                                        uiState.selectedCountry
+                                                            .countryCode) {
+                                                      _resetOtpFlow();
+                                                    }
                                                     _updateUi(
                                                       (state) => state.copyWith(
                                                         selectedCountry:
@@ -457,6 +499,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             child: TextFormField(
                                               controller: _phoneController,
                                               keyboardType: TextInputType.phone,
+                                              onChanged: (_) {
+                                                if (_ui.otpSent ||
+                                                    _ui.verificationId != null ||
+                                                    _ui.webConfirmationResult !=
+                                                        null ||
+                                                    _ui.resendCooldownSeconds >
+                                                        0) {
+                                                  _resetOtpFlow();
+                                                }
+                                              },
                                               decoration: const InputDecoration(
                                                 labelText: 'Mobile Number',
                                                 hintText: '9876543210',
@@ -466,14 +518,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                     value.trim().isEmpty) {
                                                   return 'Enter mobile number';
                                                 }
-                                                final normalized =
-                                                    _normalizePhoneNumber(
-                                                      value,
-                                                    );
-                                                if (!normalized.startsWith(
-                                                      '+',
-                                                    ) ||
-                                                    normalized.length < 8) {
+                                                if (!_isValidPhoneNumber(
+                                                  value,
+                                                )) {
                                                   return 'Enter valid mobile number';
                                                 }
                                                 return null;
@@ -484,24 +531,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ),
                                       if (uiState.otpSent) ...[
                                         const SizedBox(height: 12),
-                                        TextFormField(
-                                          controller: _otpController,
-                                          keyboardType: TextInputType.number,
-                                          decoration: const InputDecoration(
-                                            labelText: 'OTP Code',
+                                        if (uiState.autoVerifiedCredential !=
+                                            null)
+                                          const Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              'Number verified automatically. Tap Continue.',
+                                            ),
+                                          )
+                                        else
+                                          TextFormField(
+                                            controller: _otpController,
+                                            keyboardType: TextInputType.number,
+                                            decoration: const InputDecoration(
+                                              labelText: 'OTP Code',
+                                            ),
+                                            validator: (value) {
+                                              if (!uiState.otpSent) return null;
+                                              if (value == null ||
+                                                  value.trim().isEmpty) {
+                                                return 'Enter OTP';
+                                              }
+                                              if (value.trim().length < 6) {
+                                                return 'OTP must be 6 digits';
+                                              }
+                                              return null;
+                                            },
                                           ),
-                                          validator: (value) {
-                                            if (!uiState.otpSent) return null;
-                                            if (value == null ||
-                                                value.trim().isEmpty) {
-                                              return 'Enter OTP';
-                                            }
-                                            if (value.trim().length < 6) {
-                                              return 'OTP must be 6 digits';
-                                            }
-                                            return null;
-                                          },
-                                        ),
                                       ],
                                       const SizedBox(height: 20),
                                       if (uiState.otpRequesting) ...[
@@ -545,7 +601,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                 )
                                               : Text(
                                                   uiState.otpSent
-                                                      ? 'Verify OTP'
+                                                      ? (uiState
+                                                                .autoVerifiedCredential !=
+                                                            null
+                                                        ? 'Continue'
+                                                        : 'Verify OTP')
                                                       : 'Send OTP',
                                                 ),
                                         ),

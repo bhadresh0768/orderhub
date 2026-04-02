@@ -246,6 +246,7 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                       TextFormField(
                         controller: _descriptionController,
                         maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(
                           labelText: 'Description',
                           hintText: 'Describe the issue clearly',

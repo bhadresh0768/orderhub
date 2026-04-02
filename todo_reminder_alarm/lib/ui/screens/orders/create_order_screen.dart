@@ -648,6 +648,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         initialValue: label,
+                        textCapitalization: TextCapitalization.words,
                         onChanged: (value) => label = value,
                         decoration: const InputDecoration(
                           labelText: 'Label',
@@ -657,6 +658,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: address,
+                        textCapitalization: TextCapitalization.sentences,
                         onChanged: (value) => address = value,
                         decoration: const InputDecoration(
                           labelText: 'Address',
@@ -666,6 +668,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: city,
+                        textCapitalization: TextCapitalization.words,
                         onChanged: (value) => city = value,
                         decoration: const InputDecoration(
                           labelText: 'City (optional)',
@@ -675,6 +678,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         initialValue: contactPerson,
+                        textCapitalization: TextCapitalization.words,
                         onChanged: (value) => contactPerson = value,
                         decoration: const InputDecoration(
                           labelText: 'Contact Person (optional)',
@@ -1179,6 +1183,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _itemController,
+                        textCapitalization: TextCapitalization.words,
                         onChanged: _onItemQueryChanged,
                         decoration: const InputDecoration(
                           labelText: 'Item / Service',
@@ -1225,6 +1230,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _packSizeController,
+                        textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(
                           labelText: 'Pack Size (optional)',
                           hintText: 'e.g. 1 L pouch, 500 g pack',
@@ -1260,6 +1266,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _itemNoteController,
+                        textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(
                           labelText: 'Item Note (optional)',
                         ),
@@ -1520,6 +1527,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _paymentRemarkController,
+                          textCapitalization: TextCapitalization.sentences,
                           decoration: const InputDecoration(
                             labelText:
                                 'Online Payment Remark (GPay, PhonePe, etc.)',
@@ -1538,6 +1546,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _notesController,
+                        textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(labelText: 'Notes'),
                         maxLines: 2,
                       ),

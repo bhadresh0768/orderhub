@@ -68,6 +68,7 @@ class _AdminSupportTicketsTabState extends ConsumerState<AdminSupportTicketsTab>
                 TextFormField(
                   initialValue: noteText,
                   maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
                   onChanged: (value) => noteText = value,
                   decoration: const InputDecoration(
                     labelText: 'Admin Note',

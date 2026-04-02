@@ -271,6 +271,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                               TextFormField(
                                 controller: _notesController,
                                 maxLines: 2,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 decoration: const InputDecoration(
                                   labelText: 'Update Note (optional)',
                                   hintText: 'What is new in this update?',

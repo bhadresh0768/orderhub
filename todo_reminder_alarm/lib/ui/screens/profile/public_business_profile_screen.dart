@@ -62,7 +62,20 @@ class PublicBusinessProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final liveBusinessAsync = ref.watch(businessByIdProvider(business.id));
     final currentBusiness = liveBusinessAsync.asData?.value ?? business;
+    final ownerAsync = ref.watch(userProfileProvider(currentBusiness.ownerId));
+    final ownerPhone = ownerAsync.asData?.value?.phoneNumber?.trim() ?? '';
     final businessPhone = (currentBusiness.phone ?? '').trim();
+    final ownerPhoneSnapshot = (currentBusiness.ownerPhone ?? '').trim();
+    final resolvedPhone = businessPhone.isNotEmpty
+        ? businessPhone
+        : ownerPhoneSnapshot.isNotEmpty
+        ? ownerPhoneSnapshot
+        : ownerPhone;
+    final contactLabel = businessPhone.isNotEmpty
+        ? 'Contact'
+        : ownerPhoneSnapshot.isNotEmpty || ownerPhone.isNotEmpty
+        ? 'Owner Contact'
+        : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Business Public Profile')),
@@ -127,11 +140,11 @@ class PublicBusinessProfileScreen extends ConsumerWidget {
                       Text('City: ${currentBusiness.city.trim()}'),
                       const SizedBox(height: 8),
                     ],
-                    if (businessPhone.isNotEmpty) ...[
-                      Text('Contact: $businessPhone'),
+                    if (resolvedPhone.isNotEmpty && contactLabel != null) ...[
+                      Text('$contactLabel: $resolvedPhone'),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
-                        onPressed: () => _callBusiness(context, businessPhone),
+                        onPressed: () => _callBusiness(context, resolvedPhone),
                         icon: const Icon(Icons.call_outlined),
                         label: const Text('Call Now'),
                       ),

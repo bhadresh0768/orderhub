@@ -194,6 +194,7 @@ class _UpgradeToBusinessOwnerDialogState
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _businessNameController,
+                  textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(labelText: 'Business Name'),
                   validator: (value) => value == null || value.trim().isEmpty
                       ? 'Enter business name'
@@ -202,6 +203,7 @@ class _UpgradeToBusinessOwnerDialogState
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _categoryController,
+                  textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(labelText: 'Category'),
                   validator: (value) => value == null || value.trim().isEmpty
                       ? 'Enter category'
@@ -210,6 +212,7 @@ class _UpgradeToBusinessOwnerDialogState
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _cityController,
+                  textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(labelText: 'City'),
                   validator: (value) => value == null || value.trim().isEmpty
                       ? 'Enter city'
@@ -219,6 +222,7 @@ class _UpgradeToBusinessOwnerDialogState
                 TextFormField(
                   controller: _addressController,
                   maxLines: 2,
+                  textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
                     labelText: 'Business Address',
                   ),
@@ -277,6 +281,7 @@ class _UpgradeToBusinessOwnerDialogState
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
                     labelText: 'Business Description',
                   ),
@@ -524,6 +529,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
       await firestore.updateUser(widget.user.id, {
         'name': _nameController.text.trim(),
+        'phoneNumber':
+            normalizedUserPhone.isEmpty ? null : normalizedUserPhone,
         'shopName': _shopNameController.text.trim().isEmpty
             ? null
             : _shopNameController.text.trim(),
@@ -557,6 +564,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'phone': normalizedBusinessPhone.isNotEmpty
               ? normalizedBusinessPhone
               : (normalizedUserPhone.isNotEmpty ? normalizedUserPhone : null),
+          'ownerPhone':
+              normalizedUserPhone.isNotEmpty ? normalizedUserPhone : null,
           'shareLink': businessShareLink,
           'logoUrl': _ui.businessLogoUrl,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -658,6 +667,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   : ((widget.user.phoneNumber ?? '').trim().isNotEmpty
                         ? widget.user.phoneNumber!.trim()
                         : null),
+              ownerPhone: (widget.user.phoneNumber ?? '').trim().isNotEmpty
+                  ? widget.user.phoneNumber!.trim()
+                  : null,
               gstNumber: data.gstNumber,
               description: data.description,
               shareLink: businessDeepLink(businessId),
@@ -764,6 +776,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(labelText: 'Full Name'),
                       validator: (value) =>
                           value == null || value.trim().isEmpty
@@ -774,6 +787,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     if (isCustomer) ...[
                       TextFormField(
                         controller: _shopNameController,
+                        textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(
                           labelText: 'Shop Name',
                         ),
@@ -786,6 +800,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       TextFormField(
                         controller: _addressController,
                         maxLines: 2,
+                        textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(labelText: 'Address'),
                         validator: (value) =>
                             value == null || value.trim().isEmpty
@@ -889,6 +904,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SizedBox(height: 12),
                               TextFormField(
                                 controller: _businessNameController,
+                                textCapitalization: TextCapitalization.words,
                                 decoration: const InputDecoration(
                                   labelText: 'Business Name',
                                 ),
@@ -900,6 +916,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SizedBox(height: 10),
                               TextFormField(
                                 controller: _businessCategoryController,
+                                textCapitalization: TextCapitalization.words,
                                 decoration: const InputDecoration(
                                   labelText: 'Category',
                                 ),
@@ -912,6 +929,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               TextFormField(
                                 controller: _businessAddressController,
                                 maxLines: 2,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 decoration: const InputDecoration(
                                   labelText: 'Business Address',
                                 ),
@@ -919,6 +938,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SizedBox(height: 10),
                               TextFormField(
                                 controller: _businessCityController,
+                                textCapitalization: TextCapitalization.words,
                                 decoration: const InputDecoration(
                                   labelText: 'City',
                                 ),
@@ -984,6 +1004,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               TextFormField(
                                 controller: _businessDescriptionController,
                                 maxLines: 3,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 decoration: const InputDecoration(
                                   labelText: 'Business Description',
                                 ),
@@ -1084,6 +1106,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                                 ? business.phone
                                                 : _businessPhoneController.text
                                                       .trim(),
+                                            ownerPhone:
+                                                _phoneController.text.trim().isEmpty
+                                                ? business.ownerPhone
+                                                : _phoneController.text.trim(),
                                             logoUrl:
                                                 (uiState.businessLogoUrl ?? '')
                                                     .trim()

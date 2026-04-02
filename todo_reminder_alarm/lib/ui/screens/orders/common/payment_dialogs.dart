@@ -40,6 +40,7 @@ class PaymentDialogs {
               const SizedBox(height: 10),
               TextFormField(
                 initialValue: remark,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Payment Remark',
                   hintText: 'Optional note',

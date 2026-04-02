@@ -98,6 +98,107 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     }).toList();
   }
 
+  Future<void> _showCityPicker(List<String> cities, String selectedCity) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        var searchQuery = '';
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filteredCities = cities.where((city) {
+              if (searchQuery.trim().isEmpty) return true;
+              return city.toLowerCase().contains(searchQuery.toLowerCase());
+            }).toList();
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+                ),
+                child: SizedBox(
+                  height: 420,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select City',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        decoration: const InputDecoration(
+                          labelText: 'Search city',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onChanged: (value) {
+                          setModalState(() {
+                            searchQuery = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: filteredCities.isEmpty
+                            ? const Center(
+                                child: Text('No city matches your search.'),
+                              )
+                            : ListView.builder(
+                                itemCount: filteredCities.length,
+                                itemBuilder: (context, index) {
+                                  final city = filteredCities[index];
+                                  final isSelected = city == selectedCity;
+                                  return ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(city),
+                                    trailing: isSelected
+                                        ? const Icon(Icons.check)
+                                        : null,
+                                    onTap: () {
+                                      ref
+                                              .read(
+                                                _customerCityFilterProvider
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          city;
+                                      Navigator.of(sheetContext).pop();
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCityPickerField(List<String> cities, String cityFilter) {
+    return InkWell(
+      onTap: () => _showCityPicker(cities, cityFilter),
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'City',
+          suffixIcon: Icon(Icons.search),
+        ),
+        child: Text(
+          cityFilter,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   OrderStatus _effectiveStatus(Order order) {
     return OrderSharedHelpers.effectiveStatus(order);
   }
@@ -364,7 +465,13 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
           'All',
           ...businesses.map((e) => e.category),
         };
-        final cities = <String>{'All', ...businesses.map((e) => e.city)};
+        final normalizedCities = businesses
+            .map((e) => e.city.trim())
+            .where((city) => city.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        final cities = ['All', ...normalizedCities];
         final filtered = _applyFilters(
           businesses,
           queryText: storeSearch,
@@ -420,24 +527,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                                 value ?? 'All',
                       ),
                       const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: cityFilter,
-                        decoration: const InputDecoration(labelText: 'City'),
-                        items: cities
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            ref
-                                    .read(_customerCityFilterProvider.notifier)
-                                    .state =
-                                value ?? 'All',
-                      ),
+                      _buildCityPickerField(cities, cityFilter),
                     ],
                   );
                 }
@@ -484,24 +574,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: cityFilter,
-                        decoration: const InputDecoration(labelText: 'City'),
-                        items: cities
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            ref
-                                    .read(_customerCityFilterProvider.notifier)
-                                    .state =
-                                value ?? 'All',
-                      ),
+                      child: _buildCityPickerField(cities, cityFilter),
                     ),
                   ],
                 );

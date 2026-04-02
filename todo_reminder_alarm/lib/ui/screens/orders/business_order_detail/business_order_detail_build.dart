@@ -534,6 +534,8 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                                   controller:
                                       _itemUnavailableReasonControllers[index],
                                   enabled: canEditAfterAccept,
+                                  textCapitalization:
+                                      TextCapitalization.sentences,
                                   decoration: const InputDecoration(
                                     labelText: 'Unavailable Reason',
                                     hintText: 'Not available',

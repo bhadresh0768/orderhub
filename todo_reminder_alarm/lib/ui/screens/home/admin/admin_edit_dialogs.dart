@@ -176,21 +176,25 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
           children: [
             TextField(
               controller: _nameController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Business Name'),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _categoryController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Category'),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _cityController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'City'),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _addressController,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Address'),
             ),
             const SizedBox(height: 8),
@@ -368,6 +372,7 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
           children: [
             TextField(
               controller: _nameController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Name'),
             ),
             const SizedBox(height: 8),
@@ -383,11 +388,13 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
             const SizedBox(height: 8),
             TextField(
               controller: _shopController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Shop Name'),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _addressController,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Address'),
             ),
             const SizedBox(height: 8),

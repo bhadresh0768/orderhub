@@ -243,6 +243,7 @@ Future<void> _showCategoryDialog(
             children: [
               TextField(
                 controller: name,
+                textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(labelText: 'Name'),
               ),
               const SizedBox(height: 8),
@@ -323,6 +324,7 @@ Future<void> _showProductDialog(
             children: [
               TextField(
                 controller: name,
+                textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(labelText: 'Name'),
               ),
               const SizedBox(height: 8),
@@ -340,6 +342,7 @@ Future<void> _showProductDialog(
               const SizedBox(height: 8),
               TextField(
                 controller: description,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Description'),
                 maxLines: 3,
               ),

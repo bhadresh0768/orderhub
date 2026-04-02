@@ -263,6 +263,7 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _labelController,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
                 labelText: 'Label',
                 hintText: 'Small pack / 1 Liter bottle',

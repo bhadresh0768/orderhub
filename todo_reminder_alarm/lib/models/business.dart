@@ -16,6 +16,7 @@ class BusinessProfile {
     this.subscriptionEndDate,
     this.description,
     this.phone,
+    this.ownerPhone,
     this.gstNumber,
     this.logoUrl,
     this.shareLink,
@@ -34,6 +35,7 @@ class BusinessProfile {
   final DateTime? subscriptionEndDate;
   final String? description;
   final String? phone;
+  final String? ownerPhone;
   final String? gstNumber;
   final String? logoUrl;
   final String? shareLink;
@@ -67,6 +69,7 @@ class BusinessProfile {
           : Timestamp.fromDate(subscriptionEndDate!),
       'description': description,
       'phone': phone,
+      'ownerPhone': ownerPhone,
       'gstNumber': gstNumber,
       'logoUrl': logoUrl,
       'shareLink': shareLink,
@@ -98,6 +101,7 @@ class BusinessProfile {
           ?.toDate(),
       description: data['description'] as String?,
       phone: data['phone'] as String?,
+      ownerPhone: data['ownerPhone'] as String?,
       gstNumber: data['gstNumber'] as String?,
       logoUrl: data['logoUrl'] as String?,
       shareLink: data['shareLink'] as String?,

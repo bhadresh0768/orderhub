@@ -349,6 +349,11 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           builder: (context, constraints) {
                             final isWide = constraints.maxWidth >= 900;
                             final crossAxisCount = isWide ? 2 : 1;
+                            final cardExtent = isWide ? 190.0 : 200.0;
+                            final cardPadding = isWide ? 12.0 : 10.0;
+                            final titleStyle = isWide
+                                ? Theme.of(context).textTheme.titleLarge
+                                : Theme.of(context).textTheme.titleMedium;
                             return GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -358,41 +363,54 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                     crossAxisCount: crossAxisCount,
                                     crossAxisSpacing: 12,
                                     mainAxisSpacing: 12,
-                                    mainAxisExtent: 190,
+                                    mainAxisExtent: cardExtent,
                                   ),
                               itemBuilder: (context, index) {
                                 final business = filtered[index];
                                 return Card(
                                   child: Padding(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: EdgeInsets.all(cardPadding),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          business.name,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleLarge,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Wrap(
-                                          spacing: 8,
-                                          children: [
-                                            Chip(
-                                              label: Text(business.category),
-                                            ),
-                                          ],
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                business.name,
+                                                style: titleStyle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Wrap(
+                                                spacing: 6,
+                                                children: [
+                                                  Chip(
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                    materialTapTargetSize:
+                                                        MaterialTapTargetSize
+                                                            .shrinkWrap,
+                                                    label: Text(
+                                                      business.category,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '${(business.address ?? '').trim().isEmpty ? '-' : business.address!.trim()}, ${business.city}',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                         const SizedBox(height: 6),
-                                        Text(
-                                          '${(business.address ?? '').trim().isEmpty ? '-' : business.address!.trim()}, ${business.city}',
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const Spacer(),
                                         Row(
                                           children: [
                                             Expanded(

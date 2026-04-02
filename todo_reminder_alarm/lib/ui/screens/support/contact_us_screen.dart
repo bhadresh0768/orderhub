@@ -123,6 +123,7 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _nameController,
+                        textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(labelText: 'Name'),
                         validator: (value) {
                           if ((value ?? '').trim().isEmpty) {
@@ -154,6 +155,7 @@ class _ContactUsScreenState extends ConsumerState<ContactUsScreen> {
                       TextFormField(
                         controller: _descriptionController,
                         maxLines: 5,
+                        textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(
                           labelText: 'Description',
                           hintText: 'Write your issue',

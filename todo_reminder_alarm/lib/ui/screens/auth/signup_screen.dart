@@ -146,6 +146,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           ownerId: uid,
           city: _businessCityController.text.trim(),
           address: _businessAddressController.text.trim(),
+          phone: (phoneNumber ?? '').trim().isEmpty ? null : phoneNumber!.trim(),
+          ownerPhone:
+              (phoneNumber ?? '').trim().isEmpty ? null : phoneNumber!.trim(),
           gstNumber: _businessGstController.text.trim().isEmpty
               ? null
               : _businessGstController.text.trim().toUpperCase(),
@@ -246,6 +249,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ],
                       TextFormField(
                         controller: _nameController,
+                        textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(
                           labelText: 'Full Name',
                         ),
@@ -416,6 +420,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _shopNameController,
+                          textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Shop Name',
                           ),
@@ -429,6 +434,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         TextFormField(
                           controller: _addressController,
                           maxLines: 2,
+                          textCapitalization: TextCapitalization.sentences,
                           decoration: const InputDecoration(
                             labelText: 'Address',
                           ),
@@ -443,6 +449,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _businessNameController,
+                          textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Business Name',
                           ),
@@ -454,6 +461,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _businessCategoryController,
+                          textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                           ),
@@ -466,6 +474,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         TextFormField(
                           controller: _businessAddressController,
                           maxLines: 2,
+                          textCapitalization: TextCapitalization.sentences,
                           decoration: const InputDecoration(
                             labelText: 'Business Address',
                           ),
@@ -478,6 +487,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _businessCityController,
+                          textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(labelText: 'City'),
                           validator: (value) =>
                               isBusiness && (value == null || value.isEmpty)

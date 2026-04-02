@@ -114,6 +114,7 @@ class _DeliveryTeamTabState extends ConsumerState<_DeliveryTeamTab> {
               children: [
                 TextFormField(
                   controller: _nameController,
+                  textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
                     labelText: 'Delivery Boy Name',
                   ),
