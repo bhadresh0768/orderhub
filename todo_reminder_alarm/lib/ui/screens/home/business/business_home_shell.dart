@@ -166,6 +166,13 @@ class _BusinessHomeBody extends ConsumerWidget {
         subscriptionEndDate != null &&
         !now.isAfter(subscriptionEndDate) &&
         !subscriptionEndDate.isAfter(now.add(const Duration(days: 30)));
+    final fiscalBannerDismissed = ownBusiness == null
+        ? true
+        : ref.watch(_fiscalYearBannerDismissedProvider(ownBusiness.id));
+    final showFiscalYearBanner =
+        ownBusiness != null &&
+        ownBusiness.fiscalYearStartMonth == null &&
+        !fiscalBannerDismissed;
 
     return DefaultTabController(
       length: 4,
@@ -201,6 +208,80 @@ class _BusinessHomeBody extends ConsumerWidget {
         ),
         body: Column(
           children: [
+            if (showFiscalYearBanner)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade300),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.event_note_outlined,
+                        color: Colors.amber.shade900,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Set your financial year start month to keep future order numbering correct.',
+                              style: TextStyle(
+                                color: Colors.amber.shade900,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            ProfileScreen(user: profile),
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.amber.shade900,
+                                    side: BorderSide(
+                                      color: Colors.amber.shade400,
+                                    ),
+                                  ),
+                                  child: const Text('Open Profile Settings'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    ref
+                                            .read(
+                                              _fiscalYearBannerDismissedProvider(
+                                                ownBusiness!.id,
+                                              ).notifier,
+                                            )
+                                            .state =
+                                        true;
+                                  },
+                                  child: const Text('Later'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (showSubscriptionAlert)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

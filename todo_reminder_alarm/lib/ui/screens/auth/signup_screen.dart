@@ -9,6 +9,7 @@ import '../../../models/app_user.dart';
 import '../../../models/business.dart';
 import '../../../models/enums.dart';
 import '../../../providers.dart';
+import '../../../utils/fiscal_year_defaults.dart';
 import 'login_screen.dart';
 
 final _signUpUiProvider = StateProvider.autoDispose<_SignUpUiState>(
@@ -115,8 +116,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       final auth = ref.read(authServiceProvider);
       final firestore = ref.read(firestoreServiceProvider);
       final existingUser = ref.read(firebaseAuthProvider).currentUser;
-      final roleToSave =
-          _ui.role == UserRole.admin ? UserRole.customer : _ui.role;
+      final roleToSave = _ui.role == UserRole.admin
+          ? UserRole.customer
+          : _ui.role;
       final isCustomer = roleToSave == UserRole.customer;
       UserCredential? credential;
       String uid;
@@ -146,9 +148,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           ownerId: uid,
           city: _businessCityController.text.trim(),
           address: _businessAddressController.text.trim(),
-          phone: (phoneNumber ?? '').trim().isEmpty ? null : phoneNumber!.trim(),
-          ownerPhone:
-              (phoneNumber ?? '').trim().isEmpty ? null : phoneNumber!.trim(),
+          fiscalYearStartMonth: defaultFiscalYearStartMonthForCountryCode(
+            _ui.selectedCountry.countryCode,
+          ),
+          phone: (phoneNumber ?? '').trim().isEmpty
+              ? null
+              : phoneNumber!.trim(),
+          ownerPhone: (phoneNumber ?? '').trim().isEmpty
+              ? null
+              : phoneNumber!.trim(),
           gstNumber: _businessGstController.text.trim().isEmpty
               ? null
               : _businessGstController.text.trim().toUpperCase(),
@@ -233,303 +241,307 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   key: _formKey,
                   child: SingleChildScrollView(
                     child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Join OrderHub',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      if (uiState.error != null) ...[
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          uiState.error!,
-                          style: const TextStyle(color: Colors.red),
+                          'Join OrderHub',
+                          style: Theme.of(context).textTheme.headlineMedium,
                         ),
-                        const SizedBox(height: 12),
-                      ],
-                      TextFormField(
-                        controller: _nameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Full Name',
-                        ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? 'Enter your name'
-                            : null,
-                      ),
-                      if (profileOnlyMode) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(12),
+                        const SizedBox(height: 16),
+                        if (uiState.error != null) ...[
+                          Text(
+                            uiState.error!,
+                            style: const TextStyle(color: Colors.red),
                           ),
-                          child: Text(
-                            'You are signed in with mobile OTP. Complete your profile to continue.',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                          const SizedBox(height: 12),
+                        ],
+                        TextFormField(
+                          controller: _nameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Full Name',
                           ),
+                          validator: (value) => value == null || value.isEmpty
+                              ? 'Enter your name'
+                              : null,
                         ),
-                        const SizedBox(height: 12),
-                        if ((existingUser?.phoneNumber ?? '').isNotEmpty)
-                          TextFormField(
-                            initialValue: existingUser?.phoneNumber,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Mobile Number',
+                        if (profileOnlyMode) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'You are signed in with mobile OTP. Complete your profile to continue.',
+                              style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _emailController,
-                          readOnly: (existingUser?.email ?? '').isNotEmpty,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: 'Email (optional)',
+                          const SizedBox(height: 12),
+                          if ((existingUser?.phoneNumber ?? '').isNotEmpty)
+                            TextFormField(
+                              initialValue: existingUser?.phoneNumber,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Mobile Number',
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _emailController,
+                            readOnly: (existingUser?.email ?? '').isNotEmpty,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: 'Email (optional)',
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return null;
+                              }
+                              final email = value.trim();
+                              final isValid = RegExp(
+                                r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                              ).hasMatch(email);
+                              return isValid ? null : 'Enter valid email';
+                            },
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return null;
+                        ] else ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 132,
+                                child: InkWell(
+                                  onTap: () {
+                                    showCountryPicker(
+                                      context: context,
+                                      showPhoneCode: true,
+                                      onSelect: (country) {
+                                        _updateUi(
+                                          (state) => state.copyWith(
+                                            selectedCountry: country,
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                  child: InputDecorator(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Code',
+                                    ),
+                                    child: Text(
+                                      '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _mobileController,
+                                  keyboardType: TextInputType.phone,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Mobile Number (optional)',
+                                    hintText: '9876543210',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Enter your email'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _passwordController,
+                            decoration: const InputDecoration(
+                              labelText: 'Password',
+                            ),
+                            obscureText: true,
+                            validator: (value) =>
+                                value != null && value.length < 6
+                                ? 'Password must be 6+ chars'
+                                : null,
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<UserRole>(
+                          initialValue: selectedRole,
+                          decoration: const InputDecoration(
+                            labelText: 'Account Type',
+                          ),
+                          items: allowedRoles
+                              .map(
+                                (role) => DropdownMenuItem(
+                                  value: role,
+                                  child: Text(_roleLabel(role)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              _updateUi((state) => state.copyWith(role: value));
                             }
-                            final email = value.trim();
-                            final isValid = RegExp(
-                              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                            ).hasMatch(email);
-                            return isValid ? null : 'Enter valid email';
                           },
                         ),
-                      ] else ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 132,
-                              child: InkWell(
-                                onTap: () {
-                                  showCountryPicker(
-                                    context: context,
-                                    showPhoneCode: true,
-                                    onSelect: (country) {
-                                      _updateUi(
-                                        (state) => state.copyWith(
-                                          selectedCountry: country,
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                                child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Code',
-                                  ),
-                                  child: Text(
-                                    '${uiState.selectedCountry.flagEmoji} +${uiState.selectedCountry.phoneCode}',
-                                  ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.only(top: 1),
+                                child: Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 18,
+                                  color: Colors.orange,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _mobileController,
-                                keyboardType: TextInputType.phone,
-                                decoration: const InputDecoration(
-                                  labelText: 'Mobile Number (optional)',
-                                  hintText: '9876543210',
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'If you have a valid business registration ID, register as Business.',
+                                  style: TextStyle(fontSize: 13),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(labelText: 'Email'),
-                          validator: (value) => value == null || value.isEmpty
-                              ? 'Enter your email'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _passwordController,
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
+                            ],
                           ),
-                          obscureText: true,
-                          validator: (value) =>
-                              value != null && value.length < 6
-                              ? 'Password must be 6+ chars'
-                              : null,
+                        ),
+                        if (isCustomer) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _shopNameController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Shop Name',
+                            ),
+                            validator: (value) =>
+                                isCustomer &&
+                                    (value == null || value.trim().isEmpty)
+                                ? 'Enter shop name'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _addressController,
+                            maxLines: 2,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              labelText: 'Address',
+                            ),
+                            validator: (value) =>
+                                isCustomer &&
+                                    (value == null || value.trim().isEmpty)
+                                ? 'Enter address'
+                                : null,
+                          ),
+                        ],
+                        if (isBusiness) ...[
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _businessNameController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Business Name',
+                            ),
+                            validator: (value) =>
+                                isBusiness && (value == null || value.isEmpty)
+                                ? 'Enter business name'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _businessCategoryController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                            ),
+                            validator: (value) =>
+                                isBusiness && (value == null || value.isEmpty)
+                                ? 'Enter category'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _businessAddressController,
+                            maxLines: 2,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              labelText: 'Business Address',
+                            ),
+                            validator: (value) =>
+                                isBusiness &&
+                                    (value == null || value.trim().isEmpty)
+                                ? 'Enter business address'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _businessCityController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'City',
+                            ),
+                            validator: (value) =>
+                                isBusiness && (value == null || value.isEmpty)
+                                ? 'Enter city'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _businessGstController,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              labelText: 'Business Unique No (GST optional)',
+                              hintText: 'e.g. 27ABCDE1234F1Z5',
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: uiState.loading ? null : _submit,
+                            child: uiState.loading
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Create Account'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(
+                              context,
+                            ).pushReplacementNamed(LoginScreen.routeName);
+                          },
+                          child: const Text('Already have an account? Login'),
                         ),
                       ],
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<UserRole>(
-                        initialValue: selectedRole,
-                        decoration: const InputDecoration(
-                          labelText: 'Account Type',
-                        ),
-                        items: allowedRoles
-                            .map(
-                              (role) => DropdownMenuItem(
-                                value: role,
-                                child: Text(_roleLabel(role)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            _updateUi((state) => state.copyWith(role: value));
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.amber.shade300),
-                        ),
-                        child: const Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.only(top: 1),
-                              child: Icon(
-                                Icons.warning_amber_rounded,
-                                size: 18,
-                                color: Colors.orange,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'If you have a valid business registration ID, register as Business.',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isCustomer) ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _shopNameController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Shop Name',
-                          ),
-                          validator: (value) =>
-                              isCustomer &&
-                                  (value == null || value.trim().isEmpty)
-                              ? 'Enter shop name'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _addressController,
-                          maxLines: 2,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(
-                            labelText: 'Address',
-                          ),
-                          validator: (value) =>
-                              isCustomer &&
-                                  (value == null || value.trim().isEmpty)
-                              ? 'Enter address'
-                              : null,
-                        ),
-                      ],
-                      if (isBusiness) ...[
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _businessNameController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Business Name',
-                          ),
-                          validator: (value) =>
-                              isBusiness && (value == null || value.isEmpty)
-                              ? 'Enter business name'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _businessCategoryController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                          ),
-                          validator: (value) =>
-                              isBusiness && (value == null || value.isEmpty)
-                              ? 'Enter category'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _businessAddressController,
-                          maxLines: 2,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(
-                            labelText: 'Business Address',
-                          ),
-                          validator: (value) =>
-                              isBusiness &&
-                                  (value == null || value.trim().isEmpty)
-                              ? 'Enter business address'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _businessCityController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(labelText: 'City'),
-                          validator: (value) =>
-                              isBusiness && (value == null || value.isEmpty)
-                              ? 'Enter city'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _businessGstController,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: const InputDecoration(
-                            labelText: 'Business Unique No (GST optional)',
-                            hintText: 'e.g. 27ABCDE1234F1Z5',
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: uiState.loading ? null : _submit,
-                          child: uiState.loading
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Create Account'),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(
-                            context,
-                          ).pushReplacementNamed(LoginScreen.routeName);
-                        },
-                        child: const Text('Already have an account? Login'),
-                      ),
-                    ],
                     ),
                   ),
                 ),

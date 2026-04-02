@@ -37,6 +37,9 @@ class _BusinessOrdersUiState {
 
 const _businessDateUnset = Object();
 
+final _fiscalYearBannerDismissedProvider = StateProvider.autoDispose
+    .family<bool, String>((ref, _) => false);
+
 final _placeOrdersUiProvider = StateProvider.autoDispose
     .family<_PlaceOrdersUiState, String>(
       (ref, _) => const _PlaceOrdersUiState(),

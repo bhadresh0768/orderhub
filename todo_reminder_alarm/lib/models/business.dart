@@ -10,6 +10,7 @@ class BusinessProfile {
     required this.ownerId,
     required this.city,
     this.address,
+    this.fiscalYearStartMonth,
     this.status = BusinessStatus.pending,
     this.subscriptionActive = false,
     this.subscriptionStartDate,
@@ -29,6 +30,7 @@ class BusinessProfile {
   final String ownerId;
   final String city;
   final String? address;
+  final int? fiscalYearStartMonth;
   final BusinessStatus status;
   final bool subscriptionActive;
   final DateTime? subscriptionStartDate;
@@ -40,6 +42,10 @@ class BusinessProfile {
   final String? logoUrl;
   final String? shareLink;
   final DateTime? createdAt;
+
+  int get resolvedFiscalYearStartMonth {
+    return (fiscalYearStartMonth ?? 4).clamp(1, 12);
+  }
 
   bool hasActiveSubscriptionAt(DateTime now) {
     if (!subscriptionActive) return false;
@@ -59,6 +65,7 @@ class BusinessProfile {
       'ownerId': ownerId,
       'city': city,
       'address': address,
+      'fiscalYearStartMonth': fiscalYearStartMonth,
       'status': enumToString(status),
       'subscriptionActive': subscriptionActive,
       'subscriptionStartDate': subscriptionStartDate == null
@@ -89,6 +96,7 @@ class BusinessProfile {
       ownerId: (data['ownerId'] as String?) ?? '',
       city: (data['city'] as String?) ?? '',
       address: data['address'] as String?,
+      fiscalYearStartMonth: (data['fiscalYearStartMonth'] as num?)?.toInt(),
       status: enumFromString(
         BusinessStatus.values,
         data['status'] as String?,

@@ -12,6 +12,7 @@ import '../../../models/business.dart';
 import '../../../models/enums.dart';
 import '../../../providers.dart';
 import '../../../app/deep_link_utils.dart';
+import '../../../utils/fiscal_year_defaults.dart';
 import 'public_business_profile_screen.dart';
 
 final _profileUiProvider = StateProvider.autoDispose
@@ -84,6 +85,7 @@ class _UpgradeBusinessData {
     required this.category,
     required this.city,
     required this.country,
+    required this.fiscalYearStartMonth,
     this.address,
     this.phone,
     this.gstNumber,
@@ -94,11 +96,27 @@ class _UpgradeBusinessData {
   final String category;
   final String city;
   final Country country;
+  final int fiscalYearStartMonth;
   final String? address;
   final String? phone;
   final String? gstNumber;
   final String? description;
 }
+
+const List<String> _monthLabels = <String>[
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 class _UpgradeToBusinessOwnerDialog extends StatefulWidget {
   const _UpgradeToBusinessOwnerDialog({
@@ -127,6 +145,7 @@ class _UpgradeToBusinessOwnerDialogState
   final _phoneController = TextEditingController();
   final _descriptionController = TextEditingController();
   late final ValueNotifier<Country> _selectedCountry;
+  late final ValueNotifier<int> _fiscalYearStartMonth;
 
   @override
   void initState() {
@@ -136,6 +155,11 @@ class _UpgradeToBusinessOwnerDialogState
     );
     _addressController = TextEditingController(text: widget.initialAddress);
     _selectedCountry = ValueNotifier<Country>(widget.initialCountry);
+    _fiscalYearStartMonth = ValueNotifier<int>(
+      defaultFiscalYearStartMonthForCountryCode(
+        widget.initialCountry.countryCode,
+      ),
+    );
   }
 
   @override
@@ -148,6 +172,7 @@ class _UpgradeToBusinessOwnerDialogState
     _phoneController.dispose();
     _descriptionController.dispose();
     _selectedCountry.dispose();
+    _fiscalYearStartMonth.dispose();
     super.dispose();
   }
 
@@ -239,6 +264,10 @@ class _UpgradeToBusinessOwnerDialogState
                             showPhoneCode: true,
                             onSelect: (country) {
                               _selectedCountry.value = country;
+                              _fiscalYearStartMonth.value =
+                                  defaultFiscalYearStartMonthForCountryCode(
+                                    country.countryCode,
+                                  );
                             },
                           );
                         },
@@ -287,6 +316,31 @@ class _UpgradeToBusinessOwnerDialogState
                   ),
                 ),
                 const SizedBox(height: 14),
+                ValueListenableBuilder<int>(
+                  valueListenable: _fiscalYearStartMonth,
+                  builder: (context, fiscalYearStartMonth, _) {
+                    return DropdownButtonFormField<int>(
+                      initialValue: fiscalYearStartMonth,
+                      decoration: const InputDecoration(
+                        labelText: 'Financial Year Start Month',
+                        helperText: 'Used for future order number reset',
+                      ),
+                      items: List.generate(12, (index) {
+                        final month = index + 1;
+                        return DropdownMenuItem<int>(
+                          value: month,
+                          child: Text(_monthLabels[index]),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value != null) {
+                          _fiscalYearStartMonth.value = value;
+                        }
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
@@ -306,6 +360,7 @@ class _UpgradeToBusinessOwnerDialogState
                               category: _categoryController.text.trim(),
                               city: _cityController.text.trim(),
                               country: _selectedCountry.value,
+                              fiscalYearStartMonth: _fiscalYearStartMonth.value,
                               address: _addressController.text.trim().isEmpty
                                   ? null
                                   : _addressController.text.trim(),
@@ -362,6 +417,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _businessPhoneController = TextEditingController();
   final _businessDescriptionController = TextEditingController();
   final _businessShareLinkController = TextEditingController();
+  int? _selectedFiscalYearStartMonth;
 
   _ProfileUiState get _ui => ref.read(_profileUiProvider(widget.user.id));
   void _updateUi(_ProfileUiState Function(_ProfileUiState state) update) {
@@ -417,6 +473,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         : (widget.user.phoneNumber ?? '');
     _businessDescriptionController.text = business.description ?? '';
     _businessShareLinkController.text = business.shareLink ?? '';
+    _selectedFiscalYearStartMonth = business.resolvedFiscalYearStartMonth;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _updateUi(
@@ -529,8 +586,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
       await firestore.updateUser(widget.user.id, {
         'name': _nameController.text.trim(),
-        'phoneNumber':
-            normalizedUserPhone.isEmpty ? null : normalizedUserPhone,
+        'phoneNumber': normalizedUserPhone.isEmpty ? null : normalizedUserPhone,
         'shopName': _shopNameController.text.trim().isEmpty
             ? null
             : _shopNameController.text.trim(),
@@ -564,8 +620,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'phone': normalizedBusinessPhone.isNotEmpty
               ? normalizedBusinessPhone
               : (normalizedUserPhone.isNotEmpty ? normalizedUserPhone : null),
-          'ownerPhone':
-              normalizedUserPhone.isNotEmpty ? normalizedUserPhone : null,
+          'ownerPhone': normalizedUserPhone.isNotEmpty
+              ? normalizedUserPhone
+              : null,
+          'fiscalYearStartMonth': _selectedFiscalYearStartMonth ?? 4,
           'shareLink': businessShareLink,
           'logoUrl': _ui.businessLogoUrl,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -672,6 +730,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   : null,
               gstNumber: data.gstNumber,
               description: data.description,
+              fiscalYearStartMonth: data.fiscalYearStartMonth,
               shareLink: businessDeepLink(businessId),
             ),
           );
@@ -1011,6 +1070,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                               ),
                               const SizedBox(height: 10),
+                              DropdownButtonFormField<int>(
+                                initialValue:
+                                    _selectedFiscalYearStartMonth ?? 4,
+                                decoration: const InputDecoration(
+                                  labelText: 'Financial Year Start Month',
+                                  helperText:
+                                      'Used for future order number reset',
+                                ),
+                                items: List.generate(12, (index) {
+                                  final month = index + 1;
+                                  return DropdownMenuItem<int>(
+                                    value: month,
+                                    child: Text(_monthLabels[index]),
+                                  );
+                                }),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedFiscalYearStartMonth = value ?? 4;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 10),
                               TextFormField(
                                 controller: _businessShareLinkController,
                                 onChanged: (_) => _updateUi(
@@ -1107,9 +1188,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                                 : _businessPhoneController.text
                                                       .trim(),
                                             ownerPhone:
-                                                _phoneController.text.trim().isEmpty
+                                                _phoneController.text
+                                                    .trim()
+                                                    .isEmpty
                                                 ? business.ownerPhone
                                                 : _phoneController.text.trim(),
+                                            fiscalYearStartMonth:
+                                                _selectedFiscalYearStartMonth ??
+                                                business
+                                                    .resolvedFiscalYearStartMonth,
                                             logoUrl:
                                                 (uiState.businessLogoUrl ?? '')
                                                     .trim()
