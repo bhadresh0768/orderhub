@@ -9,6 +9,8 @@ import '../models/delivery_agent.dart';
 import '../models/delivery_address.dart';
 import '../models/enums.dart';
 import '../models/order.dart';
+import '../models/quote.dart';
+import '../models/quote_customer.dart';
 import '../models/subscription_renewal_request.dart';
 import '../models/support_ticket.dart';
 
@@ -23,6 +25,10 @@ class FirestoreService {
       _db.collection('businesses');
   CollectionReference<Map<String, dynamic>> get _orders =>
       _db.collection('orders');
+  CollectionReference<Map<String, dynamic>> get _quotes =>
+      _db.collection('quotes');
+  CollectionReference<Map<String, dynamic>> get _quoteCustomers =>
+      _db.collection('quoteCustomers');
   CollectionReference<Map<String, dynamic>> get _deliveryAgents =>
       _db.collection('deliveryAgents');
   CollectionReference<Map<String, dynamic>> get _deliveryAddresses =>
@@ -149,6 +155,24 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map(Order.fromDoc).toList());
   }
 
+  Stream<List<Quote>> quotesForBusinessStream(String businessId) {
+    return _quotes
+        .where('businessId', isEqualTo: businessId)
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(Quote.fromDoc).toList());
+  }
+
+  Stream<List<QuoteCustomer>> quoteCustomersForBusinessStream(
+    String businessId,
+  ) {
+    return _quoteCustomers
+        .where('businessId', isEqualTo: businessId)
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(QuoteCustomer.fromDoc).toList());
+  }
+
   Stream<List<SupportTicket>> supportTicketsForUserStream(String userId) {
     return _supportTickets
         .where('userId', isEqualTo: userId)
@@ -266,6 +290,27 @@ class FirestoreService {
         'updatedAt': Timestamp.fromDate(DateTime.now()),
       }, SetOptions(merge: true));
     });
+  }
+
+  Future<void> createQuote(Quote quote) async {
+    await _quotes.doc(quote.id).set(quote.toMap(), SetOptions(merge: true));
+  }
+
+  Future<void> upsertQuoteCustomer(QuoteCustomer customer) async {
+    await _quoteCustomers
+        .doc(customer.id)
+        .set(customer.toMap(), SetOptions(merge: true));
+  }
+
+  Future<void> updateQuote(String quoteId, Map<String, dynamic> data) async {
+    await _quotes.doc(quoteId).update({
+      ...data,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deleteQuote(String quoteId) async {
+    await _quotes.doc(quoteId).delete();
   }
 
   Future<void> updateOrder(String orderId, Map<String, dynamic> data) async {

@@ -393,6 +393,30 @@ class _BusinessHomeBody extends ConsumerWidget {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.request_quote_outlined),
+              title: const Text('Create Quotation'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CreateQuoteScreen(profile: profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_outlined),
+              title: const Text('Quotation History'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => QuoteHistoryScreen(profile: profile),
+                  ),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.support_agent),
               title: const Text('Help & Support'),
               onTap: () {
