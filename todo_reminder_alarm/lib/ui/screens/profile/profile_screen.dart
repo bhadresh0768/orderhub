@@ -848,11 +848,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         controller: _shopNameController,
                         textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(
-                          labelText: 'Shop Name',
+                          labelText: 'Business or Shop Name',
                         ),
                         validator: (value) =>
                             value == null || value.trim().isEmpty
-                            ? 'Enter shop name'
+                            ? 'Enter business or shop name'
                             : null,
                       ),
                       const SizedBox(height: 10),
@@ -1086,9 +1086,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   );
                                 }),
                                 onChanged: (value) {
-                                  setState(() {
-                                    _selectedFiscalYearStartMonth = value ?? 4;
-                                  });
+                                  _selectedFiscalYearStartMonth = value ?? 4;
+                                  _updateUi(
+                                    (state) => state.copyWith(
+                                      refreshTick: state.refreshTick + 1,
+                                    ),
+                                  );
                                 },
                               ),
                               const SizedBox(height: 10),

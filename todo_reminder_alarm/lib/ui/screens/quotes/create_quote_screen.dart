@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +15,51 @@ import '../../../models/quote.dart';
 import '../../../models/quote_customer.dart';
 import '../../../providers.dart';
 import '../../../utils/quote_pdf_generator.dart';
+
+final _createQuoteUiProvider = StateProvider.autoDispose
+    .family<_CreateQuoteUiState, String>((ref, _) {
+      final now = DateTime.now();
+      return _CreateQuoteUiState(
+        quoteDate: now,
+        validUntil: now.add(const Duration(days: 7)),
+      );
+    });
+
+class _CreateQuoteUiState {
+  const _CreateQuoteUiState({
+    required this.quoteDate,
+    required this.validUntil,
+    this.items = const [],
+    this.savingPdf = false,
+    this.savingQuote = false,
+    this.refreshTick = 0,
+  });
+
+  final DateTime quoteDate;
+  final DateTime validUntil;
+  final List<_QuoteItemDraft> items;
+  final bool savingPdf;
+  final bool savingQuote;
+  final int refreshTick;
+
+  _CreateQuoteUiState copyWith({
+    DateTime? quoteDate,
+    DateTime? validUntil,
+    List<_QuoteItemDraft>? items,
+    bool? savingPdf,
+    bool? savingQuote,
+    int? refreshTick,
+  }) {
+    return _CreateQuoteUiState(
+      quoteDate: quoteDate ?? this.quoteDate,
+      validUntil: validUntil ?? this.validUntil,
+      items: items ?? this.items,
+      savingPdf: savingPdf ?? this.savingPdf,
+      savingQuote: savingQuote ?? this.savingQuote,
+      refreshTick: refreshTick ?? this.refreshTick,
+    );
+  }
+}
 
 class CreateQuoteScreen extends ConsumerStatefulWidget {
   const CreateQuoteScreen({
@@ -53,22 +99,36 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
 
   static const _uuid = Uuid();
 
-  late DateTime _quoteDate;
-  late DateTime _validUntil;
-  late List<_QuoteItemDraft> _items;
+  late final String _quoteDraftId;
   late final Set<TextEditingController> _clearOnFirstTapControllers;
-  bool _savingPdf = false;
-  bool _savingQuote = false;
+  List<_QuoteItemDraft> _draftItemsForDispose = const [];
   bool _didSeedPreparedBy = false;
 
   bool get _isEditing => widget.initialQuote != null;
+  _CreateQuoteUiState get _ui =>
+      ref.read(_createQuoteUiProvider(_quoteDraftId));
+
+  void _updateUi(
+    _CreateQuoteUiState Function(_CreateQuoteUiState state) update,
+  ) {
+    final notifier = ref.read(_createQuoteUiProvider(_quoteDraftId).notifier);
+    final nextState = update(notifier.state);
+    _draftItemsForDispose = nextState.items;
+    notifier.state = nextState;
+  }
+
+  void _touchUi() {
+    _updateUi((state) => state.copyWith(refreshTick: state.refreshTick + 1));
+  }
 
   @override
   void initState() {
     super.initState();
     final quote = widget.initialQuote;
-    _quoteDate = quote?.quoteDate ?? DateTime.now();
-    _validUntil = quote?.validUntil ?? _quoteDate.add(const Duration(days: 7));
+    _quoteDraftId = quote?.id ?? _uuid.v4();
+    final quoteDate = quote?.quoteDate ?? DateTime.now();
+    final validUntil =
+        quote?.validUntil ?? quoteDate.add(const Duration(days: 7));
     _preparedByController.text = quote?.preparedBy ?? widget.profile.name;
     _customerNameController.text = quote?.customerName ?? '';
     _customerContactController.text = quote?.customerContact ?? '';
@@ -86,11 +146,23 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     _notesController.text = quote?.notes ?? '';
     _additionalTermsController.text = (quote?.additionalTerms ?? []).join('\n');
     _currencySymbolController.text = quote?.currencySymbol ?? 'Rs.';
-    _items = quote == null || quote.items.isEmpty
+    final initialItems = quote == null || quote.items.isEmpty
         ? [_QuoteItemDraft()]
         : quote.items.map(_QuoteItemDraft.fromQuoteLineItem).toList();
+    _draftItemsForDispose = initialItems;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateUi(
+        (state) => state.copyWith(
+          quoteDate: quoteDate,
+          validUntil: validUntil,
+          items: initialItems,
+        ),
+      );
+    });
     _clearOnFirstTapControllers = {
       if (quote == null) ...{
+        _preparedByController,
         _paymentTermsController,
         _deliveryTimelineController,
         _extraChargesController,
@@ -114,7 +186,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     _notesController.dispose();
     _additionalTermsController.dispose();
     _currencySymbolController.dispose();
-    for (final item in _items) {
+    for (final item in _draftItemsForDispose) {
       item.dispose();
     }
     super.dispose();
@@ -142,29 +214,26 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       lastDate: DateTime(now.year + 10),
     );
     if (picked != null && mounted) {
-      setState(() {
-        onSelected(picked);
-      });
+      onSelected(picked);
     }
   }
 
   void _addItem() {
-    setState(() {
-      _items = [..._items, _QuoteItemDraft()];
-    });
+    _updateUi(
+      (state) => state.copyWith(items: [...state.items, _QuoteItemDraft()]),
+    );
   }
 
   void _removeItem(int index) {
-    if (_items.length == 1) {
+    if (_ui.items.length == 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('At least one item is required')),
       );
       return;
     }
-    final item = _items[index];
-    setState(() {
-      _items = [..._items]..removeAt(index);
-    });
+    final item = _ui.items[index];
+    final nextItems = [..._ui.items]..removeAt(index);
+    _updateUi((state) => state.copyWith(items: nextItems));
     item.dispose();
   }
 
@@ -173,13 +242,22 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
   }
 
   List<QuoteLineItem> _lineItems() {
-    return _items.map((draft) => draft.toLineItem()).toList();
+    return _ui.items.map((draft) => draft.toLineItem()).toList();
   }
 
   void _clearDefaultOnFirstTap(TextEditingController controller) {
     if (!_clearOnFirstTapControllers.remove(controller)) return;
     controller.clear();
+    _touchUi();
   }
+
+  List<TextInputFormatter> get _capitalizeWordsFormatters => const [
+    _CapitalizeWordsFormatter(),
+  ];
+
+  List<TextInputFormatter> get _capitalizeSentencesFormatters => const [
+    _CapitalizeSentencesFormatter(),
+  ];
 
   String _buildQuoteNumber() {
     if (_isEditing) {
@@ -229,8 +307,8 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       customerAddress: _customerAddressController.text.trim().isEmpty
           ? null
           : _customerAddressController.text.trim(),
-      quoteDate: _quoteDate,
-      validUntil: _validUntil,
+      quoteDate: _ui.quoteDate,
+      validUntil: _ui.validUntil,
       preparedBy: _preparedByController.text.trim().isEmpty
           ? widget.profile.name
           : _preparedByController.text.trim(),
@@ -297,13 +375,32 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
   }
 
   void _applyCustomer(QuoteCustomer customer) {
-    setState(() {
-      _customerNameController.text = customer.name;
-      _customerContactController.text = customer.contactName ?? '';
-      _customerPhoneController.text = customer.phone ?? '';
-      _customerEmailController.text = customer.email ?? '';
-      _customerAddressController.text = customer.address ?? '';
-    });
+    _customerNameController.text = customer.name;
+    _customerContactController.text = customer.contactName ?? '';
+    _customerPhoneController.text = customer.phone ?? '';
+    _customerEmailController.text = customer.email ?? '';
+    _customerAddressController.text = customer.address ?? '';
+    _touchUi();
+  }
+
+  void _applySavedCustomerIfExactMatch(List<QuoteCustomer> customers) {
+    final query = _customerNameController.text.trim().toLowerCase();
+    if (query.isEmpty) return;
+    QuoteCustomer? match;
+    for (final customer in customers) {
+      if (customer.name.trim().toLowerCase() == query) {
+        match = customer;
+        break;
+      }
+    }
+    if (match == null) return;
+    final alreadyApplied =
+        _customerContactController.text.trim() == (match.contactName ?? '') &&
+        _customerPhoneController.text.trim() == (match.phone ?? '') &&
+        _customerEmailController.text.trim() == (match.email ?? '') &&
+        _customerAddressController.text.trim() == (match.address ?? '');
+    if (alreadyApplied) return;
+    _applyCustomer(match);
   }
 
   Future<void> _pickSavedCustomer(String businessId) async {
@@ -314,7 +411,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     if (customers.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('No saved customers yet')));
+      ).showSnackBar(const SnackBar(content: Text('No saved businesses yet')));
       return;
     }
     final selected = await showModalBottomSheet<QuoteCustomer>(
@@ -340,7 +437,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                     TextField(
                       controller: searchController,
                       decoration: const InputDecoration(
-                        labelText: 'Search Saved Customers',
+                        labelText: 'Search Saved Businesses',
                         prefixIcon: Icon(Icons.search),
                       ),
                       onChanged: (value) {
@@ -364,7 +461,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                           ? const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(24),
-                                child: Text('No matching customer found'),
+                                child: Text('No matching business found'),
                               ),
                             )
                           : ListView.separated(
@@ -409,7 +506,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
 
   String _quoteShareMessage(Quote quote) {
     return 'Quotation ${quote.quoteNumber}\n'
-        'Customer: ${quote.customerName}\n'
+        'Business: ${quote.customerName}\n'
         'Valid Until: ${DateFormat('dd MMM yyyy').format(quote.validUntil)}\n'
         'Total: ${quote.currencySymbol} ${NumberFormat('#,##0.00').format(quote.grandTotal)}';
   }
@@ -506,9 +603,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       return null;
     }
 
-    setState(() {
-      _savingQuote = true;
-    });
+    _updateUi((state) => state.copyWith(savingQuote: true));
     try {
       final quote = _buildQuote(business);
       await ref.read(firestoreServiceProvider).createQuote(quote);
@@ -532,9 +627,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       return null;
     } finally {
       if (mounted) {
-        setState(() {
-          _savingQuote = false;
-        });
+        _updateUi((state) => state.copyWith(savingQuote: false));
       }
     }
   }
@@ -543,9 +636,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     final quote = await _saveQuote(business, showSnackBar: false);
     if (quote == null) return;
 
-    setState(() {
-      _savingPdf = true;
-    });
+    _updateUi((state) => state.copyWith(savingPdf: true));
 
     try {
       final pdfBytes = await QuotePdfGenerator.buildQuotePdf(
@@ -604,19 +695,21 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _savingPdf = false;
-        });
+        _updateUi((state) => state.copyWith(savingPdf: false));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ui = ref.watch(_createQuoteUiProvider(_quoteDraftId));
     final businessId = widget.profile.businessId;
     final businessAsync = businessId == null
         ? null
         : ref.watch(businessByIdProvider(businessId));
+    final savedCustomersAsync = businessId == null
+        ? null
+        : ref.watch(quoteCustomersForBusinessProvider(businessId));
 
     return Scaffold(
       appBar: AppBar(
@@ -631,6 +724,30 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                 }
                 _seedBusinessDefaults(business);
                 final lineItems = _lineItems();
+                final savedCustomers =
+                    savedCustomersAsync?.asData?.value ??
+                    const <QuoteCustomer>[];
+                final customerQuery = _customerNameController.text
+                    .trim()
+                    .toLowerCase();
+                final filteredCustomers = customerQuery.isEmpty
+                    ? const <QuoteCustomer>[]
+                    : savedCustomers
+                          .where((customer) {
+                            final haystack = [
+                              customer.name,
+                              customer.contactName ?? '',
+                              customer.phone ?? '',
+                              customer.email ?? '',
+                            ].join(' ').toLowerCase();
+                            return haystack.contains(customerQuery);
+                          })
+                          .take(5)
+                          .toList();
+                final hasExactCustomerMatch = filteredCustomers.any(
+                  (customer) =>
+                      customer.name.trim().toLowerCase() == customerQuery,
+                );
                 final subtotal = lineItems.fold<double>(
                   0,
                   (sum, item) => sum + item.grossAmount,
@@ -671,10 +788,13 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                   Expanded(
                                     child: _DateField(
                                       label: 'Quote Date',
-                                      value: _quoteDate,
+                                      value: ui.quoteDate,
                                       onTap: () => _pickDate(
-                                        initialDate: _quoteDate,
-                                        onSelected: (date) => _quoteDate = date,
+                                        initialDate: ui.quoteDate,
+                                        onSelected: (date) => _updateUi(
+                                          (state) =>
+                                              state.copyWith(quoteDate: date),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -682,11 +802,13 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                   Expanded(
                                     child: _DateField(
                                       label: 'Valid Until',
-                                      value: _validUntil,
+                                      value: ui.validUntil,
                                       onTap: () => _pickDate(
-                                        initialDate: _validUntil,
-                                        onSelected: (date) =>
-                                            _validUntil = date,
+                                        initialDate: ui.validUntil,
+                                        onSelected: (date) => _updateUi(
+                                          (state) =>
+                                              state.copyWith(validUntil: date),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -695,8 +817,13 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                               const SizedBox(height: 10),
                               TextFormField(
                                 controller: _preparedByController,
+                                textCapitalization: TextCapitalization.words,
+                                inputFormatters: _capitalizeWordsFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Prepared By',
+                                ),
+                                onTap: () => _clearDefaultOnFirstTap(
+                                  _preparedByController,
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -706,36 +833,94 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                   labelText: 'Currency Symbol',
                                   hintText: 'Rs.',
                                 ),
+                                onChanged: (_) => _touchUi(),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 16),
                         _SectionCard(
-                          title: 'Customer Details',
-                          trailing: OutlinedButton.icon(
-                            onPressed: () => _pickSavedCustomer(business.id),
-                            icon: const Icon(Icons.person_search_outlined),
-                            label: const Text('Saved Customers'),
-                          ),
+                          title: 'Business Details',
                           child: Column(
                             children: [
                               TextFormField(
                                 controller: _customerNameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Customer Name',
+                                textCapitalization: TextCapitalization.words,
+                                inputFormatters: _capitalizeWordsFormatters,
+                                decoration: InputDecoration(
+                                  labelText: 'Business Name',
+                                  suffixIcon: savedCustomers.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          onPressed: () =>
+                                              _pickSavedCustomer(business.id),
+                                          icon: const Icon(Icons.search),
+                                          tooltip: 'Select saved business',
+                                        ),
                                 ),
+                                onTap: () => _clearDefaultOnFirstTap(
+                                  _customerNameController,
+                                ),
+                                onChanged: (_) {
+                                  _applySavedCustomerIfExactMatch(
+                                    savedCustomers,
+                                  );
+                                  _touchUi();
+                                },
                                 validator: (value) =>
                                     value == null || value.trim().isEmpty
-                                    ? 'Enter customer name'
+                                    ? 'Enter business name'
                                     : null,
                               ),
+                              if (filteredCustomers.isNotEmpty &&
+                                  !hasExactCustomerMatch) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    children: filteredCustomers
+                                        .map(
+                                          (customer) => ListTile(
+                                            dense: true,
+                                            title: Text(customer.name),
+                                            subtitle: Text(
+                                              [
+                                                if ((customer.contactName ?? '')
+                                                    .trim()
+                                                    .isNotEmpty)
+                                                  customer.contactName!.trim(),
+                                                if ((customer.phone ?? '')
+                                                    .trim()
+                                                    .isNotEmpty)
+                                                  customer.phone!.trim(),
+                                              ].join(' • '),
+                                            ),
+                                            onTap: () =>
+                                                _applyCustomer(customer),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 10),
                               TextFormField(
                                 controller: _customerContactController,
+                                textCapitalization: TextCapitalization.words,
+                                inputFormatters: _capitalizeWordsFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Contact Person',
                                 ),
+                                onTap: () => _clearDefaultOnFirstTap(
+                                  _customerContactController,
+                                ),
+                                onChanged: (_) => _touchUi(),
                               ),
                               const SizedBox(height: 10),
                               TextFormField(
@@ -744,6 +929,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                 decoration: const InputDecoration(
                                   labelText: 'Phone Number',
                                 ),
+                                onChanged: (_) => _touchUi(),
                               ),
                               const SizedBox(height: 10),
                               TextFormField(
@@ -752,14 +938,22 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                 decoration: const InputDecoration(
                                   labelText: 'Email',
                                 ),
+                                onChanged: (_) => _touchUi(),
                               ),
                               const SizedBox(height: 10),
                               TextFormField(
                                 controller: _customerAddressController,
                                 maxLines: 3,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                inputFormatters: _capitalizeSentencesFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Address',
                                 ),
+                                onTap: () => _clearDefaultOnFirstTap(
+                                  _customerAddressController,
+                                ),
+                                onChanged: (_) => _touchUi(),
                               ),
                             ],
                           ),
@@ -773,17 +967,17 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                             label: const Text('Add Item'),
                           ),
                           child: Column(
-                            children: List.generate(_items.length, (index) {
-                              final item = _items[index];
+                            children: List.generate(ui.items.length, (index) {
+                              final item = ui.items[index];
                               return Padding(
                                 padding: EdgeInsets.only(
-                                  bottom: index == _items.length - 1 ? 0 : 12,
+                                  bottom: index == ui.items.length - 1 ? 0 : 12,
                                 ),
                                 child: _QuoteItemCard(
                                   index: index,
                                   item: item,
                                   onRemove: () => _removeItem(index),
-                                  onChanged: () => setState(() {}),
+                                  onChanged: _touchUi,
                                 ),
                               );
                             }),
@@ -797,6 +991,9 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                               TextFormField(
                                 controller: _paymentTermsController,
                                 maxLines: 2,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                inputFormatters: _capitalizeSentencesFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Payment Terms',
                                 ),
@@ -808,6 +1005,9 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                               TextFormField(
                                 controller: _deliveryTimelineController,
                                 maxLines: 2,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                inputFormatters: _capitalizeSentencesFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Delivery Timeline',
                                 ),
@@ -822,12 +1022,17 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                     flex: 2,
                                     child: TextFormField(
                                       controller: _extraChargesLabelController,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      inputFormatters:
+                                          _capitalizeWordsFormatters,
                                       decoration: const InputDecoration(
                                         labelText: 'Extra Charge Label',
                                       ),
                                       onTap: () => _clearDefaultOnFirstTap(
                                         _extraChargesLabelController,
                                       ),
+                                      onChanged: (_) => _touchUi(),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
@@ -844,7 +1049,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                       onTap: () => _clearDefaultOnFirstTap(
                                         _extraChargesController,
                                       ),
-                                      onChanged: (_) => setState(() {}),
+                                      onChanged: (_) => _touchUi(),
                                     ),
                                   ),
                                 ],
@@ -853,6 +1058,9 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                               TextFormField(
                                 controller: _notesController,
                                 maxLines: 3,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                inputFormatters: _capitalizeSentencesFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Notes',
                                 ),
@@ -861,6 +1069,9 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                               TextFormField(
                                 controller: _additionalTermsController,
                                 maxLines: 4,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                inputFormatters: _capitalizeSentencesFormatters,
                                 decoration: const InputDecoration(
                                   labelText: 'Additional Terms',
                                   helperText:
@@ -911,10 +1122,10 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: _savingQuote || _savingPdf
+                                onPressed: ui.savingQuote || ui.savingPdf
                                     ? null
                                     : () => _saveQuote(business),
-                                icon: _savingQuote
+                                icon: ui.savingQuote
                                     ? const SizedBox(
                                         width: 18,
                                         height: 18,
@@ -924,7 +1135,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                       )
                                     : const Icon(Icons.save_outlined),
                                 label: Text(
-                                  _savingQuote
+                                  ui.savingQuote
                                       ? 'Saving...'
                                       : (_isEditing
                                             ? 'Update Quote'
@@ -935,10 +1146,10 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: FilledButton.icon(
-                                onPressed: _savingPdf || _savingQuote
+                                onPressed: ui.savingPdf || ui.savingQuote
                                     ? null
                                     : () => _generatePdf(business),
-                                icon: _savingPdf
+                                icon: ui.savingPdf
                                     ? const SizedBox(
                                         width: 18,
                                         height: 18,
@@ -948,17 +1159,13 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                                       )
                                     : const Icon(Icons.picture_as_pdf_outlined),
                                 label: Text(
-                                  _savingPdf ? 'Generating...' : 'Generate PDF',
+                                  ui.savingPdf
+                                      ? 'Generating...'
+                                      : 'Generate PDF',
                                 ),
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Customer details and quotation lines are saved to Firestore so you can edit them later from Quotation History.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
                     ),
@@ -981,6 +1188,8 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
 }
 
 class _QuoteItemDraft {
+  static const List<String> predefinedUnits = ['pcs', 'kg', 'lit'];
+
   _QuoteItemDraft({
     String title = '',
     String description = '',
@@ -988,6 +1197,7 @@ class _QuoteItemDraft {
     String unit = 'pcs',
     String unitPrice = '',
     String discount = '0',
+    this.discountType = _QuoteDiscountType.percentage,
     String taxPercent = '0',
   }) : titleController = TextEditingController(text: title),
        descriptionController = TextEditingController(text: description),
@@ -1005,6 +1215,7 @@ class _QuoteItemDraft {
       unit: item.unit ?? 'pcs',
       unitPrice: _formatNumber(item.unitPrice),
       discount: _formatNumber(item.discountAmount),
+      discountType: _QuoteDiscountType.amount,
       taxPercent: _formatNumber(item.taxPercent),
     );
   }
@@ -1016,19 +1227,54 @@ class _QuoteItemDraft {
   final TextEditingController unitPriceController;
   final TextEditingController discountController;
   final TextEditingController taxPercentController;
+  _QuoteDiscountType discountType;
+  bool _didClearDiscountDefault = false;
+  bool _didClearTaxDefault = false;
+
+  bool get hasCustomUnit {
+    final value = unitController.text.trim().toLowerCase();
+    return value.isNotEmpty && !predefinedUnits.contains(value);
+  }
+
+  void clearDiscountDefaultOnFirstTap() {
+    if (_didClearDiscountDefault) return;
+    if (discountController.text.trim() == '0') {
+      discountController.clear();
+    }
+    _didClearDiscountDefault = true;
+  }
+
+  void clearTaxDefaultOnFirstTap() {
+    if (_didClearTaxDefault) return;
+    if (taxPercentController.text.trim() == '0') {
+      taxPercentController.clear();
+    }
+    _didClearTaxDefault = true;
+  }
 
   QuoteLineItem toLineItem() {
+    final quantity = double.tryParse(quantityController.text.trim()) ?? 0;
+    final unitPrice = double.tryParse(unitPriceController.text.trim()) ?? 0;
+    final rawDiscount = double.tryParse(discountController.text.trim()) ?? 0;
+    final grossAmount = quantity * unitPrice;
+    final discountAmount = switch (discountType) {
+      _QuoteDiscountType.percentage =>
+        ((rawDiscount < 0 ? 0 : rawDiscount) / 100) * grossAmount,
+      _QuoteDiscountType.amount => rawDiscount < 0 ? 0 : rawDiscount,
+    }.toDouble();
     return QuoteLineItem(
       title: titleController.text.trim(),
       description: descriptionController.text.trim().isEmpty
           ? null
           : descriptionController.text.trim(),
-      quantity: double.tryParse(quantityController.text.trim()) ?? 0,
+      quantity: quantity,
       unit: unitController.text.trim().isEmpty
           ? null
           : unitController.text.trim(),
-      unitPrice: double.tryParse(unitPriceController.text.trim()) ?? 0,
-      discountAmount: double.tryParse(discountController.text.trim()) ?? 0,
+      unitPrice: unitPrice,
+      discountAmount: discountAmount > grossAmount
+          ? grossAmount
+          : discountAmount,
       taxPercent: double.tryParse(taxPercentController.text.trim()) ?? 0,
     );
   }
@@ -1051,6 +1297,8 @@ class _QuoteItemDraft {
   }
 }
 
+enum _QuoteDiscountType { percentage, amount }
+
 class _QuoteItemCard extends StatelessWidget {
   const _QuoteItemCard({
     required this.index,
@@ -1063,6 +1311,8 @@ class _QuoteItemCard extends StatelessWidget {
   final _QuoteItemDraft item;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
+
+  static const String _otherUnitValue = '__other__';
 
   @override
   Widget build(BuildContext context) {
@@ -1093,6 +1343,8 @@ class _QuoteItemCard extends StatelessWidget {
           ),
           TextFormField(
             controller: item.titleController,
+            textCapitalization: TextCapitalization.words,
+            inputFormatters: const [_CapitalizeWordsFormatter()],
             decoration: const InputDecoration(labelText: 'Item Name'),
             validator: (value) => value == null || value.trim().isEmpty
                 ? 'Enter item name'
@@ -1103,6 +1355,8 @@ class _QuoteItemCard extends StatelessWidget {
           TextFormField(
             controller: item.descriptionController,
             maxLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            inputFormatters: const [_CapitalizeSentencesFormatter()],
             decoration: const InputDecoration(labelText: 'Description'),
             onChanged: (_) => onChanged(),
           ),
@@ -1128,10 +1382,61 @@ class _QuoteItemCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: TextFormField(
-                  controller: item.unitController,
-                  decoration: const InputDecoration(labelText: 'Unit'),
-                  onChanged: (_) => onChanged(),
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: item.unitController,
+                  builder: (context, value, _) {
+                    final unitText = value.text.trim().toLowerCase();
+                    final selectedValue =
+                        _QuoteItemDraft.predefinedUnits.contains(unitText)
+                        ? unitText
+                        : _otherUnitValue;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedValue,
+                          decoration: const InputDecoration(labelText: 'Unit'),
+                          items: const [
+                            DropdownMenuItem(value: 'pcs', child: Text('pcs')),
+                            DropdownMenuItem(value: 'kg', child: Text('kg')),
+                            DropdownMenuItem(value: 'lit', child: Text('lit')),
+                            DropdownMenuItem(
+                              value: _otherUnitValue,
+                              child: Text('Other'),
+                            ),
+                          ],
+                          onChanged: (selected) {
+                            if (selected == null) return;
+                            if (selected == _otherUnitValue) {
+                              if (_QuoteItemDraft.predefinedUnits.contains(
+                                unitText,
+                              )) {
+                                item.unitController.clear();
+                              }
+                            } else {
+                              item.unitController.text = selected;
+                            }
+                            onChanged();
+                          },
+                        ),
+                        if (selectedValue == _otherUnitValue) ...[
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: item.unitController,
+                            textCapitalization: TextCapitalization.words,
+                            inputFormatters: const [
+                              _CapitalizeWordsFormatter(),
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Custom Unit',
+                              hintText: 'Enter unit',
+                            ),
+                            onChanged: (_) => onChanged(),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -1158,13 +1463,46 @@ class _QuoteItemCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: TextFormField(
-                  controller: item.discountController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Discount'),
-                  onChanged: (_) => onChanged(),
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: item.discountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Discount',
+                        suffixText:
+                            item.discountType == _QuoteDiscountType.percentage
+                            ? '%'
+                            : 'Amt',
+                      ),
+                      onTap: item.clearDiscountDefaultOnFirstTap,
+                      onChanged: (_) => onChanged(),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<_QuoteDiscountType>(
+                      initialValue: item.discountType,
+                      decoration: const InputDecoration(
+                        labelText: 'Discount Type',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: _QuoteDiscountType.percentage,
+                          child: Text('%'),
+                        ),
+                        DropdownMenuItem(
+                          value: _QuoteDiscountType.amount,
+                          child: Text('Amount'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        item.discountType = value;
+                        onChanged();
+                      },
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1174,6 +1512,7 @@ class _QuoteItemCard extends StatelessWidget {
             controller: item.taxPercentController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(labelText: 'Tax %'),
+            onTap: item.clearTaxDefaultOnFirstTap,
             onChanged: (_) => onChanged(),
           ),
         ],
@@ -1286,5 +1625,75 @@ class _SummaryRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _CapitalizeWordsFormatter extends TextInputFormatter {
+  const _CapitalizeWordsFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final transformed = _capitalizeWords(newValue.text);
+    return newValue.copyWith(
+      text: transformed,
+      selection: TextSelection.collapsed(offset: transformed.length),
+    );
+  }
+
+  String _capitalizeWords(String value) {
+    if (value.isEmpty) return value;
+    final buffer = StringBuffer();
+    var capitalizeNext = true;
+    for (final char in value.split('')) {
+      final isLetter = RegExp(r'[A-Za-z]').hasMatch(char);
+      if (capitalizeNext && isLetter) {
+        buffer.write(char.toUpperCase());
+        capitalizeNext = false;
+      } else {
+        buffer.write(char);
+        if (char.trim().isEmpty) {
+          capitalizeNext = true;
+        }
+      }
+    }
+    return buffer.toString();
+  }
+}
+
+class _CapitalizeSentencesFormatter extends TextInputFormatter {
+  const _CapitalizeSentencesFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final transformed = _capitalizeSentences(newValue.text);
+    return newValue.copyWith(
+      text: transformed,
+      selection: TextSelection.collapsed(offset: transformed.length),
+    );
+  }
+
+  String _capitalizeSentences(String value) {
+    if (value.isEmpty) return value;
+    final buffer = StringBuffer();
+    var capitalizeNext = true;
+    for (final char in value.split('')) {
+      final isLetter = RegExp(r'[A-Za-z]').hasMatch(char);
+      if (capitalizeNext && isLetter) {
+        buffer.write(char.toUpperCase());
+        capitalizeNext = false;
+      } else {
+        buffer.write(char);
+      }
+      if (char == '.' || char == '!' || char == '?' || char == '\n') {
+        capitalizeNext = true;
+      }
+    }
+    return buffer.toString();
   }
 }

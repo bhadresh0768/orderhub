@@ -60,10 +60,10 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
   late final TextEditingController _phoneController;
   late final TextEditingController _gstController;
   late final TextEditingController _ownerController;
-  late BusinessStatus _status;
-  late bool _subscriptionActive;
-  DateTime? _subscriptionStartDate;
-  DateTime? _subscriptionEndDate;
+  late final ValueNotifier<BusinessStatus> _status;
+  late final ValueNotifier<bool> _subscriptionActive;
+  late final ValueNotifier<DateTime?> _subscriptionStartDate;
+  late final ValueNotifier<DateTime?> _subscriptionEndDate;
 
   @override
   void initState() {
@@ -76,10 +76,10 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
     _phoneController = TextEditingController(text: business?.phone ?? '');
     _gstController = TextEditingController(text: business?.gstNumber ?? '');
     _ownerController = TextEditingController(text: business?.ownerId ?? '');
-    _status = business?.status ?? BusinessStatus.pending;
-    _subscriptionActive = business?.subscriptionActive ?? false;
-    _subscriptionStartDate = business?.subscriptionStartDate;
-    _subscriptionEndDate = business?.subscriptionEndDate;
+    _status = ValueNotifier(business?.status ?? BusinessStatus.pending);
+    _subscriptionActive = ValueNotifier(business?.subscriptionActive ?? false);
+    _subscriptionStartDate = ValueNotifier(business?.subscriptionStartDate);
+    _subscriptionEndDate = ValueNotifier(business?.subscriptionEndDate);
   }
 
   @override
@@ -91,6 +91,10 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
     _phoneController.dispose();
     _gstController.dispose();
     _ownerController.dispose();
+    _status.dispose();
+    _subscriptionActive.dispose();
+    _subscriptionStartDate.dispose();
+    _subscriptionEndDate.dispose();
     super.dispose();
   }
 
@@ -103,12 +107,12 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
     final addressText = _addressController.text.trim();
     final phoneText = _phoneController.text.trim();
     final gstText = _gstController.text.trim();
-    final normalizedSubscriptionEndDate = _subscriptionEndDate == null
+    final normalizedSubscriptionEndDate = _subscriptionEndDate.value == null
         ? null
         : DateTime(
-            _subscriptionEndDate!.year,
-            _subscriptionEndDate!.month,
-            _subscriptionEndDate!.day,
+            _subscriptionEndDate.value!.year,
+            _subscriptionEndDate.value!.month,
+            _subscriptionEndDate.value!.day,
             23,
             59,
             59,
@@ -121,12 +125,12 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
       'phone': phoneText.isEmpty ? null : phoneText,
       'gstNumber': gstText.isEmpty ? null : gstText,
       'ownerId': ownerText,
-      'status': enumToString(_status),
-      'subscriptionActive': _subscriptionActive,
-      'subscriptionStartDate': _subscriptionStartDate == null
+      'status': enumToString(_status.value),
+      'subscriptionActive': _subscriptionActive.value,
+      'subscriptionStartDate': _subscriptionStartDate.value == null
           ? null
-          : Timestamp.fromDate(_subscriptionStartDate!),
-      'subscriptionEndDate': _subscriptionEndDate == null
+          : Timestamp.fromDate(_subscriptionStartDate.value!),
+      'subscriptionEndDate': _subscriptionEndDate.value == null
           ? null
           : Timestamp.fromDate(normalizedSubscriptionEndDate!),
     };
@@ -149,9 +153,9 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
               address: addressText.isEmpty ? null : addressText,
               phone: phoneText.isEmpty ? null : phoneText,
               gstNumber: gstText.isEmpty ? null : gstText,
-              status: _status,
-              subscriptionActive: _subscriptionActive,
-              subscriptionStartDate: _subscriptionStartDate,
+              status: _status.value,
+              subscriptionActive: _subscriptionActive.value,
+              subscriptionStartDate: _subscriptionStartDate.value,
               subscriptionEndDate: normalizedSubscriptionEndDate,
               createdAt: DateTime.now(),
             ),
@@ -215,77 +219,96 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
               decoration: const InputDecoration(labelText: 'Owner UID'),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<BusinessStatus>(
-              initialValue: _status,
-              items: BusinessStatus.values
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(_capitalize(e.name)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _status = v ?? _status),
-              decoration: const InputDecoration(labelText: 'Status'),
+            ValueListenableBuilder<BusinessStatus>(
+              valueListenable: _status,
+              builder: (context, status, _) {
+                return DropdownButtonFormField<BusinessStatus>(
+                  initialValue: status,
+                  items: BusinessStatus.values
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(_capitalize(e.name)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => _status.value = v ?? status,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                );
+              },
             ),
             const Divider(height: 20),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Subscription Active'),
-              value: _subscriptionActive,
-              onChanged: (v) => setState(() => _subscriptionActive = v),
+            ValueListenableBuilder<bool>(
+              valueListenable: _subscriptionActive,
+              builder: (context, subscriptionActive, _) {
+                return SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Subscription Active'),
+                  value: subscriptionActive,
+                  onChanged: (v) => _subscriptionActive.value = v,
+                );
+              },
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Subscription Start: ${_fmtDate(_subscriptionStartDate)}',
-              ),
-              trailing: TextButton(
-                onPressed: () async {
-                  final now = DateTime.now();
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _subscriptionStartDate ?? now,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(now.year + 10),
-                  );
-                  if (picked != null && mounted) {
-                    setState(() => _subscriptionStartDate = picked);
-                  }
-                },
-                child: const Text('Set'),
-              ),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Subscription End: ${_fmtDate(_subscriptionEndDate)}',
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton(
+            ValueListenableBuilder<DateTime?>(
+              valueListenable: _subscriptionStartDate,
+              builder: (context, subscriptionStartDate, _) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Subscription Start: ${_fmtDate(subscriptionStartDate)}',
+                  ),
+                  trailing: TextButton(
                     onPressed: () async {
                       final now = DateTime.now();
                       final picked = await showDatePicker(
                         context: context,
-                        initialDate: _subscriptionEndDate ?? now,
+                        initialDate: subscriptionStartDate ?? now,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(now.year + 10),
                       );
                       if (picked != null && mounted) {
-                        setState(() => _subscriptionEndDate = picked);
+                        _subscriptionStartDate.value = picked;
                       }
                     },
                     child: const Text('Set'),
                   ),
-                  TextButton(
-                    onPressed: () =>
-                        setState(() => _subscriptionEndDate = null),
-                    child: const Text('Clear'),
+                );
+              },
+            ),
+            ValueListenableBuilder<DateTime?>(
+              valueListenable: _subscriptionEndDate,
+              builder: (context, subscriptionEndDate, _) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Subscription End: ${_fmtDate(subscriptionEndDate)}',
                   ),
-                ],
-              ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: subscriptionEndDate ?? now,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(now.year + 10),
+                          );
+                          if (picked != null && mounted) {
+                            _subscriptionEndDate.value = picked;
+                          }
+                        },
+                        child: const Text('Set'),
+                      ),
+                      TextButton(
+                        onPressed: () => _subscriptionEndDate.value = null,
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -317,8 +340,8 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
   late final TextEditingController _shopController;
-  late UserRole _role;
-  late bool _isActive;
+  late final ValueNotifier<UserRole> _role;
+  late final ValueNotifier<bool> _isActive;
 
   @override
   void initState() {
@@ -329,8 +352,8 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
     _phoneController = TextEditingController(text: user.phoneNumber ?? '');
     _addressController = TextEditingController(text: user.address ?? '');
     _shopController = TextEditingController(text: user.shopName ?? '');
-    _role = user.role;
-    _isActive = user.isActive;
+    _role = ValueNotifier(user.role);
+    _isActive = ValueNotifier(user.isActive);
   }
 
   @override
@@ -340,6 +363,8 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
     _phoneController.dispose();
     _addressController.dispose();
     _shopController.dispose();
+    _role.dispose();
+    _isActive.dispose();
     super.dispose();
   }
 
@@ -354,8 +379,8 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
       'address': _addressController.text.trim().isEmpty
           ? null
           : _addressController.text.trim(),
-      'role': enumToString(_role),
-      'isActive': _isActive,
+      'role': enumToString(_role.value),
+      'isActive': _isActive.value,
     });
 
     if (!mounted) return;
@@ -398,19 +423,31 @@ class _AdminUserDialogState extends State<_AdminUserDialog> {
               decoration: const InputDecoration(labelText: 'Address'),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<UserRole>(
-              initialValue: _role,
-              items: UserRole.values
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
-                  .toList(),
-              onChanged: (value) => setState(() => _role = value ?? _role),
-              decoration: const InputDecoration(labelText: 'Role'),
+            ValueListenableBuilder<UserRole>(
+              valueListenable: _role,
+              builder: (context, role, _) {
+                return DropdownButtonFormField<UserRole>(
+                  initialValue: role,
+                  items: UserRole.values
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
+                      .toList(),
+                  onChanged: (value) => _role.value = value ?? role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                );
+              },
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Active'),
-              value: _isActive,
-              onChanged: (v) => setState(() => _isActive = v),
+            ValueListenableBuilder<bool>(
+              valueListenable: _isActive,
+              builder: (context, isActive, _) {
+                return SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Active'),
+                  value: isActive,
+                  onChanged: (v) => _isActive.value = v,
+                );
+              },
             ),
           ],
         ),

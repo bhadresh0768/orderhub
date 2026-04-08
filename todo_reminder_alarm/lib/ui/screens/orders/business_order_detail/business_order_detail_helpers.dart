@@ -11,12 +11,16 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
     switch (unit) {
       case QuantityUnit.piece:
         return 'pc';
+      case QuantityUnit.box:
+        return 'box';
       case QuantityUnit.kilogram:
         return 'kg';
       case QuantityUnit.gram:
         return 'g';
       case QuantityUnit.liter:
         return 'L';
+      case QuantityUnit.ton:
+        return 't';
     }
   }
 

@@ -23,9 +23,11 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
   String _unitLabel(QuantityUnit unit) {
     return switch (unit) {
       QuantityUnit.piece => 'pc',
+      QuantityUnit.box => 'box',
       QuantityUnit.kilogram => 'kg',
       QuantityUnit.gram => 'g',
       QuantityUnit.liter => 'L',
+      QuantityUnit.ton => 't',
     };
   }
 

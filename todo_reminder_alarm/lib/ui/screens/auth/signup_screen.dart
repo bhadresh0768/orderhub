@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
@@ -82,6 +84,22 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   void initState() {
     super.initState();
     final existingUser = ref.read(firebaseAuthProvider).currentUser;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final localeCountryCode =
+          ui.PlatformDispatcher.instance.locale.countryCode;
+      if (localeCountryCode != null && localeCountryCode.trim().isNotEmpty) {
+        try {
+          _updateUi(
+            (state) => state.copyWith(
+              selectedCountry: Country.parse(localeCountryCode.toUpperCase()),
+            ),
+          );
+        } catch (_) {
+          // Keep default country if locale code is not supported.
+        }
+      }
+    });
     if (existingUser != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -432,12 +450,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             controller: _shopNameController,
                             textCapitalization: TextCapitalization.words,
                             decoration: const InputDecoration(
-                              labelText: 'Shop Name',
+                              labelText: 'Business or Shop Name',
                             ),
                             validator: (value) =>
                                 isCustomer &&
                                     (value == null || value.trim().isEmpty)
-                                ? 'Enter shop name'
+                                ? 'Enter business or shop name'
                                 : null,
                           ),
                           const SizedBox(height: 12),

@@ -470,7 +470,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                   showPhoneCode: true,
                                                   onSelect: (country) {
                                                     if (country.countryCode !=
-                                                        uiState.selectedCountry
+                                                        uiState
+                                                            .selectedCountry
                                                             .countryCode) {
                                                       _resetOtpFlow();
                                                     }
@@ -501,7 +502,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               keyboardType: TextInputType.phone,
                                               onChanged: (_) {
                                                 if (_ui.otpSent ||
-                                                    _ui.verificationId != null ||
+                                                    _ui.verificationId !=
+                                                        null ||
                                                     _ui.webConfirmationResult !=
                                                         null ||
                                                     _ui.resendCooldownSeconds >
@@ -601,11 +603,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                 )
                                               : Text(
                                                   uiState.otpSent
-                                                      ? (uiState
-                                                                .autoVerifiedCredential !=
-                                                            null
-                                                        ? 'Continue'
-                                                        : 'Verify OTP')
+                                                      ? (uiState.autoVerifiedCredential !=
+                                                                null
+                                                            ? 'Continue'
+                                                            : 'Verify OTP')
                                                       : 'Send OTP',
                                                 ),
                                         ),

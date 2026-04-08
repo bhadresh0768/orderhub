@@ -831,9 +831,11 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                         : item.quantity.toStringAsFixed(2);
                     final unit = switch (item.unit) {
                       QuantityUnit.piece => 'pc',
+                      QuantityUnit.box => 'box',
                       QuantityUnit.kilogram => 'kg',
                       QuantityUnit.gram => 'g',
                       QuantityUnit.liter => 'L',
+                      QuantityUnit.ton => 't',
                     };
                     return '${item.title} $qty $unit';
                   })

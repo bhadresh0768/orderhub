@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../models/app_user.dart';
+import '../../../models/business.dart';
 import '../../../models/quote.dart';
 import '../../../providers.dart';
+import '../../../utils/quote_pdf_generator.dart';
 import 'create_quote_screen.dart';
 
 class QuoteHistoryScreen extends ConsumerWidget {
@@ -49,6 +54,88 @@ class _QuoteHistoryCard extends ConsumerWidget {
 
   final AppUser profile;
   final Quote quote;
+
+  String _quoteShareMessage(Quote quote) {
+    return 'Quotation ${quote.quoteNumber}\n'
+        'Business: ${quote.customerName}\n'
+        'Valid Until: ${DateFormat('dd MMM yyyy').format(quote.validUntil)}\n'
+        'Total: ${quote.currencySymbol} ${NumberFormat('#,##0.00').format(quote.grandTotal)}';
+  }
+
+  QuotePdfDocumentData _buildPdfDocument(
+    Quote quote,
+    BusinessProfile business,
+  ) {
+    return QuotePdfDocumentData(
+      quoteNumber: quote.quoteNumber,
+      quoteDate: quote.quoteDate,
+      validUntil: quote.validUntil,
+      currencySymbol: quote.currencySymbol,
+      preparedBy: quote.preparedBy,
+      business: QuotePdfParty(
+        name: business.name,
+        address: business.address,
+        phone: business.phone ?? business.ownerPhone,
+        taxRegistrationNumber: business.gstNumber,
+      ),
+      customer: QuotePdfParty(
+        name: quote.customerName,
+        contactName: quote.customerContact,
+        address: quote.customerAddress,
+        phone: quote.customerPhone,
+        email: quote.customerEmail,
+      ),
+      items: quote.items
+          .map(
+            (item) => QuotePdfLineItem(
+              title: item.title,
+              description: item.description,
+              quantity: item.quantity,
+              unit: item.unit,
+              unitPrice: item.unitPrice,
+              discountAmount: item.discountAmount,
+              taxPercent: item.taxPercent,
+            ),
+          )
+          .toList(),
+      extraCharges: quote.extraCharges,
+      extraChargesLabel: quote.extraChargesLabel,
+      notes: quote.notes,
+      paymentTerms: quote.paymentTerms,
+      deliveryTimeline: quote.deliveryTimeline,
+      additionalTerms: quote.additionalTerms,
+    );
+  }
+
+  Future<void> _shareQuote(BuildContext context, WidgetRef ref) async {
+    try {
+      final business = await ref.read(
+        businessByIdProvider(quote.businessId).future,
+      );
+      if (business == null) {
+        throw StateError('Business not found for this quotation');
+      }
+      final pdfBytes = await QuotePdfGenerator.buildQuotePdf(
+        _buildPdfDocument(quote, business),
+      );
+      final fileName =
+          'quote_${quote.quoteNumber.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')}.pdf';
+      final file = File('${Directory.systemTemp.path}/$fileName');
+      await file.writeAsBytes(pdfBytes, flush: true);
+      await SharePlus.instance.share(
+        ShareParams(
+          text: _quoteShareMessage(quote),
+          files: [XFile(file.path)],
+          subject: 'Quotation ${quote.quoteNumber}',
+        ),
+      );
+    } catch (err) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to share quotation: $err')),
+      );
+    }
+  }
 
   Future<void> _deleteQuote(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
@@ -133,32 +220,41 @@ class _QuoteHistoryCard extends ConsumerWidget {
               'Items: ${quote.items.length}'
               '${(quote.customerPhone ?? '').trim().isEmpty ? '' : ' • ${quote.customerPhone!.trim()}'}',
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CreateQuoteScreen(
-                            profile: profile,
-                            initialQuote: quote,
-                          ),
+                IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => CreateQuoteScreen(
+                          profile: profile,
+                          initialQuote: quote,
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Edit'),
-                  ),
+                      ),
+                    );
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.edit_outlined, color: Colors.green.shade700),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _deleteQuote(context, ref),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                  ),
+                const SizedBox(width: 14),
+                IconButton(
+                  onPressed: () => _shareQuote(context, ref),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.share_outlined),
+                ),
+                const SizedBox(width: 14),
+                IconButton(
+                  onPressed: () => _deleteQuote(context, ref),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.delete_outline, color: Colors.red.shade700),
                 ),
               ],
             ),

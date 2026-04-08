@@ -275,8 +275,25 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         : value.toString();
   }
 
+  String _shortUnit(QuantityUnit unit) {
+    switch (unit) {
+      case QuantityUnit.piece:
+        return 'pc';
+      case QuantityUnit.box:
+        return 'box';
+      case QuantityUnit.kilogram:
+        return 'kg';
+      case QuantityUnit.gram:
+        return 'g';
+      case QuantityUnit.liter:
+        return 'L';
+      case QuantityUnit.ton:
+        return 't';
+    }
+  }
+
   String _itemQuantityLabel(OrderItem item) {
-    return _formatQuantity(item.quantity);
+    return '${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
   }
 
   String _paymentMethodLabel(PaymentMethod method) {
@@ -322,16 +339,20 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     if ((item.packSize ?? '').trim().isNotEmpty) {
       return null;
     }
-    switch (item.unit) {
-      case QuantityUnit.kilogram:
-        return '${_formatQuantity(item.quantity * 1000)} g';
-      case QuantityUnit.gram:
-        return '${_formatQuantity(item.quantity / 1000)} kg';
-      case QuantityUnit.liter:
-        return '${_formatQuantity(item.quantity * 1000)} ml';
-      case QuantityUnit.piece:
-        return null;
+    final hint = switch (item.unit) {
+      QuantityUnit.ton => '${_formatQuantity(item.quantity * 1000)} kg',
+      QuantityUnit.kilogram => '${_formatQuantity(item.quantity * 1000)} g',
+      QuantityUnit.gram => '${_formatQuantity(item.quantity / 1000)} kg',
+      QuantityUnit.liter => '${_formatQuantity(item.quantity * 1000)} ml',
+      QuantityUnit.piece || QuantityUnit.box => null,
+    };
+    if (hint == null) return null;
+    final parts = hint.split(' ');
+    final convertedValue = double.tryParse(parts.first);
+    if (convertedValue != null && convertedValue.abs() >= 10000) {
+      return null;
     }
+    return hint;
   }
 
   void _clearItemForm() {
@@ -1246,6 +1267,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                             child: Text('Piece (pc)'),
                           ),
                           DropdownMenuItem(
+                            value: QuantityUnit.box,
+                            child: Text('Box (box)'),
+                          ),
+                          DropdownMenuItem(
                             value: QuantityUnit.kilogram,
                             child: Text('Kilogram (kg)'),
                           ),
@@ -1256,6 +1281,10 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                           DropdownMenuItem(
                             value: QuantityUnit.liter,
                             child: Text('Liter (L)'),
+                          ),
+                          DropdownMenuItem(
+                            value: QuantityUnit.ton,
+                            child: Text('Ton (t)'),
                           ),
                         ],
                         onChanged: (value) {

@@ -281,12 +281,16 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
     switch (unit) {
       case QuantityUnit.piece:
         return 'pc';
+      case QuantityUnit.box:
+        return 'box';
       case QuantityUnit.kilogram:
         return 'kg';
       case QuantityUnit.gram:
         return 'g';
       case QuantityUnit.liter:
         return 'L';
+      case QuantityUnit.ton:
+        return 't';
     }
   }
 

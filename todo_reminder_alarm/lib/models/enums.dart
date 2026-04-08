@@ -16,7 +16,7 @@ enum PaymentCollectedBy { businessOwner, deliveryBoy }
 
 enum DeliveryStatus { pending, packed, dispatched, outForDelivery, delivered }
 
-enum QuantityUnit { piece, kilogram, gram, liter }
+enum QuantityUnit { piece, kilogram, gram, liter, box, ton }
 
 enum SupportIssueType { order, payment, account, delivery, other }
 
