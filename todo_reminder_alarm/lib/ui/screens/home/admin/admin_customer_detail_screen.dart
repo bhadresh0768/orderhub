@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
-import 'package:android_intent_plus/android_intent.dart';
 
 import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
@@ -10,6 +8,7 @@ import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
+import 'package:todo_reminder_alarm/utils/contact_actions.dart';
 import 'admin_edit_dialogs.dart';
 
 enum _AdminCustomerDateFilter {
@@ -40,42 +39,6 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
   final AppUser customer;
 
   static const _pageSize = 10;
-
-  String _digitsOnly(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
-
-  Future<void> _callCustomer(BuildContext context, String phone) async {
-    try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.DIAL',
-        data: 'tel:$phone',
-      );
-      await intent.launch();
-    } catch (_) {
-      await Clipboard.setData(ClipboardData(text: phone));
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Call failed. Number copied.')),
-      );
-    }
-  }
-
-  Future<void> _openWhatsApp(BuildContext context, String phone) async {
-    final digits = _digitsOnly(phone);
-    if (digits.isEmpty) return;
-    try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.VIEW',
-        data: 'https://wa.me/$digits',
-      );
-      await intent.launch();
-    } catch (_) {
-      await Clipboard.setData(ClipboardData(text: phone));
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WhatsApp open failed. Number copied.')),
-      );
-    }
-  }
 
   String _statusLabel(OrderStatus status) {
     return switch (status) {
@@ -406,7 +369,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () => _callCustomer(
+                                  onPressed: () => ContactActions.callPhone(
                                     context,
                                     currentCustomer.phoneNumber!.trim(),
                                   ),
@@ -417,7 +380,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () => _openWhatsApp(
+                                  onPressed: () => ContactActions.openWhatsApp(
                                     context,
                                     currentCustomer.phoneNumber!.trim(),
                                   ),

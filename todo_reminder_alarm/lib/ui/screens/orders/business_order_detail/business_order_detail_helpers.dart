@@ -7,7 +7,11 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
         : value.toStringAsFixed(2);
   }
 
-  String _shortUnit(QuantityUnit unit) {
+  String _shortUnit(OrderItem item) {
+    if (item.unit == QuantityUnit.other) {
+      return item.displayUnitSymbol;
+    }
+    final unit = item.unit;
     switch (unit) {
       case QuantityUnit.piece:
         return 'pc';
@@ -21,6 +25,22 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
         return 'L';
       case QuantityUnit.ton:
         return 't';
+      case QuantityUnit.packet:
+        return 'pkt';
+      case QuantityUnit.bag:
+        return 'bag';
+      case QuantityUnit.bottle:
+        return 'btl';
+      case QuantityUnit.can:
+        return 'can';
+      case QuantityUnit.meter:
+        return 'm';
+      case QuantityUnit.foot:
+        return 'ft';
+      case QuantityUnit.carton:
+        return 'ctn';
+      case QuantityUnit.other:
+        return item.displayUnitSymbol;
     }
   }
 
@@ -31,7 +51,7 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
       final suffix = item.quantity == 1 ? 'pack' : 'packs';
       return '$qty $suffix ($pack)';
     }
-    return '${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
+    return '${_formatQuantity(item.quantity)} ${_shortUnit(item)}';
   }
 
   String _capitalize(String value) {

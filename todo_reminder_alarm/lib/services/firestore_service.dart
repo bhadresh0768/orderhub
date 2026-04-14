@@ -9,6 +9,7 @@ import '../models/delivery_agent.dart';
 import '../models/delivery_address.dart';
 import '../models/enums.dart';
 import '../models/order.dart';
+import '../models/order_unit.dart';
 import '../models/quote.dart';
 import '../models/quote_customer.dart';
 import '../models/subscription_renewal_request.dart';
@@ -25,6 +26,8 @@ class FirestoreService {
       _db.collection('businesses');
   CollectionReference<Map<String, dynamic>> get _orders =>
       _db.collection('orders');
+  CollectionReference<Map<String, dynamic>> get _orderUnits =>
+      _db.collection('orderUnits');
   CollectionReference<Map<String, dynamic>> get _quotes =>
       _db.collection('quotes');
   CollectionReference<Map<String, dynamic>> get _quoteCustomers =>
@@ -153,6 +156,21 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Order.fromDoc).toList());
+  }
+
+  Stream<List<OrderUnit>> orderUnitsStream({bool includeInactive = false}) {
+    return _orderUnits.snapshots().map((snapshot) {
+      final units = snapshot.docs.map(OrderUnit.fromDoc).toList();
+      final filtered = includeInactive
+          ? units
+          : units.where((unit) => unit.isActive).toList();
+      filtered.sort((a, b) {
+        final byOrder = a.sortOrder.compareTo(b.sortOrder);
+        if (byOrder != 0) return byOrder;
+        return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
+      return filtered;
+    });
   }
 
   Stream<List<Quote>> quotesForBusinessStream(String businessId) {
@@ -318,6 +336,60 @@ class FirestoreService {
       ...data,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
+  }
+
+  Future<void> createOrderUnit(OrderUnit unit) async {
+    final code = unit.code.trim().toLowerCase();
+    final ref = _orderUnits.doc(code);
+    final existing = await ref.get();
+    if (existing.exists) {
+      throw StateError('Unit with code "$code" already exists');
+    }
+    await ref.set(
+      unit.toMap(),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> updateOrderUnit(OrderUnit unit) async {
+    final code = unit.code.trim().toLowerCase();
+    if (code.isEmpty) {
+      throw StateError('Unit code cannot be empty');
+    }
+    await _orderUnits.doc(code).set(
+      unit.toMap(),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> renameOrderUnit({
+    required String oldCode,
+    required OrderUnit next,
+  }) async {
+    final fromCode = oldCode.trim().toLowerCase();
+    final toCode = next.code.trim().toLowerCase();
+    if (fromCode.isEmpty || toCode.isEmpty) {
+      throw StateError('Unit code cannot be empty');
+    }
+    if (fromCode == toCode) {
+      await updateOrderUnit(next);
+      return;
+    }
+    final targetRef = _orderUnits.doc(toCode);
+    final targetDoc = await targetRef.get();
+    if (targetDoc.exists) {
+      throw StateError('Unit with code "$toCode" already exists');
+    }
+    final batch = _db.batch();
+    batch.set(targetRef, next.toMap(), SetOptions(merge: true));
+    batch.delete(_orderUnits.doc(fromCode));
+    await batch.commit();
+  }
+
+  Future<void> deleteOrderUnit(String code) async {
+    final normalized = code.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    await _orderUnits.doc(normalized).delete();
   }
 
   Stream<List<DeliveryAgent>> deliveryAgentsForBusinessStream(

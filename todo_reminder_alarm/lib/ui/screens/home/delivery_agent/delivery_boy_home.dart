@@ -277,7 +277,11 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
         : value.toStringAsFixed(2);
   }
 
-  String _shortUnit(QuantityUnit unit) {
+  String _shortUnit(OrderItem item) {
+    if (item.unit == QuantityUnit.other) {
+      return item.displayUnitSymbol;
+    }
+    final unit = item.unit;
     switch (unit) {
       case QuantityUnit.piece:
         return 'pc';
@@ -291,12 +295,28 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
         return 'L';
       case QuantityUnit.ton:
         return 't';
+      case QuantityUnit.packet:
+        return 'pkt';
+      case QuantityUnit.bag:
+        return 'bag';
+      case QuantityUnit.bottle:
+        return 'btl';
+      case QuantityUnit.can:
+        return 'can';
+      case QuantityUnit.meter:
+        return 'm';
+      case QuantityUnit.foot:
+        return 'ft';
+      case QuantityUnit.carton:
+        return 'ctn';
+      case QuantityUnit.other:
+        return item.displayUnitSymbol;
     }
   }
 
   String _itemSummary(OrderItem item) {
     final base =
-        '${item.title} ${_formatQty(item.quantity)} ${_shortUnit(item.unit)}';
+        '${item.title} ${_formatQty(item.quantity)} ${_shortUnit(item)}';
     final pack = item.packSize?.trim();
     if (pack == null || pack.isEmpty) return base;
     return '$base ($pack)';

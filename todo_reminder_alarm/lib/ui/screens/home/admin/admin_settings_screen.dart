@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import 'package:todo_reminder_alarm/models/app_update_config.dart';
+import 'package:todo_reminder_alarm/models/order_unit.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 
 final _adminSettingsSavingProvider = StateProvider.autoDispose<bool>(
@@ -19,6 +20,11 @@ final _adminSettingsShowAdsCustomerOverrideProvider =
     StateProvider.autoDispose<bool?>((ref) => null);
 final _adminSettingsShowAdsDeliveryOverrideProvider =
     StateProvider.autoDispose<bool?>((ref) => null);
+final _adminSettingsSavingOrderUnitProvider = StateProvider.autoDispose<bool>(
+  (ref) => false,
+);
+final _adminSettingsProcessingUnitCodeProvider =
+    StateProvider.autoDispose<String?>((ref) => null);
 
 class AdminSettingsScreen extends ConsumerStatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -33,15 +39,266 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   final _versionController = TextEditingController();
   final _storeUrlController = TextEditingController();
   final _notesController = TextEditingController();
+  final _unitCodeController = TextEditingController();
+  final _unitLabelController = TextEditingController();
+  final _unitSymbolController = TextEditingController();
+  final _unitSortController = TextEditingController(text: '0');
 
   bool _didInit = false;
-
   @override
   void dispose() {
     _versionController.dispose();
     _storeUrlController.dispose();
     _notesController.dispose();
+    _unitCodeController.dispose();
+    _unitLabelController.dispose();
+    _unitSymbolController.dispose();
+    _unitSortController.dispose();
     super.dispose();
+  }
+
+  String _normalizeCode(String input) {
+    return input
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '-')
+        .replaceAll(RegExp(r'[^a-z0-9_-]'), '');
+  }
+
+  Future<void> _editOrderUnit(OrderUnit unit) async {
+    final codeController = TextEditingController(text: unit.code);
+    final labelController = TextEditingController(text: unit.label);
+    final symbolController = TextEditingController(text: unit.symbol);
+    final sortController = TextEditingController(
+      text: unit.sortOrder.toString(),
+    );
+
+    final updated = await showDialog<OrderUnit>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edit Unit'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: labelController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit Name',
+                    hintText: 'Example: Tray',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.none,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit Code (optional)',
+                    hintText: 'Auto from name if empty',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: symbolController,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit Symbol (optional)',
+                    hintText: 'Defaults to unit name if empty',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: sortController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Sort Order (optional)',
+                    hintText: '0',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final label = labelController.text.trim();
+                if (label.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Unit name is required')),
+                  );
+                  return;
+                }
+                final fallbackCode = _normalizeCode(label);
+                final codeInput = _normalizeCode(codeController.text);
+                final code = codeInput.isEmpty ? fallbackCode : codeInput;
+                if (code.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Enter a valid unit name or code (letters/numbers)',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                final symbol = symbolController.text.trim().isEmpty
+                    ? label
+                    : symbolController.text.trim();
+                final sortOrder = int.tryParse(sortController.text.trim()) ?? 0;
+                Navigator.of(dialogContext).pop(
+                  OrderUnit(
+                    code: code,
+                    label: label,
+                    symbol: symbol,
+                    sortOrder: sortOrder,
+                    isActive: unit.isActive,
+                    createdAt: unit.createdAt,
+                    updatedAt: DateTime.now(),
+                  ),
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    codeController.dispose();
+    labelController.dispose();
+    symbolController.dispose();
+    sortController.dispose();
+
+    if (updated == null || !mounted) return;
+
+    ref.read(_adminSettingsProcessingUnitCodeProvider.notifier).state =
+        unit.code;
+    try {
+      await ref
+          .read(firestoreServiceProvider)
+          .renameOrderUnit(oldCode: unit.code, next: updated);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order unit updated')));
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update unit: $err')));
+    } finally {
+      if (mounted) {
+        ref.read(_adminSettingsProcessingUnitCodeProvider.notifier).state =
+            null;
+      }
+    }
+  }
+
+  Future<void> _deleteOrderUnit(OrderUnit unit) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Unit'),
+          content: Text('Delete "${unit.displayLabel}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true || !mounted) return;
+
+    ref.read(_adminSettingsProcessingUnitCodeProvider.notifier).state =
+        unit.code;
+    try {
+      await ref.read(firestoreServiceProvider).deleteOrderUnit(unit.code);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order unit deleted')));
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete unit: $err')));
+    } finally {
+      if (mounted) {
+        ref.read(_adminSettingsProcessingUnitCodeProvider.notifier).state =
+            null;
+      }
+    }
+  }
+
+  Future<void> _saveOrderUnit() async {
+    final savingOrderUnit = ref.read(_adminSettingsSavingOrderUnitProvider);
+    if (savingOrderUnit) return;
+    final label = _unitLabelController.text.trim();
+    final fallbackCode = _normalizeCode(label);
+    final codeInput = _normalizeCode(_unitCodeController.text);
+    final code = codeInput.isEmpty ? fallbackCode : codeInput;
+    final symbolInput = _unitSymbolController.text.trim();
+    final symbol = symbolInput.isEmpty ? label : symbolInput;
+    final sortOrder = int.tryParse(_unitSortController.text.trim()) ?? 0;
+    if (label.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unit name is required')),
+      );
+      return;
+    }
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid unit name or code (letters/numbers)'),
+        ),
+      );
+      return;
+    }
+    ref.read(_adminSettingsSavingOrderUnitProvider.notifier).state = true;
+    try {
+      await ref
+          .read(firestoreServiceProvider)
+          .createOrderUnit(
+            OrderUnit(
+              code: code,
+              label: label,
+              symbol: symbol,
+              sortOrder: sortOrder,
+              isActive: true,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          );
+      if (!mounted) return;
+      _unitCodeController.clear();
+      _unitLabelController.clear();
+      _unitSymbolController.clear();
+      _unitSortController.text = '0';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order unit added')));
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add unit: $err')));
+    } finally {
+      if (mounted) {
+        ref.read(_adminSettingsSavingOrderUnitProvider.notifier).state = false;
+      }
+    }
   }
 
   void _initFromConfig(AppUpdateConfig? config) {
@@ -161,6 +418,11 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     );
     final showAdsDeliveryOverride = ref.watch(
       _adminSettingsShowAdsDeliveryOverrideProvider,
+    );
+    final orderUnitsAsync = ref.watch(allOrderUnitsProvider);
+    final savingOrderUnit = ref.watch(_adminSettingsSavingOrderUnitProvider);
+    final processingUnitCode = ref.watch(
+      _adminSettingsProcessingUnitCodeProvider,
     );
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Settings')),
@@ -403,6 +665,132 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                                     showAdsDelivery: showAdsDelivery,
                                   ),
                             child: const Text('Save Ads Settings'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Order Units',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Manage units used in order item dropdown (for example: piece, kg, liter, tray).',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        orderUnitsAsync.when(
+                          loading: () =>
+                              const LinearProgressIndicator(minHeight: 2),
+                          error: (err, _) => Text(
+                            'Unable to load units: $err',
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                          data: (units) {
+                            if (units.isEmpty) {
+                              return const Text('No units configured yet.');
+                            }
+                            return Column(
+                              children: units.map((unit) {
+                                final rowBusy = processingUnitCode == unit.code;
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(unit.displayLabel),
+                                  subtitle: Text(
+                                    'Code: ${unit.code} • Sort: ${unit.sortOrder}',
+                                  ),
+                                  trailing: SizedBox(
+                                    width: 96,
+                                    child: rowBusy
+                                        ? const Align(
+                                            alignment: Alignment.centerRight,
+                                            child: SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                          )
+                                        : Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              IconButton(
+                                                tooltip: 'Edit',
+                                                onPressed: () =>
+                                                    _editOrderUnit(unit),
+                                                icon: const Icon(Icons.edit),
+                                              ),
+                                              IconButton(
+                                                tooltip: 'Delete',
+                                                onPressed: () =>
+                                                    _deleteOrderUnit(unit),
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _unitLabelController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Unit Name',
+                            hintText: 'Example: Tray',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _unitCodeController,
+                          textCapitalization: TextCapitalization.none,
+                          decoration: const InputDecoration(
+                            labelText: 'Unit Code (optional)',
+                            hintText: 'Auto from name if empty',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _unitSymbolController,
+                          decoration: const InputDecoration(
+                            labelText: 'Unit Symbol (optional)',
+                            hintText: 'Defaults to unit name if empty',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _unitSortController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Sort Order (optional)',
+                            hintText: '0',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: savingOrderUnit ? null : _saveOrderUnit,
+                            icon: const Icon(Icons.add),
+                            label: Text(
+                              savingOrderUnit ? 'Saving...' : 'Add Unit',
+                            ),
                           ),
                         ),
                       ],

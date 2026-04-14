@@ -608,6 +608,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'name': _businessNameController.text.trim(),
           'category': _businessCategoryController.text.trim(),
           'city': _businessCityController.text.trim(),
+          'ownerName': _nameController.text.trim(),
           'address': _businessAddressController.text.trim().isEmpty
               ? null
               : _businessAddressController.text.trim(),
@@ -719,6 +720,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               category: data.category,
               ownerId: widget.user.id,
               city: data.city,
+              ownerName: widget.user.name.trim(),
               address: data.address,
               phone: (data.phone ?? '').trim().isNotEmpty
                   ? _normalizePhoneNumber(data.phone!, data.country)

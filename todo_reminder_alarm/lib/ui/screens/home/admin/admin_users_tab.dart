@@ -19,9 +19,17 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
   final _searchController = TextEditingController();
   static const _searchKey = 'users';
 
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return value[0].toUpperCase() + value.substring(1);
+  String _primaryContact(AppUser user) {
+    if (user.phoneNumber != null && user.phoneNumber!.trim().isNotEmpty) {
+      return user.phoneNumber!.trim();
+    }
+    if (user.email.trim().isNotEmpty) return user.email.trim();
+    return '-';
+  }
+
+  String _optionalText(String? value) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? '-' : text;
   }
 
   @override
@@ -110,12 +118,23 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
               ),
               const SizedBox(height: 8),
               ...pendingDeleteRequests.map((user) {
+                final name = user.name.isEmpty ? 'Unknown' : user.name;
+                final shopName = _optionalText(user.shopName);
+                final address = _optionalText(user.address);
+                final contact = _primaryContact(user);
                 return Card(
                   color: Colors.red.shade50,
                   child: ListTile(
-                    title: Text(user.name.isEmpty ? 'Unknown' : user.name),
+                    title: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     subtitle: Text(
-                      '${user.email.isEmpty ? (user.phoneNumber ?? '-') : user.email}\nRole: ${_capitalize(user.role.name)}',
+                      '$contact\nShop: $shopName\nAddress: $address',
+                      style: const TextStyle(fontSize: 15.5, height: 1.3),
                     ),
                     isThreeLine: true,
                     trailing: PopupMenuButton<String>(
@@ -156,15 +175,30 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
             ),
             const SizedBox(height: 12),
             ...filtered.map((user) {
+              final name = user.name.isEmpty ? 'Unknown' : user.name;
+              final shopName = _optionalText(user.shopName);
+              final address = _optionalText(user.address);
+              final contact = _primaryContact(user);
               return Card(
                 child: ListTile(
-                  title: Text(user.name.isEmpty ? 'Unknown' : user.name),
-                  subtitle: Text(
-                    '${user.email.isEmpty ? (user.phoneNumber ?? '-') : user.email}\n'
-                    'Status: ${user.isActive ? 'Active' : 'Inactive'}\n'
-                    'Role: ${_capitalize(user.role.name)}',
+                  title: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  isThreeLine: true,
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '$contact\n'
+                      'Shop: $shopName\n'
+                      'Address: $address\n'
+                      'Status: ${user.isActive ? 'Active' : 'Inactive'}',
+                      style: const TextStyle(fontSize: 16, height: 1.35),
+                    ),
+                  ),
+                  isThreeLine: false,
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(

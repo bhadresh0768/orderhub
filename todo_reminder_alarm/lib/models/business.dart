@@ -9,6 +9,7 @@ class BusinessProfile {
     required this.category,
     required this.ownerId,
     required this.city,
+    this.ownerName,
     this.address,
     this.fiscalYearStartMonth,
     this.status = BusinessStatus.pending,
@@ -29,6 +30,7 @@ class BusinessProfile {
   final String category;
   final String ownerId;
   final String city;
+  final String? ownerName;
   final String? address;
   final int? fiscalYearStartMonth;
   final BusinessStatus status;
@@ -64,6 +66,7 @@ class BusinessProfile {
       'category': category,
       'ownerId': ownerId,
       'city': city,
+      'ownerName': ownerName,
       'address': address,
       'fiscalYearStartMonth': fiscalYearStartMonth,
       'status': enumToString(status),
@@ -95,6 +98,7 @@ class BusinessProfile {
       category: (data['category'] as String?) ?? '',
       ownerId: (data['ownerId'] as String?) ?? '',
       city: (data['city'] as String?) ?? '',
+      ownerName: data['ownerName'] as String?,
       address: data['address'] as String?,
       fiscalYearStartMonth: (data['fiscalYearStartMonth'] as num?)?.toInt(),
       status: enumFromString(

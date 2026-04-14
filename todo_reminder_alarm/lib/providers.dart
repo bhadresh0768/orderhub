@@ -16,6 +16,7 @@ import 'models/contact_us_message.dart';
 import 'models/delivery_agent.dart';
 import 'models/delivery_address.dart';
 import 'models/order.dart';
+import 'models/order_unit.dart';
 import 'models/quote.dart';
 import 'models/quote_customer.dart';
 import 'models/subscription_renewal_request.dart';
@@ -191,6 +192,16 @@ final catalogVariantsProvider =
 
 final allOrdersProvider = StreamProvider<List<Order>>((ref) {
   return ref.read(firestoreServiceProvider).allOrdersStream();
+});
+
+final orderUnitsProvider = StreamProvider<List<OrderUnit>>((ref) {
+  return ref.read(firestoreServiceProvider).orderUnitsStream();
+});
+
+final allOrderUnitsProvider = StreamProvider<List<OrderUnit>>((ref) {
+  return ref
+      .read(firestoreServiceProvider)
+      .orderUnitsStream(includeInactive: true);
 });
 
 final quotesForBusinessProvider = StreamProvider.family<List<Quote>, String>((

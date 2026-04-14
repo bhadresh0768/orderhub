@@ -165,6 +165,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           category: _businessCategoryController.text.trim(),
           ownerId: uid,
           city: _businessCityController.text.trim(),
+          ownerName: _nameController.text.trim(),
           address: _businessAddressController.text.trim(),
           fiscalYearStartMonth: defaultFiscalYearStartMonthForCountryCode(
             _ui.selectedCountry.countryCode,

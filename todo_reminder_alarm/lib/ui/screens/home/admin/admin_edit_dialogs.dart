@@ -104,6 +104,28 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
     final categoryText = _categoryController.text.trim();
     final cityText = _cityController.text.trim();
     final ownerText = _ownerController.text.trim();
+    String? ownerName;
+    if (ownerText.isNotEmpty) {
+      try {
+        final ownerDoc = await widget.ref
+            .read(firestoreProvider)
+            .collection('users')
+            .doc(ownerText)
+            .get();
+        final ownerData = ownerDoc.data();
+        final fetched = (ownerData?['name'] as String?)?.trim();
+        if (fetched != null && fetched.isNotEmpty) {
+          ownerName = fetched;
+        }
+      } catch (_) {
+        // Keep save flow resilient even if owner lookup fails.
+      }
+    }
+    if ((ownerName == null || ownerName.isEmpty) &&
+        business != null &&
+        ownerText == business.ownerId) {
+      ownerName = business.ownerName;
+    }
     final addressText = _addressController.text.trim();
     final phoneText = _phoneController.text.trim();
     final gstText = _gstController.text.trim();
@@ -121,6 +143,7 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
       'name': nameText,
       'category': categoryText,
       'city': cityText,
+      'ownerName': ownerName,
       'address': addressText.isEmpty ? null : addressText,
       'phone': phoneText.isEmpty ? null : phoneText,
       'gstNumber': gstText.isEmpty ? null : gstText,
@@ -149,6 +172,7 @@ class _AdminBusinessDialogState extends State<_AdminBusinessDialog> {
               name: nameText,
               category: categoryText,
               ownerId: ownerText,
+              ownerName: ownerName,
               city: cityText,
               address: addressText.isEmpty ? null : addressText,
               phone: phoneText.isEmpty ? null : phoneText,

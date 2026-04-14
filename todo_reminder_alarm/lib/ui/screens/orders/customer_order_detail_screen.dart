@@ -20,7 +20,11 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
         : value.toStringAsFixed(2);
   }
 
-  String _unitLabel(QuantityUnit unit) {
+  String _unitLabel(OrderItem item) {
+    if (item.unit == QuantityUnit.other) {
+      return item.displayUnitSymbol;
+    }
+    final unit = item.unit;
     return switch (unit) {
       QuantityUnit.piece => 'pc',
       QuantityUnit.box => 'box',
@@ -28,6 +32,14 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
       QuantityUnit.gram => 'g',
       QuantityUnit.liter => 'L',
       QuantityUnit.ton => 't',
+      QuantityUnit.packet => 'pkt',
+      QuantityUnit.bag => 'bag',
+      QuantityUnit.bottle => 'btl',
+      QuantityUnit.can => 'can',
+      QuantityUnit.meter => 'm',
+      QuantityUnit.foot => 'ft',
+      QuantityUnit.carton => 'ctn',
+      QuantityUnit.other => item.displayUnitSymbol,
     };
   }
 
@@ -38,7 +50,7 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
       final suffix = item.quantity == 1 ? 'pack' : 'packs';
       return '$qty $suffix ($pack)';
     }
-    return '${_formatQty(item.quantity)} ${_unitLabel(item.unit)}';
+    return '${_formatQty(item.quantity)} ${_unitLabel(item)}';
   }
 
   String _money(double? value) {

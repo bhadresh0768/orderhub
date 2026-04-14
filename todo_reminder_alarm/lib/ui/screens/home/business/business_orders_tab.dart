@@ -234,6 +234,22 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     return '-';
   }
 
+  AppUser? _customerProfile(Order order) {
+    if (order.requesterType != OrderRequesterType.customer) {
+      return null;
+    }
+    return ref.watch(userProfileProvider(order.customerId)).asData?.value;
+  }
+
+  String? _customerShopName(Order order) {
+    final shopName = (_customerProfile(order)?.shopName ?? '').trim();
+    if (shopName.isEmpty) return null;
+    if (shopName.toLowerCase() == order.customerName.trim().toLowerCase()) {
+      return null;
+    }
+    return shopName;
+  }
+
   String? _paymentCollectorLabel(Order order) {
     final collectedBy = order.payment.collectedBy;
     if (collectedBy == null || order.payment.status != PaymentStatus.done) {
@@ -255,14 +271,12 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final requestedBy = isBusinessOrder
         ? (order.requesterBusinessName ?? order.customerName)
         : order.customerName;
+    final customerShopName = _customerShopName(order);
     final requestedAddress = _requestedByAddress(order);
     final paymentCollector = _paymentCollectorLabel(order);
     final paymentColor = order.payment.status == PaymentStatus.done
         ? const Color(0xFF1A7F47)
         : const Color(0xFFC4432A);
-    final priorityColor = order.priority == OrderPriority.fast
-        ? const Color(0xFFD65A31)
-        : colorScheme.onSurface;
     final isFast = order.priority == OrderPriority.fast;
     final lineStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
       fontSize: 16,
@@ -344,27 +358,18 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               ],
             ),
             const SizedBox(height: 6),
-            Text('Order by: $requestedBy', style: lineStyle),
-            const SizedBox(height: 8),
-            Text('Address: $requestedAddress', style: lineStyle),
-            const SizedBox(height: 8),
-            Text.rich(
-              TextSpan(
-                children: [
-                  const TextSpan(text: 'Delivery Priority: '),
-                  TextSpan(
-                    text: OrderSharedHelpers.capitalize(order.priority.name),
-                    style: TextStyle(
-                      color: priorityColor,
-                      fontWeight: order.priority == OrderPriority.fast
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+            Text(
+              isBusinessOrder
+                  ? 'Ordered by: $requestedBy'
+                  : 'Customer: $requestedBy',
               style: lineStyle,
             ),
+            if (!isBusinessOrder && customerShopName != null) ...[
+              const SizedBox(height: 8),
+              Text('Shop: $customerShopName', style: lineStyle),
+            ],
+            const SizedBox(height: 8),
+            Text('Address: $requestedAddress', style: lineStyle),
             const SizedBox(height: 8),
             Text.rich(
               TextSpan(

@@ -321,6 +321,11 @@ service cloud.firestore {
       );
     }
 
+    match /orderUnits/{unitCode} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /appConfig/{docId} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();

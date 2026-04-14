@@ -12,6 +12,7 @@ import '../../../models/business.dart';
 import '../../../models/delivery_address.dart';
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
+import '../../../models/order_unit.dart';
 import '../../../models/payment.dart';
 import '../../../providers.dart';
 
@@ -24,7 +25,9 @@ class _CreateOrderUiState {
   const _CreateOrderUiState({
     this.items = const [],
     this.itemAttachmentsDraft = const [],
-    this.itemUnit = QuantityUnit.piece,
+    this.itemUnitCode = 'piece',
+    this.itemUnitLabel,
+    this.itemUnitSymbol,
     this.editingItemIndex,
     this.priority = OrderPriority.medium,
     this.paymentMethod = PaymentMethod.cash,
@@ -40,7 +43,9 @@ class _CreateOrderUiState {
 
   final List<OrderItem> items;
   final List<OrderAttachment> itemAttachmentsDraft;
-  final QuantityUnit itemUnit;
+  final String itemUnitCode;
+  final String? itemUnitLabel;
+  final String? itemUnitSymbol;
   final int? editingItemIndex;
   final OrderPriority priority;
   final PaymentMethod paymentMethod;
@@ -56,7 +61,9 @@ class _CreateOrderUiState {
   _CreateOrderUiState copyWith({
     List<OrderItem>? items,
     List<OrderAttachment>? itemAttachmentsDraft,
-    QuantityUnit? itemUnit,
+    String? itemUnitCode,
+    Object? itemUnitLabel = _createOrderUnset,
+    Object? itemUnitSymbol = _createOrderUnset,
     Object? editingItemIndex = _createOrderUnset,
     OrderPriority? priority,
     PaymentMethod? paymentMethod,
@@ -72,7 +79,13 @@ class _CreateOrderUiState {
     return _CreateOrderUiState(
       items: items ?? this.items,
       itemAttachmentsDraft: itemAttachmentsDraft ?? this.itemAttachmentsDraft,
-      itemUnit: itemUnit ?? this.itemUnit,
+      itemUnitCode: itemUnitCode ?? this.itemUnitCode,
+      itemUnitLabel: itemUnitLabel == _createOrderUnset
+          ? this.itemUnitLabel
+          : itemUnitLabel as String?,
+      itemUnitSymbol: itemUnitSymbol == _createOrderUnset
+          ? this.itemUnitSymbol
+          : itemUnitSymbol as String?,
       editingItemIndex: editingItemIndex == _createOrderUnset
           ? this.editingItemIndex
           : editingItemIndex as int?,
@@ -275,25 +288,70 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         : value.toString();
   }
 
-  String _shortUnit(QuantityUnit unit) {
-    switch (unit) {
-      case QuantityUnit.piece:
-        return 'pc';
-      case QuantityUnit.box:
-        return 'box';
-      case QuantityUnit.kilogram:
-        return 'kg';
-      case QuantityUnit.gram:
-        return 'g';
-      case QuantityUnit.liter:
-        return 'L';
-      case QuantityUnit.ton:
-        return 't';
+  List<OrderUnit> _defaultOrderUnits() {
+    return [
+      QuantityUnit.piece,
+      QuantityUnit.box,
+      QuantityUnit.kilogram,
+      QuantityUnit.gram,
+      QuantityUnit.liter,
+      QuantityUnit.ton,
+      QuantityUnit.packet,
+      QuantityUnit.bag,
+      QuantityUnit.bottle,
+      QuantityUnit.can,
+      QuantityUnit.meter,
+      QuantityUnit.foot,
+      QuantityUnit.carton,
+    ]
+        .map(
+          (unit) => OrderUnit(
+            code: quantityUnitCode(unit),
+            label: quantityUnitDefaultLabel(unit),
+            symbol: quantityUnitDefaultSymbol(unit),
+            isActive: true,
+          ),
+        )
+        .toList();
+  }
+
+  List<OrderUnit> _mergedOrderUnits(List<OrderUnit> firebaseUnits) {
+    final byCode = <String, OrderUnit>{};
+    for (final unit in _defaultOrderUnits()) {
+      byCode[unit.code] = unit;
     }
+    for (final unit in firebaseUnits) {
+      final code = unit.code.trim().toLowerCase();
+      if (code.isEmpty) continue;
+      byCode[code] = unit;
+    }
+    final units = byCode.values.toList();
+    units.sort((a, b) {
+      final byOrder = a.sortOrder.compareTo(b.sortOrder);
+      if (byOrder != 0) return byOrder;
+      return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+    });
+    return units;
   }
 
   String _itemQuantityLabel(OrderItem item) {
-    return '${_formatQuantity(item.quantity)} ${_shortUnit(item.unit)}';
+    return '${_formatQuantity(item.quantity)} ${item.displayUnitSymbol}';
+  }
+
+  OrderUnit _resolveSelectedUnit(List<OrderUnit> availableUnits) {
+    for (final unit in availableUnits) {
+      if (unit.code == _ui.itemUnitCode) return unit;
+    }
+    final fallbackLabel = _ui.itemUnitLabel?.trim();
+    final fallbackSymbol = _ui.itemUnitSymbol?.trim();
+    return OrderUnit(
+      code: _ui.itemUnitCode,
+      label: (fallbackLabel == null || fallbackLabel.isEmpty)
+          ? 'Custom Unit'
+          : fallbackLabel,
+      symbol: fallbackSymbol ?? '',
+      isActive: true,
+    );
   }
 
   String _paymentMethodLabel(PaymentMethod method) {
@@ -344,7 +402,16 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       QuantityUnit.kilogram => '${_formatQuantity(item.quantity * 1000)} g',
       QuantityUnit.gram => '${_formatQuantity(item.quantity / 1000)} kg',
       QuantityUnit.liter => '${_formatQuantity(item.quantity * 1000)} ml',
-      QuantityUnit.piece || QuantityUnit.box => null,
+      QuantityUnit.piece ||
+      QuantityUnit.box ||
+      QuantityUnit.packet ||
+      QuantityUnit.bag ||
+      QuantityUnit.bottle ||
+      QuantityUnit.can ||
+      QuantityUnit.meter ||
+      QuantityUnit.foot ||
+      QuantityUnit.carton ||
+      QuantityUnit.other => null,
     };
     if (hint == null) return null;
     final parts = hint.split(' ');
@@ -363,13 +430,15 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     _updateUi(
       (state) => state.copyWith(
         itemAttachmentsDraft: const [],
-        itemUnit: QuantityUnit.piece,
+        itemUnitCode: quantityUnitCode(QuantityUnit.piece),
+        itemUnitLabel: null,
+        itemUnitSymbol: null,
         editingItemIndex: null,
       ),
     );
   }
 
-  void _addOrUpdateItem() {
+  void _addOrUpdateItem(List<OrderUnit> availableUnits) {
     final title = _itemController.text.trim();
     final quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
     if (title.isEmpty || quantity <= 0) {
@@ -379,10 +448,15 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       );
       return;
     }
+    final selectedUnit = _resolveSelectedUnit(availableUnits);
+    final parsedUnit = quantityUnitFromCode(selectedUnit.code);
     final item = OrderItem(
       title: title,
       quantity: quantity,
-      unit: _ui.itemUnit,
+      unit: parsedUnit,
+      unitCode: selectedUnit.code,
+      unitLabel: selectedUnit.label,
+      unitSymbol: selectedUnit.symbol,
       packSize: _packSizeController.text.trim().isEmpty
           ? null
           : _packSizeController.text.trim(),
@@ -408,7 +482,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         itemSuggestions: const [],
         inlineError: null,
         itemAttachmentsDraft: const [],
-        itemUnit: QuantityUnit.piece,
+        itemUnitCode: quantityUnitCode(QuantityUnit.piece),
+        itemUnitLabel: null,
+        itemUnitSymbol: null,
         editingItemIndex: null,
       ),
     );
@@ -433,7 +509,9 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
       (state) => state.copyWith(
         editingItemIndex: index,
         itemAttachmentsDraft: List<OrderAttachment>.from(item.attachments),
-        itemUnit: item.unit,
+        itemUnitCode: item.unitCode ?? quantityUnitCode(item.unit),
+        itemUnitLabel: item.unitLabel,
+        itemUnitSymbol: item.unitSymbol,
         inlineError: null,
       ),
     );
@@ -1029,6 +1107,14 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     final deliveryAddressesAsync = ref.watch(
       deliveryAddressesProvider(widget.customer.id),
     );
+    final unitsAsync = ref.watch(orderUnitsProvider);
+    final firebaseUnits = unitsAsync.asData?.value ?? const <OrderUnit>[];
+    final availableUnits = _mergedOrderUnits(firebaseUnits);
+    final selectedUnit = _resolveSelectedUnit(availableUnits);
+    final dropdownUnits = availableUnits
+        .where((unit) => unit.code != selectedUnit.code)
+        .toList();
+    dropdownUnits.insert(0, selectedUnit);
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -1258,40 +1344,44 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<QuantityUnit>(
-                        initialValue: ui.itemUnit,
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedUnit.code,
                         decoration: const InputDecoration(labelText: 'Unit'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: QuantityUnit.piece,
-                            child: Text('Piece (pc)'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuantityUnit.box,
-                            child: Text('Box (box)'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuantityUnit.kilogram,
-                            child: Text('Kilogram (kg)'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuantityUnit.gram,
-                            child: Text('Gram (g)'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuantityUnit.liter,
-                            child: Text('Liter (L)'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuantityUnit.ton,
-                            child: Text('Ton (t)'),
-                          ),
-                        ],
+                        items: dropdownUnits
+                            .map(
+                              (entry) => DropdownMenuItem<String>(
+                                value: entry.code,
+                                child: Text(entry.displayLabel),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (value) {
                           if (value == null) return;
-                          _updateUi((state) => state.copyWith(itemUnit: value));
+                          final picked = dropdownUnits
+                              .where((unit) => unit.code == value)
+                              .firstOrNull;
+                          _updateUi(
+                            (state) => state.copyWith(
+                              itemUnitCode: value,
+                              itemUnitLabel: picked?.label,
+                              itemUnitSymbol: picked?.symbol,
+                            ),
+                          );
                         },
                       ),
+                      if (unitsAsync.isLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: LinearProgressIndicator(minHeight: 2),
+                        ),
+                      if (unitsAsync.hasError)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Units sync failed. Showing built-in units.',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _itemNoteController,
@@ -1355,7 +1445,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                         ),
                       const SizedBox(height: 8),
                       FilledButton.tonal(
-                        onPressed: _addOrUpdateItem,
+                        onPressed: () => _addOrUpdateItem(availableUnits),
                         style: ui.editingItemIndex != null
                             ? FilledButton.styleFrom(
                                 backgroundColor: Colors.red.shade100,

@@ -10,6 +10,7 @@ import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
 import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
+import 'package:todo_reminder_alarm/utils/contact_actions.dart';
 import 'admin_edit_dialogs.dart';
 
 enum _AdminBusinessDateFilter {
@@ -31,6 +32,20 @@ final _adminBusinessFromDateProvider = StateProvider.autoDispose
     .family<DateTime?, String>((ref, _) => null);
 final _adminBusinessToDateProvider = StateProvider.autoDispose
     .family<DateTime?, String>((ref, _) => null);
+final _adminBusinessProfileExpandedProvider = StateProvider.autoDispose
+    .family<bool, String>((ref, _) => false);
+
+class _BusinessInfoField {
+  const _BusinessInfoField({
+    required this.label,
+    required this.value,
+    this.actionPhone,
+  });
+
+  final String label;
+  final String value;
+  final String? actionPhone;
+}
 
 class AdminBusinessDetailScreen extends ConsumerWidget {
   const AdminBusinessDetailScreen({super.key, required this.business});
@@ -227,6 +242,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                           padding: const EdgeInsets.all(16),
                           child: _buildBusinessProfileCard(
                             context,
+                            ref,
                             currentBusiness,
                             ownerAsync,
                             businessOrders.length,
@@ -278,6 +294,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
 
   Widget _buildBusinessProfileCard(
     BuildContext context,
+    WidgetRef ref,
     BusinessProfile business,
     AsyncValue<AppUser?> ownerAsync,
     int totalOrders,
@@ -286,6 +303,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     int processingCount,
     int completedCount,
   ) {
+    final expanded = ref.watch(_adminBusinessProfileExpandedProvider(business.id));
     final owner = ownerAsync.asData?.value;
     final ownerName = (owner?.name.trim().isNotEmpty ?? false)
         ? owner!.name.trim()
@@ -302,30 +320,47 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     final businessUnique = (business.gstNumber ?? '').trim().isEmpty
         ? '-'
         : business.gstNumber!.trim();
-    final fields = <MapEntry<String, String>>[
-      MapEntry('Owner Name', ownerName),
-      MapEntry('Owner Mobile', ownerPhone),
-      MapEntry('Owner Email', ownerEmail),
-      MapEntry(
-        'Owner Registration Date',
-        owner?.createdAt == null ? '-' : _formatDateTime(owner!.createdAt!),
+    final ownerActionPhone = ownerPhone == '-' ? null : ownerPhone;
+    final businessActionPhone = businessPhone == '-' ? null : businessPhone;
+    final fields = <_BusinessInfoField>[
+      _BusinessInfoField(label: 'Owner Name', value: ownerName),
+      _BusinessInfoField(
+        label: 'Owner Mobile',
+        value: ownerPhone,
+        actionPhone: ownerActionPhone,
       ),
-      MapEntry('Business Name', business.name),
-      MapEntry('Category', business.category),
-      MapEntry('City', business.city.isEmpty ? '-' : business.city),
-      MapEntry(
-        'Address',
-        (business.address ?? '').trim().isEmpty ? '-' : business.address!.trim(),
+      _BusinessInfoField(label: 'Owner Email', value: ownerEmail),
+      _BusinessInfoField(
+        label: 'Owner Registration Date',
+        value: owner?.createdAt == null ? '-' : _formatDateTime(owner!.createdAt!),
       ),
-      MapEntry('Business Mobile', businessPhone),
-      MapEntry('Business Unique No', businessUnique),
-      MapEntry('Status', _capitalize(business.status.name)),
-      MapEntry(
-        'Business Registration Date',
-        business.createdAt == null ? '-' : _formatDateTime(business.createdAt!),
+      _BusinessInfoField(label: 'Business Name', value: business.name),
+      _BusinessInfoField(label: 'Category', value: business.category),
+      _BusinessInfoField(
+        label: 'City',
+        value: business.city.isEmpty ? '-' : business.city,
       ),
-      MapEntry('Total Orders', '$totalOrders'),
-      MapEntry('Filtered Orders', '$filteredOrders'),
+      _BusinessInfoField(
+        label: 'Address',
+        value: (business.address ?? '').trim().isEmpty
+            ? '-'
+            : business.address!.trim(),
+      ),
+      _BusinessInfoField(
+        label: 'Business Mobile',
+        value: businessPhone,
+        actionPhone: businessActionPhone,
+      ),
+      _BusinessInfoField(label: 'Business Unique No', value: businessUnique),
+      _BusinessInfoField(label: 'Status', value: _capitalize(business.status.name)),
+      _BusinessInfoField(
+        label: 'Business Registration Date',
+        value: business.createdAt == null
+            ? '-'
+            : _formatDateTime(business.createdAt!),
+      ),
+      _BusinessInfoField(label: 'Total Orders', value: '$totalOrders'),
+      _BusinessInfoField(label: 'Filtered Orders', value: '$filteredOrders'),
     ];
 
     return Column(
@@ -361,8 +396,52 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        _buildInfoGrid(context, fields),
+        const SizedBox(height: 12),
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            ref
+                    .read(_adminBusinessProfileExpandedProvider(business.id).notifier)
+                    .state =
+                !expanded;
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Text(
+                  'Business Details',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  expanded ? 'Collapse' : 'Expand',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _buildInfoGrid(context, fields),
+          ),
+          crossFadeState: expanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 180),
+        ),
       ],
     );
   }
@@ -390,7 +469,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
 
   Widget _buildInfoGrid(
     BuildContext context,
-    List<MapEntry<String, String>> fields,
+    List<_BusinessInfoField> fields,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -401,11 +480,16 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
         return Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: fields
+            children: fields
               .map(
                 (field) => SizedBox(
                   width: itemWidth,
-                  child: _infoTile(context, field.key, field.value),
+                  child: _infoTile(
+                    context,
+                    field.label,
+                    field.value,
+                    actionPhone: field.actionPhone,
+                  ),
                 ),
               )
               .toList(),
@@ -414,7 +498,12 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _infoTile(BuildContext context, String label, String value) {
+  Widget _infoTile(
+    BuildContext context,
+    String label,
+    String value, {
+    String? actionPhone,
+  }) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.03),
@@ -432,7 +521,29 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
               ).textTheme.bodySmall?.copyWith(color: Colors.black54),
             ),
             const SizedBox(height: 4),
-            Text(value, style: Theme.of(context).textTheme.bodyMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+                ),
+                if (actionPhone != null) ...[
+                  IconButton(
+                    tooltip: 'Call',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.call_outlined),
+                    onPressed: () =>
+                        ContactActions.callPhone(context, actionPhone),
+                  ),
+                  IconButton(
+                    tooltip: 'WhatsApp',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    onPressed: () =>
+                        ContactActions.openWhatsApp(context, actionPhone),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),

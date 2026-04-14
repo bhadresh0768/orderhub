@@ -83,17 +83,21 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     required String queryText,
     required String categoryFilter,
     required String cityFilter,
+    required Map<String, String> ownerNamesByBusinessId,
   }) {
     final query = queryText.trim().toLowerCase();
     return businesses.where((business) {
       final categoryOk =
           categoryFilter == 'All' || business.category == categoryFilter;
       final cityOk = cityFilter == 'All' || business.city == cityFilter;
+      final ownerName =
+          (ownerNamesByBusinessId[business.id] ?? '').trim().toLowerCase();
       final matchesQuery =
           query.isEmpty ||
           business.name.toLowerCase().contains(query) ||
           business.category.toLowerCase().contains(query) ||
-          business.city.toLowerCase().contains(query);
+          business.city.toLowerCase().contains(query) ||
+          ownerName.contains(query);
       return categoryOk && cityOk && matchesQuery;
     }).toList();
   }
@@ -461,6 +465,10 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     final cityFilter = ref.watch(_customerCityFilterProvider);
     return businessesAsync.when(
       data: (businesses) {
+        final ownerNamesByBusinessId = {
+          for (final business in businesses)
+            business.id: (business.ownerName ?? '').trim(),
+        };
         final categories = <String>{
           'All',
           ...businesses.map((e) => e.category),
@@ -477,6 +485,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
           queryText: storeSearch,
           categoryFilter: categoryFilter,
           cityFilter: cityFilter,
+          ownerNamesByBusinessId: ownerNamesByBusinessId,
         );
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -584,6 +593,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
             if (filtered.isEmpty)
               const Text('No businesses match your filters.'),
             ...filtered.map((business) {
+              final ownerName = (business.ownerName ?? '').trim();
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
@@ -595,6 +605,14 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                         business.name,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (ownerName.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'By $ownerName',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.black54),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       Text('${business.category} • ${business.city}'),
                       const SizedBox(height: 6),
@@ -836,6 +854,14 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                       QuantityUnit.gram => 'g',
                       QuantityUnit.liter => 'L',
                       QuantityUnit.ton => 't',
+                      QuantityUnit.packet => 'pkt',
+                      QuantityUnit.bag => 'bag',
+                      QuantityUnit.bottle => 'btl',
+                      QuantityUnit.can => 'can',
+                      QuantityUnit.meter => 'm',
+                      QuantityUnit.foot => 'ft',
+                      QuantityUnit.carton => 'ctn',
+                      QuantityUnit.other => item.displayUnitSymbol,
                     };
                     return '${item.title} $qty $unit';
                   })

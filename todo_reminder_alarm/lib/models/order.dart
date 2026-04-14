@@ -3,11 +3,50 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'enums.dart';
 import 'payment.dart';
 
+const Map<QuantityUnit, ({String code, String label, String symbol})>
+_quantityUnitDefaults = {
+  QuantityUnit.piece: (code: 'piece', label: 'Piece', symbol: 'pc'),
+  QuantityUnit.box: (code: 'box', label: 'Box', symbol: 'box'),
+  QuantityUnit.kilogram: (code: 'kilogram', label: 'Kilogram', symbol: 'kg'),
+  QuantityUnit.gram: (code: 'gram', label: 'Gram', symbol: 'g'),
+  QuantityUnit.liter: (code: 'liter', label: 'Liter', symbol: 'L'),
+  QuantityUnit.ton: (code: 'ton', label: 'Ton', symbol: 't'),
+  QuantityUnit.packet: (code: 'packet', label: 'Packet', symbol: 'pkt'),
+  QuantityUnit.bag: (code: 'bag', label: 'Bag', symbol: 'bag'),
+  QuantityUnit.bottle: (code: 'bottle', label: 'Bottle', symbol: 'btl'),
+  QuantityUnit.can: (code: 'can', label: 'Can', symbol: 'can'),
+  QuantityUnit.meter: (code: 'meter', label: 'Meter', symbol: 'm'),
+  QuantityUnit.foot: (code: 'foot', label: 'Foot', symbol: 'ft'),
+  QuantityUnit.carton: (code: 'carton', label: 'Carton', symbol: 'ctn'),
+  QuantityUnit.other: (code: 'other', label: 'Other', symbol: 'unit'),
+};
+
+QuantityUnit quantityUnitFromCode(String? code) {
+  final normalized = code?.trim().toLowerCase();
+  if (normalized == null || normalized.isEmpty) return QuantityUnit.piece;
+  for (final entry in _quantityUnitDefaults.entries) {
+    if (entry.value.code == normalized) return entry.key;
+  }
+  return QuantityUnit.other;
+}
+
+String quantityUnitCode(QuantityUnit unit) =>
+    _quantityUnitDefaults[unit]!.code;
+
+String quantityUnitDefaultLabel(QuantityUnit unit) =>
+    _quantityUnitDefaults[unit]!.label;
+
+String quantityUnitDefaultSymbol(QuantityUnit unit) =>
+    _quantityUnitDefaults[unit]!.symbol;
+
 class OrderItem {
   const OrderItem({
     required this.title,
     required this.quantity,
     required this.unit,
+    this.unitCode,
+    this.unitLabel,
+    this.unitSymbol,
     this.packSize,
     this.note,
     this.attachments = const [],
@@ -20,6 +59,9 @@ class OrderItem {
   final String title;
   final double quantity;
   final QuantityUnit unit;
+  final String? unitCode;
+  final String? unitLabel;
+  final String? unitSymbol;
   final String? packSize;
   final String? note;
   final List<OrderAttachment> attachments;
@@ -28,11 +70,31 @@ class OrderItem {
   final bool? isIncluded;
   final String? unavailableReason;
 
+  String get displayUnitSymbol {
+    final explicitSymbol = unitSymbol?.trim() ?? '';
+    if (explicitSymbol.isNotEmpty) return explicitSymbol;
+    if (unit == QuantityUnit.other) {
+      final explicitLabel = unitLabel?.trim() ?? '';
+      if (explicitLabel.isNotEmpty) return explicitLabel;
+      final explicitCode = unitCode?.trim() ?? '';
+      if (explicitCode.isNotEmpty) return explicitCode;
+      return quantityUnitDefaultSymbol(QuantityUnit.other);
+    }
+    return quantityUnitDefaultSymbol(unit);
+  }
+
   Map<String, dynamic> toMap() {
+    final normalizedCode = (unitCode ?? '').trim().toLowerCase();
+    final persistedCode = normalizedCode.isEmpty
+        ? quantityUnitCode(unit)
+        : normalizedCode;
     return {
       'title': title,
       'quantity': quantity,
       'unit': enumToString(unit),
+      'unitCode': persistedCode,
+      'unitLabel': unitLabel,
+      'unitSymbol': unitSymbol,
       'packSize': packSize,
       'note': note,
       'attachments': attachments.map((e) => e.toMap()).toList(),
@@ -46,14 +108,27 @@ class OrderItem {
   factory OrderItem.fromMap(Map<String, dynamic> data) {
     final rawQuantity = data['quantity'];
     final attachmentData = (data['attachments'] as List?) ?? [];
+    final parsedUnit = enumFromString(
+      QuantityUnit.values,
+      data['unit'] as String?,
+      QuantityUnit.piece,
+    );
+    final codeText = (data['unitCode'] as String?)?.trim().toLowerCase();
+    final effectiveUnitCode = codeText == null || codeText.isEmpty
+        ? quantityUnitCode(parsedUnit)
+        : codeText;
+    final unitFromCode = quantityUnitFromCode(effectiveUnitCode);
+    final effectiveUnit = parsedUnit == QuantityUnit.piece &&
+            unitFromCode == QuantityUnit.other
+        ? unitFromCode
+        : parsedUnit;
     return OrderItem(
       title: (data['title'] as String?) ?? '',
       quantity: rawQuantity is num ? rawQuantity.toDouble() : 1,
-      unit: enumFromString(
-        QuantityUnit.values,
-        data['unit'] as String?,
-        QuantityUnit.piece,
-      ),
+      unit: effectiveUnit,
+      unitCode: effectiveUnitCode,
+      unitLabel: data['unitLabel'] as String?,
+      unitSymbol: data['unitSymbol'] as String?,
       packSize: data['packSize'] as String?,
       note: data['note'] as String?,
       attachments: attachmentData
