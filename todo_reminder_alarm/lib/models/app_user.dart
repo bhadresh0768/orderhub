@@ -17,6 +17,7 @@ class AppUser {
     this.deleteRequestedAt,
     this.isActive = true,
     this.businessId,
+    this.favoriteBusinessIds = const [],
     this.createdAt,
   });
 
@@ -33,6 +34,7 @@ class AppUser {
   final UserRole role;
   final bool isActive;
   final String? businessId;
+  final List<String> favoriteBusinessIds;
   final DateTime? createdAt;
 
   Map<String, dynamic> toMap() {
@@ -51,6 +53,7 @@ class AppUser {
       'role': enumToString(role),
       'isActive': isActive,
       'businessId': businessId,
+      'favoriteBusinessIds': favoriteBusinessIds,
       'createdAt': Timestamp.fromDate(createdAt ?? DateTime.now()),
     };
   }
@@ -78,6 +81,9 @@ class AppUser {
       ),
       isActive: (data['isActive'] as bool?) ?? true,
       businessId: data['businessId'] as String?,
+      favoriteBusinessIds: ((data['favoriteBusinessIds'] as List?) ?? const [])
+          .whereType<String>()
+          .toList(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );
   }

@@ -133,8 +133,26 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
   }
 
   String _requestedByAddress() {
+    String appendCityIfMissing(String address, String city) {
+      final cleanAddress = address.trim();
+      final cleanCity = city.trim();
+      if (cleanAddress.isEmpty) return cleanCity;
+      if (cleanCity.isEmpty) return cleanAddress;
+      if (cleanAddress.toLowerCase().contains(cleanCity.toLowerCase())) {
+        return cleanAddress;
+      }
+      return '$cleanAddress, $cleanCity';
+    }
+
+    final ownBusiness =
+        ref.watch(businessByIdProvider(_order.businessId)).asData?.value;
+    final ownCity = (ownBusiness?.city ?? '').trim();
+
     final direct = (_order.deliveryAddress ?? '').trim();
-    if (direct.isNotEmpty) return _splitLegacyAddress(direct).address;
+    if (direct.isNotEmpty) {
+      final split = _splitLegacyAddress(direct).address;
+      return appendCityIfMissing(split, ownCity);
+    }
 
     if (_order.requesterType == OrderRequesterType.businessOwner) {
       final requesterBusinessId = _order.requesterBusinessId;
@@ -152,6 +170,7 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
       if (city.isEmpty) return address;
       return '$address, $city';
     }
+    if (ownCity.isNotEmpty) return ownCity;
     return '-';
   }
 

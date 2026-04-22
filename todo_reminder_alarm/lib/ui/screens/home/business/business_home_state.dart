@@ -49,18 +49,21 @@ class _PlaceOrdersUiState {
   const _PlaceOrdersUiState({
     this.searchQuery = '',
     this.categoryFilter = 'All',
+    this.cityFilter = 'All',
     this.placedDateFilter = OrderDateFilterOption.all,
     this.placedFromDate,
     this.placedToDate,
   });
   final String searchQuery;
   final String categoryFilter;
+  final String cityFilter;
   final OrderDateFilterOption placedDateFilter;
   final DateTime? placedFromDate;
   final DateTime? placedToDate;
   _PlaceOrdersUiState copyWith({
     String? searchQuery,
     String? categoryFilter,
+    String? cityFilter,
     OrderDateFilterOption? placedDateFilter,
     Object? placedFromDate = _businessDateUnset,
     Object? placedToDate = _businessDateUnset,
@@ -68,6 +71,7 @@ class _PlaceOrdersUiState {
     return _PlaceOrdersUiState(
       searchQuery: searchQuery ?? this.searchQuery,
       categoryFilter: categoryFilter ?? this.categoryFilter,
+      cityFilter: cityFilter ?? this.cityFilter,
       placedDateFilter: placedDateFilter ?? this.placedDateFilter,
       placedFromDate: placedFromDate == _businessDateUnset
           ? this.placedFromDate

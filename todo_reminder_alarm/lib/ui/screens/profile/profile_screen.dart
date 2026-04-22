@@ -419,9 +419,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _businessShareLinkController = TextEditingController();
   int? _selectedFiscalYearStartMonth;
 
-  _ProfileUiState get _ui => ref.read(_profileUiProvider(widget.user.id));
+  String get _activeUid =>
+      ref.read(authStateProvider).value?.uid ?? widget.user.id;
+
+  _ProfileUiState get _ui => ref.read(_profileUiProvider(_activeUid));
   void _updateUi(_ProfileUiState Function(_ProfileUiState state) update) {
-    final notifier = ref.read(_profileUiProvider(widget.user.id).notifier);
+    final notifier = ref.read(_profileUiProvider(_activeUid).notifier);
     notifier.state = update(notifier.state);
   }
 
@@ -504,11 +507,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final url = await ref
           .read(storageServiceProvider)
           .uploadUserProfileImage(
-            userId: widget.user.id,
+            userId: _activeUid,
             fileName: file.name,
             bytes: file.bytes!,
           );
-      await ref.read(firestoreServiceProvider).updateUser(widget.user.id, {
+      await ref.read(firestoreServiceProvider).updateUser(_activeUid, {
         'photoUrl': url,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -584,7 +587,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _businessPhoneController.text,
         _ui.businessCountry,
       );
-      await firestore.updateUser(widget.user.id, {
+      await firestore.updateUser(_activeUid, {
         'name': _nameController.text.trim(),
         'phoneNumber': normalizedUserPhone.isEmpty ? null : normalizedUserPhone,
         'shopName': _shopNameController.text.trim().isEmpty
@@ -668,7 +671,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     _updateUi((state) => state.copyWith(saving: true, error: null));
     try {
-      await ref.read(firestoreServiceProvider).updateUser(widget.user.id, {
+      await ref.read(firestoreServiceProvider).updateUser(_activeUid, {
         'deleteRequestStatus': 'pending',
         'deleteRequestedAt': FieldValue.serverTimestamp(),
       });
@@ -713,12 +716,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref
           .read(firestoreServiceProvider)
           .upgradeCustomerToBusinessOwner(
-            userId: widget.user.id,
+            userId: _activeUid,
             business: BusinessProfile(
               id: businessId,
               name: data.name,
               category: data.category,
-              ownerId: widget.user.id,
+              ownerId: _activeUid,
               city: data.city,
               ownerName: widget.user.name.trim(),
               address: data.address,
@@ -763,11 +766,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final uiState = ref.watch(_profileUiProvider(widget.user.id));
+    final currentUid = ref.watch(authStateProvider).value?.uid ?? widget.user.id;
+    final uiState = ref.watch(_profileUiProvider(currentUid));
     final liveUser =
-        ref.watch(userProfileProvider(widget.user.id)).asData?.value ??
+        ref.watch(userProfileProvider(currentUid)).asData?.value ??
         widget.user;
-    _initUser(widget.user);
+    _initUser(liveUser);
     final isCustomer = liveUser.role == UserRole.customer;
     final businessId = liveUser.businessId;
     final canRequestDelete =

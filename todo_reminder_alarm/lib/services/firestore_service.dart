@@ -612,6 +612,19 @@ class FirestoreService {
     });
   }
 
+  Future<void> setCustomerFavoriteBusiness({
+    required String userId,
+    required String businessId,
+    required bool isFavorite,
+  }) async {
+    await _users.doc(userId).set({
+      'favoriteBusinessIds': isFavorite
+          ? FieldValue.arrayUnion([businessId])
+          : FieldValue.arrayRemove([businessId]),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> deactivateExpiredBusinessSubscription(String businessId) async {
     await _businesses.doc(businessId).update({
       'subscriptionActive': false,

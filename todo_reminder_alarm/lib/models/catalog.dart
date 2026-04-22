@@ -1,8 +1,36 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'enums.dart';
+import 'order.dart';
 
 enum CatalogUnitType { volume, weight, count }
+
+const Map<CatalogUnitType, List<QuantityUnit>> _catalogUnitsByType = {
+  CatalogUnitType.volume: [
+    QuantityUnit.liter,
+  ],
+  CatalogUnitType.weight: [
+    QuantityUnit.gram,
+    QuantityUnit.kilogram,
+    QuantityUnit.ton,
+  ],
+  CatalogUnitType.count: [
+    QuantityUnit.piece,
+    QuantityUnit.packet,
+    QuantityUnit.box,
+    QuantityUnit.bag,
+    QuantityUnit.bottle,
+    QuantityUnit.can,
+    QuantityUnit.carton,
+    QuantityUnit.meter,
+    QuantityUnit.foot,
+  ],
+};
+
+List<String> catalogBaseUnitsForType(CatalogUnitType type) {
+  final units = _catalogUnitsByType[type] ?? const <QuantityUnit>[];
+  return units.map(quantityUnitDefaultSymbol).toList();
+}
 
 class CatalogCategory {
   const CatalogCategory({

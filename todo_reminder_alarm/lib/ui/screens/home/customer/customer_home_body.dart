@@ -90,8 +90,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
       final categoryOk =
           categoryFilter == 'All' || business.category == categoryFilter;
       final cityOk = cityFilter == 'All' || business.city == cityFilter;
-      final ownerName =
-          (ownerNamesByBusinessId[business.id] ?? '').trim().toLowerCase();
+      final ownerName = (ownerNamesByBusinessId[business.id] ?? '')
+          .trim()
+          .toLowerCase();
       final matchesQuery =
           query.isEmpty ||
           business.name.toLowerCase().contains(query) ||
@@ -100,6 +101,69 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
           ownerName.contains(query);
       return categoryOk && cityOk && matchesQuery;
     }).toList();
+  }
+
+  String? _inferDefaultCityFromAddress(List<String> cities) {
+    final rawAddress = (widget.profile.address ?? '').trim().toLowerCase();
+    if (rawAddress.isEmpty) return null;
+    final matches = cities
+        .where((city) => city != 'All')
+        .where((city) => rawAddress.contains(city.toLowerCase()))
+        .toList();
+    if (matches.isEmpty) return null;
+    matches.sort((a, b) => b.length.compareTo(a.length));
+    return matches.first;
+  }
+
+  List<String> _recentBusinessIds(List<Order> orders) {
+    final sorted = [...orders]
+      ..sort((a, b) {
+        final ad =
+            a.updatedAt ??
+            a.createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bd =
+            b.updatedAt ??
+            b.createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bd.compareTo(ad);
+      });
+    final seen = <String>{};
+    final ids = <String>[];
+    for (final order in sorted) {
+      final id = order.businessId.trim();
+      if (id.isEmpty || seen.contains(id)) continue;
+      seen.add(id);
+      ids.add(id);
+    }
+    return ids;
+  }
+
+  List<BusinessProfile> _sortBusinessesForCustomer(
+    List<BusinessProfile> businesses, {
+    required Set<String> favoriteIds,
+    required List<String> recentBusinessIds,
+  }) {
+    final recentIndex = {
+      for (var i = 0; i < recentBusinessIds.length; i++)
+        recentBusinessIds[i]: i,
+    };
+    final sorted = [...businesses];
+    sorted.sort((a, b) {
+      final favA = favoriteIds.contains(a.id);
+      final favB = favoriteIds.contains(b.id);
+      if (favA != favB) return favA ? -1 : 1;
+      final recentA = recentIndex[a.id];
+      final recentB = recentIndex[b.id];
+      if (recentA != null && recentB != null) {
+        final byRecent = recentA.compareTo(recentB);
+        if (byRecent != 0) return byRecent;
+      } else if (recentA != null || recentB != null) {
+        return recentA != null ? -1 : 1;
+      }
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return sorted;
   }
 
   Future<void> _showCityPicker(List<String> cities, String selectedCity) async {
@@ -194,11 +258,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
           labelText: 'City',
           suffixIcon: Icon(Icons.search),
         ),
-        child: Text(
-          cityFilter,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        child: Text(cityFilter, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }
@@ -272,29 +332,6 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
           order.displayOrderNumber.toLowerCase().contains(query) ||
           order.items.any((item) => item.title.toLowerCase().contains(query));
     }).toList();
-  }
-
-  Widget? _buildPaymentBadge(Order order) {
-    if (order.payment.status == PaymentStatus.pending) {
-      return OrderStatusChip(
-        label: 'Payment Pending',
-        backgroundColor: Colors.red.shade100,
-        foregroundColor: Colors.red.shade800,
-      );
-    }
-    if (order.payment.status == PaymentStatus.done &&
-        order.payment.collectedBy == PaymentCollectedBy.deliveryBoy) {
-      return OrderStatusChip(
-        label: 'Collected by Delivery',
-        backgroundColor: Colors.green.shade100,
-        foregroundColor: Colors.green.shade800,
-      );
-    }
-    return null;
-  }
-
-  Color _statusColor(OrderStatus status) {
-    return OrderSharedHelpers.statusColor(status);
   }
 
   bool _looksLikeImage(String value) {
@@ -460,9 +497,18 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
     AsyncValue<List<BusinessProfile>> businessesAsync,
     TabController tabController,
   ) {
+    final currentUid =
+        ref.watch(authStateProvider).value?.uid ?? widget.profile.id;
     final storeSearch = ref.watch(_customerStoreSearchProvider);
     final categoryFilter = ref.watch(_customerCategoryFilterProvider);
     final cityFilter = ref.watch(_customerCityFilterProvider);
+    final liveProfile =
+        ref.watch(userProfileProvider(currentUid)).asData?.value ??
+        widget.profile;
+    final favoriteBusinessIds = liveProfile.favoriteBusinessIds.toSet();
+    final customerOrders =
+        ref.watch(ordersForCustomerProvider(widget.profile.id)).asData?.value ??
+        const <Order>[];
     return businessesAsync.when(
       data: (businesses) {
         final ownerNamesByBusinessId = {
@@ -473,19 +519,41 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
           'All',
           ...businesses.map((e) => e.category),
         };
-        final normalizedCities = businesses
-            .map((e) => e.city.trim())
-            .where((city) => city.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        final normalizedCities =
+            businesses
+                .map((e) => e.city.trim())
+                .where((city) => city.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
         final cities = ['All', ...normalizedCities];
+        final inferredCity = _inferDefaultCityFromAddress(cities);
+        if (cityFilter == 'All' &&
+            inferredCity != null &&
+            inferredCity.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final current = ref.read(_customerCityFilterProvider);
+            if (current == 'All') {
+              ref.read(_customerCityFilterProvider.notifier).state =
+                  inferredCity;
+            }
+          });
+        }
+        final effectiveCityFilter = cityFilter == 'All' && inferredCity != null
+            ? inferredCity
+            : cityFilter;
         final filtered = _applyFilters(
           businesses,
           queryText: storeSearch,
           categoryFilter: categoryFilter,
-          cityFilter: cityFilter,
+          cityFilter: effectiveCityFilter,
           ownerNamesByBusinessId: ownerNamesByBusinessId,
+        );
+        final sortedBusinesses = _sortBusinessesForCustomer(
+          filtered,
+          favoriteIds: favoriteBusinessIds,
+          recentBusinessIds: _recentBusinessIds(customerOrders),
         );
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -536,7 +604,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                                 value ?? 'All',
                       ),
                       const SizedBox(height: 10),
-                      _buildCityPickerField(cities, cityFilter),
+                      _buildCityPickerField(cities, effectiveCityFilter),
                     ],
                   );
                 }
@@ -583,7 +651,7 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _buildCityPickerField(cities, cityFilter),
+                      child: _buildCityPickerField(cities, effectiveCityFilter),
                     ),
                   ],
                 );
@@ -592,8 +660,9 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
             const SizedBox(height: 12),
             if (filtered.isEmpty)
               const Text('No businesses match your filters.'),
-            ...filtered.map((business) {
+            ...sortedBusinesses.map((business) {
               final ownerName = (business.ownerName ?? '').trim();
+              final isFavorite = favoriteBusinessIds.contains(business.id);
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
@@ -601,9 +670,37 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        business.name,
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              business.name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: isFavorite
+                                ? 'Remove from favorites'
+                                : 'Pin to favorites',
+                            onPressed: () async {
+                              await ref
+                                  .read(firestoreServiceProvider)
+                                  .setCustomerFavoriteBusiness(
+                                    userId: currentUid,
+                                    businessId: business.id,
+                                    isFavorite: !isFavorite,
+                                  );
+                            },
+                            icon: Icon(
+                              isFavorite
+                                  ? Icons.push_pin
+                                  : Icons.push_pin_outlined,
+                              color: isFavorite
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
                       if (ownerName.isNotEmpty) ...[
                         const SizedBox(height: 2),
@@ -799,15 +896,12 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
             if (filteredOrders.isEmpty)
               const Text('No orders match current filters.'),
             ...filteredOrders.map((order) {
-              final effectiveStatus = _effectiveStatus(order);
+              final business = businessById[order.businessId];
               final canEdit = _canEditOrder(order);
               final isFast = order.priority == OrderPriority.fast;
-              final statusColor = _statusColor(effectiveStatus);
               final priorityColor = isFast
                   ? Colors.red
                   : Theme.of(context).colorScheme.onSurface;
-              final showAmountToCustomer =
-                  effectiveStatus != OrderStatus.pending;
               final amount = order.payment.amount;
               final amountText = amount == null
                   ? 'Not set'
@@ -822,50 +916,36 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                   : (collectedBy == PaymentCollectedBy.deliveryBoy
                         ? 'Delivery Boy'
                         : 'Business');
-              final badge = _buildPaymentBadge(order);
               final unavailableItems = order.items
                   .where((item) => !(item.isIncluded ?? true))
                   .map((item) => item.title)
                   .toList();
               final imageAttachments = _imageAttachments(order);
-              final includedItems = order.items.where(
-                (item) => item.isIncluded ?? true,
+              final cardIconColor = Colors.grey.shade600;
+              final orderDateLabel = order.createdAt == null
+                  ? null
+                  : OrderSharedHelpers.formatDateTime(order.createdAt!);
+              final paymentDone = order.payment.status == PaymentStatus.done;
+              final paymentLabel = paymentDone
+                  ? 'Payment Done${collectedByText == null ? '' : ' • $collectedByText'}'
+                  : 'Payment Pending';
+              final paymentBg = paymentDone
+                  ? Colors.blueGrey.shade50
+                  : Colors.red.shade100;
+              final paymentFg = paymentDone
+                  ? Colors.blueGrey.shade800
+                  : Colors.red.shade800;
+              final deliveryDelivered =
+                  order.delivery.status == DeliveryStatus.delivered;
+              final deliveryLabel = OrderSharedHelpers.capitalize(
+                order.delivery.status.name,
               );
-              final itemSummary = includedItems
-                  .take(3)
-                  .map((item) {
-                    final pack = (item.packSize ?? '').trim();
-                    if (pack.isNotEmpty) {
-                      final qty =
-                          item.quantity == item.quantity.truncateToDouble()
-                          ? item.quantity.toInt().toString()
-                          : item.quantity.toStringAsFixed(2);
-                      final suffix = item.quantity == 1 ? 'pack' : 'packs';
-                      return '${item.title} $qty $suffix ($pack)';
-                    }
-                    final qty =
-                        item.quantity == item.quantity.truncateToDouble()
-                        ? item.quantity.toInt().toString()
-                        : item.quantity.toStringAsFixed(2);
-                    final unit = switch (item.unit) {
-                      QuantityUnit.piece => 'pc',
-                      QuantityUnit.box => 'box',
-                      QuantityUnit.kilogram => 'kg',
-                      QuantityUnit.gram => 'g',
-                      QuantityUnit.liter => 'L',
-                      QuantityUnit.ton => 't',
-                      QuantityUnit.packet => 'pkt',
-                      QuantityUnit.bag => 'bag',
-                      QuantityUnit.bottle => 'btl',
-                      QuantityUnit.can => 'can',
-                      QuantityUnit.meter => 'm',
-                      QuantityUnit.foot => 'ft',
-                      QuantityUnit.carton => 'ctn',
-                      QuantityUnit.other => item.displayUnitSymbol,
-                    };
-                    return '${item.title} $qty $unit';
-                  })
-                  .join(', ');
+              final deliveryBg = deliveryDelivered
+                  ? Colors.green.shade100
+                  : Colors.grey.shade200;
+              final deliveryFg = deliveryDelivered
+                  ? Colors.green.shade700
+                  : Colors.grey.shade800;
               return OrderCardShell(
                 isHighlighted: isFast,
                 onTap: () {
@@ -875,96 +955,242 @@ class _CustomerHomeBodyState extends ConsumerState<_CustomerHomeBody> {
                     ),
                   );
                 },
-                child: ListTile(
-                  dense: true,
-                  title: Row(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(text: '${order.businessName} • '),
-                              TextSpan(
-                                text: OrderSharedHelpers.statusLabel(
-                                  effectiveStatus,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    order.businessName,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
                                 ),
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            padding: EdgeInsets.zero,
+                            iconSize: 22,
+                            iconColor: cardIconColor,
+                            tooltip: canEdit
+                                ? 'Order actions'
+                                : 'Locked: accepted orders cannot be edited/deleted',
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await _editOrder(order, businessById);
+                              } else if (value == 'delete') {
+                                await _deleteOrder(order);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(
+                                value: '__help__',
+                                enabled: false,
+                                child: Text('Editable only while order is New'),
+                              ),
+                              PopupMenuItem(
+                                value: 'edit',
+                                enabled: canEdit,
+                                child: const Text('Edit Order'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                enabled: canEdit,
+                                child: const Text('Delete Order'),
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                      if (badge != null) ...[const SizedBox(width: 8), badge],
-                    ],
-                  ),
-                  subtitleTextStyle: Theme.of(context).textTheme.bodyLarge,
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Order ${order.displayOrderNumber}'
-                        '${showAmountToCustomer ? ' • Amount: $amountText' : ''}',
-                      ),
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            const TextSpan(text: 'Delivery Priority: '),
-                            TextSpan(
-                              text: OrderSharedHelpers.capitalize(
-                                order.priority.name,
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.receipt_long_outlined,
+                                  size: 18,
+                                  color: cardIconColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    order.displayOrderNumber,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          if (orderDateLabel != null)
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    size: 18,
+                                    color: cardIconColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      orderDateLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              style: TextStyle(
-                                color: priorityColor,
-                                fontWeight: isFast
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      if ((business?.ownerName ?? '').trim().isNotEmpty)
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline,
+                              size: 18,
+                              color: cardIconColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(child: Text(business!.ownerName!.trim())),
+                          ],
+                        ),
+                      const SizedBox(height: 6),
+                      if ((business?.address ?? '').trim().isNotEmpty)
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 18,
+                              color: cardIconColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                business!.address!.trim(),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            isFast ? Icons.bolt_outlined : Icons.speed_outlined,
+                            size: 18,
+                            color: cardIconColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: priorityColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              OrderSharedHelpers.capitalize(
+                                order.priority.name,
+                              ),
+                              style: TextStyle(
+                                color: priorityColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Payment: ${OrderSharedHelpers.capitalize(order.payment.status.name)}'
-                        '${collectedByText == null ? '' : ' ($collectedByText)'}'
-                        ' | Delivery: ${OrderSharedHelpers.capitalize(order.delivery.status.name)}',
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.local_shipping_outlined,
+                            size: 18,
+                            color: cardIconColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: paymentBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Text(
+                                    paymentLabel,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: paymentFg,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: deliveryBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Text(
+                                    deliveryLabel,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: deliveryFg,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      if (itemSummary.isNotEmpty) Text('Items: $itemSummary'),
+                      const SizedBox(height: 8),
+                      Divider(height: 1, color: Colors.grey.shade200),
+                      const SizedBox(height: 8),
                       if (unavailableItems.isNotEmpty)
                         Text('Unavailable: ${unavailableItems.join(', ')}'),
                       if (imageAttachments.isNotEmpty)
                         Text('Item Images: ${imageAttachments.length}'),
-                    ],
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    tooltip: canEdit
-                        ? 'Order actions'
-                        : 'Locked: accepted orders cannot be edited/deleted',
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        await _editOrder(order, businessById);
-                      } else if (value == 'delete') {
-                        await _deleteOrder(order);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: '__help__',
-                        enabled: false,
-                        child: Text('Editable only while order is New'),
-                      ),
-                      PopupMenuItem(
-                        value: 'edit',
-                        enabled: canEdit,
-                        child: const Text('Edit Order'),
-                      ),
-                      PopupMenuItem(
-                        value: 'delete',
-                        enabled: canEdit,
-                        child: const Text('Delete Order'),
-                      ),
+                      if (amount != null)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'Amount: $amountText',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
                     ],
                   ),
                 ),

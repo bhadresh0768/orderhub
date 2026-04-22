@@ -47,14 +47,66 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     return businesses.where((business) {
       final categoryOk =
           ui.categoryFilter == 'All' || business.category == ui.categoryFilter;
+      final cityOk = ui.cityFilter == 'All' || business.city == ui.cityFilter;
       final matchesQuery =
           query.isEmpty ||
           business.name.toLowerCase().contains(query) ||
           business.category.toLowerCase().contains(query) ||
           (business.address ?? '').toLowerCase().contains(query) ||
           business.city.toLowerCase().contains(query);
-      return categoryOk && matchesQuery;
+      return categoryOk && cityOk && matchesQuery;
     }).toList();
+  }
+
+  List<String> _recentBusinessIds(List<Order> orders) {
+    final sorted = [...orders]
+      ..sort((a, b) {
+        final ad =
+            a.updatedAt ??
+            a.createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bd =
+            b.updatedAt ??
+            b.createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bd.compareTo(ad);
+      });
+    final seen = <String>{};
+    final ids = <String>[];
+    for (final order in sorted) {
+      final id = order.businessId.trim();
+      if (id.isEmpty || seen.contains(id)) continue;
+      seen.add(id);
+      ids.add(id);
+    }
+    return ids;
+  }
+
+  List<BusinessProfile> _sortBusinessesForUser(
+    List<BusinessProfile> businesses, {
+    required Set<String> favoriteIds,
+    required List<String> recentBusinessIds,
+  }) {
+    final recentIndex = {
+      for (var i = 0; i < recentBusinessIds.length; i++)
+        recentBusinessIds[i]: i,
+    };
+    final sorted = [...businesses];
+    sorted.sort((a, b) {
+      final favA = favoriteIds.contains(a.id);
+      final favB = favoriteIds.contains(b.id);
+      if (favA != favB) return favA ? -1 : 1;
+      final recentA = recentIndex[a.id];
+      final recentB = recentIndex[b.id];
+      if (recentA != null && recentB != null) {
+        final byRecent = recentA.compareTo(recentB);
+        if (byRecent != 0) return byRecent;
+      } else if (recentA != null || recentB != null) {
+        return recentA != null ? -1 : 1;
+      }
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return sorted;
   }
 
   DateTime _effectiveOrderDate(Order order) {
@@ -178,6 +230,12 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(_placeOrdersUiProvider(_uiKey));
+    final currentUid =
+        ref.watch(authStateProvider).value?.uid ?? widget.profile.id;
+    final liveProfile =
+        ref.watch(userProfileProvider(currentUid)).asData?.value ??
+        widget.profile;
+    final favoriteBusinessIds = liveProfile.favoriteBusinessIds.toSet();
     final businessesAsync = ref.watch(approvedBusinessesProvider);
     final businessById = {
       for (final business
@@ -187,6 +245,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
     final outgoingAsync = ref.watch(
       ordersPlacedByBusinessOwnerProvider(widget.profile.id),
     );
+    final outgoingOrders = outgoingAsync.asData?.value ?? const <Order>[];
 
     return DefaultTabController(
       length: 2,
@@ -206,14 +265,49 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                   data: (businesses) {
                     final options = businesses
                         .where(
-                          (business) => business.id != widget.profile.businessId,
+                          (business) =>
+                              business.id != widget.profile.businessId,
                         )
                         .toList();
                     final categories = <String>{
                       'All',
                       ...options.map((e) => e.category),
                     };
+                    final normalizedCities =
+                        options
+                            .map((e) => e.city.trim())
+                            .where((city) => city.isNotEmpty)
+                            .toSet()
+                            .toList()
+                          ..sort(
+                            (a, b) =>
+                                a.toLowerCase().compareTo(b.toLowerCase()),
+                          );
+                    final cities = ['All', ...normalizedCities];
+                    final ownCity = (widget.ownBusiness?.city ?? '').trim();
+                    if (ui.cityFilter == 'All' &&
+                        ownCity.isNotEmpty &&
+                        cities.contains(ownCity)) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        final current = ref.read(
+                          _placeOrdersUiProvider(_uiKey),
+                        );
+                        if (current.cityFilter == 'All') {
+                          ref
+                              .read(_placeOrdersUiProvider(_uiKey).notifier)
+                              .state = current.copyWith(
+                            cityFilter: ownCity,
+                          );
+                        }
+                      });
+                    }
                     final filtered = _filterBusinesses(options);
+                    final sortedBusinesses = _sortBusinessesForUser(
+                      filtered,
+                      favoriteIds: favoriteBusinessIds,
+                      recentBusinessIds: _recentBusinessIds(outgoingOrders),
+                    );
                     if (options.isEmpty) {
                       return const Center(
                         child: Text('No other businesses available.'),
@@ -279,6 +373,33 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                       );
                                     },
                                   ),
+                                  const SizedBox(height: 10),
+                                  DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    initialValue: ui.cityFilter,
+                                    decoration: const InputDecoration(
+                                      labelText: 'City',
+                                    ),
+                                    items: cities
+                                        .map(
+                                          (value) => DropdownMenuItem(
+                                            value: value,
+                                            child: Text(value),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (value) {
+                                      ref
+                                          .read(
+                                            _placeOrdersUiProvider(
+                                              _uiKey,
+                                            ).notifier,
+                                          )
+                                          .state = ui.copyWith(
+                                        cityFilter: value ?? 'All',
+                                      );
+                                    },
+                                  ),
                                 ],
                               );
                             }
@@ -335,6 +456,35 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                     },
                                   ),
                                 ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    initialValue: ui.cityFilter,
+                                    decoration: const InputDecoration(
+                                      labelText: 'City',
+                                    ),
+                                    items: cities
+                                        .map(
+                                          (value) => DropdownMenuItem(
+                                            value: value,
+                                            child: Text(value),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (value) {
+                                      ref
+                                          .read(
+                                            _placeOrdersUiProvider(
+                                              _uiKey,
+                                            ).notifier,
+                                          )
+                                          .state = ui.copyWith(
+                                        cityFilter: value ?? 'All',
+                                      );
+                                    },
+                                  ),
+                                ),
                               ],
                             );
                           },
@@ -349,7 +499,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           builder: (context, constraints) {
                             final isWide = constraints.maxWidth >= 900;
                             final crossAxisCount = isWide ? 2 : 1;
-                            final cardExtent = isWide ? 190.0 : 200.0;
+                            final cardExtent = isWide ? 206.0 : 214.0;
                             final cardPadding = isWide ? 12.0 : 10.0;
                             final titleStyle = isWide
                                 ? Theme.of(context).textTheme.titleLarge
@@ -357,7 +507,7 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                             return GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              itemCount: filtered.length,
+                              itemCount: sortedBusinesses.length,
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: crossAxisCount,
@@ -366,7 +516,12 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                     mainAxisExtent: cardExtent,
                                   ),
                               itemBuilder: (context, index) {
-                                final business = filtered[index];
+                                final business = sortedBusinesses[index];
+                                final isFavorite = favoriteBusinessIds.contains(
+                                  business.id,
+                                );
+                                final ownerName = (business.ownerName ?? '')
+                                    .trim();
                                 return Card(
                                   child: Padding(
                                     padding: EdgeInsets.all(cardPadding),
@@ -379,12 +534,75 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                business.name,
-                                                style: titleStyle,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      business.name,
+                                                      style: titleStyle,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    tooltip: isFavorite
+                                                        ? 'Remove from favorites'
+                                                        : 'Pin to favorites',
+                                                    onPressed: () async {
+                                                      await ref
+                                                          .read(
+                                                            firestoreServiceProvider,
+                                                          )
+                                                          .setCustomerFavoriteBusiness(
+                                                            userId: currentUid,
+                                                            businessId:
+                                                                business.id,
+                                                            isFavorite:
+                                                                !isFavorite,
+                                                          );
+                                                    },
+                                                    icon: Icon(
+                                                      isFavorite
+                                                          ? Icons.push_pin
+                                                          : Icons
+                                                                .push_pin_outlined,
+                                                      color: isFavorite
+                                                          ? Theme.of(context)
+                                                                .colorScheme
+                                                                .primary
+                                                          : Colors
+                                                                .grey
+                                                                .shade600,
+                                                    ),
+                                                    iconSize: 20,
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(),
+                                                  ),
+                                                ],
                                               ),
+                                              if (ownerName.isNotEmpty) ...[
+                                                Text(
+                                                  'By $ownerName',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: Colors.black54,
+                                                        fontSize:
+                                                            ((Theme.of(context)
+                                                                    .textTheme
+                                                                    .bodySmall
+                                                                    ?.fontSize ??
+                                                                12) +
+                                                            3),
+                                                      ),
+                                                ),
+                                              ],
                                               const SizedBox(height: 2),
                                               Wrap(
                                                 spacing: 6,
@@ -599,19 +817,39 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                           final priorityColor = isFast
                               ? Colors.red
                               : Theme.of(context).colorScheme.onSurface;
-                          final detailStyle = Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                fontSize:
-                                    (Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium?.fontSize ??
-                                        14) +
-                                    3,
-                              );
+                          final cardIconColor = Colors.grey.shade600;
+                          final orderDateLabel = order.createdAt == null
+                              ? null
+                              : OrderSharedHelpers.formatDateTime(
+                                  order.createdAt!,
+                                );
                           final statusColor = OrderSharedHelpers.statusColor(
                             effectiveStatus,
+                          );
+                          final paymentDone =
+                              order.payment.status == PaymentStatus.done;
+                          final paymentLabel = paymentDone
+                              ? 'Payment Done'
+                              : 'Payment Pending';
+                          final paymentBg = paymentDone
+                              ? Colors.blueGrey.shade50
+                              : Colors.red.shade100;
+                          final paymentFg = paymentDone
+                              ? Colors.blueGrey.shade800
+                              : Colors.red.shade800;
+                          final deliveryDelivered =
+                              order.delivery.status == DeliveryStatus.delivered;
+                          final deliveryLabel = OrderSharedHelpers.capitalize(
+                            order.delivery.status.name,
+                          );
+                          final deliveryBg = deliveryDelivered
+                              ? Colors.green.shade100
+                              : Colors.grey.shade200;
+                          final deliveryFg = deliveryDelivered
+                              ? Colors.green.shade700
+                              : Colors.grey.shade800;
+                          final amountText = OrderSharedHelpers.amountLabel(
+                            order.payment.amount,
                           );
                           return OrderCardShell(
                             isHighlighted: isFast,
@@ -635,29 +873,32 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                 children: [
                                   Row(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.center,
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
-                                        child: Text(
-                                          '${order.businessName} • ${OrderSharedHelpers.statusLabel(effectiveStatus)}',
-                                          style: detailStyle,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                order.businessName,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      OrderStatusChip(
-                                        label: OrderSharedHelpers.statusLabel(
-                                          effectiveStatus,
-                                        ),
-                                        backgroundColor: statusColor.withValues(
-                                          alpha: 0.12,
-                                        ),
-                                        foregroundColor: statusColor,
                                       ),
                                       const SizedBox(width: 6),
                                       PopupMenuButton<String>(
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
-                                        iconSize: 20,
+                                        iconSize: 22,
+                                        iconColor: cardIconColor,
                                         tooltip: canEdit
                                             ? 'Order actions'
                                             : 'Locked: accepted orders cannot be edited/deleted',
@@ -693,41 +934,172 @@ class _PlaceOrdersBodyState extends ConsumerState<_PlaceOrdersBody> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Order ${order.displayOrderNumber}',
-                                    style: detailStyle,
-                                  ),
-                                  Text.rich(
-                                    TextSpan(
-                                      children: [
-                                        const TextSpan(
-                                          text: 'Delivery Priority: ',
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.receipt_long_outlined,
+                                              size: 18,
+                                              color: cardIconColor,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                order.displayOrderNumber,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        TextSpan(
-                                          text: OrderSharedHelpers.capitalize(
+                                      ),
+                                      const SizedBox(width: 12),
+                                      if (orderDateLabel != null)
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.schedule,
+                                                size: 18,
+                                                color: cardIconColor,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  orderDateLabel,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        isFast
+                                            ? Icons.bolt_outlined
+                                            : Icons.speed_outlined,
+                                        size: 18,
+                                        color: cardIconColor,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: priorityColor.withValues(
+                                            alpha: 0.12,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          OrderSharedHelpers.capitalize(
                                             order.priority.name,
                                           ),
                                           style: TextStyle(
                                             color: priorityColor,
-                                            fontWeight: isFast
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                            fontSize: detailStyle?.fontSize,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                      ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.local_shipping_outlined,
+                                        size: 18,
+                                        color: cardIconColor,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: paymentBg,
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                              child: Text(
+                                                paymentLabel,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: paymentFg,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: deliveryBg,
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                              child: Text(
+                                                deliveryLabel,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: deliveryFg,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Divider(
+                                    height: 1,
+                                    color: Colors.grey.shade200,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      'Amount: $amountText',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    'Payment: ${OrderSharedHelpers.capitalize(order.payment.status.name)}',
-                                    style: detailStyle,
-                                  ),
-                                  Text(
-                                    'Delivery: ${OrderSharedHelpers.capitalize(order.delivery.status.name)}',
-                                    style: detailStyle,
                                   ),
                                 ],
                               ),

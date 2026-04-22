@@ -12,7 +12,7 @@ class BusinessProfile {
     this.ownerName,
     this.address,
     this.fiscalYearStartMonth,
-    this.status = BusinessStatus.pending,
+    this.status = BusinessStatus.approved,
     this.subscriptionActive = false,
     this.subscriptionStartDate,
     this.subscriptionEndDate,
@@ -104,7 +104,7 @@ class BusinessProfile {
       status: enumFromString(
         BusinessStatus.values,
         data['status'] as String?,
-        BusinessStatus.pending,
+        BusinessStatus.approved,
       ),
       subscriptionActive: (data['subscriptionActive'] as bool?) ?? false,
       subscriptionStartDate: (data['subscriptionStartDate'] as Timestamp?)

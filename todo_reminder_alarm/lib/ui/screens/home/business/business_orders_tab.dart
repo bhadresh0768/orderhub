@@ -212,8 +212,27 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
   }
 
   String _requestedByAddress(Order order) {
+    String appendCityIfMissing(String address, String city) {
+      final cleanAddress = address.trim();
+      final cleanCity = city.trim();
+      if (cleanAddress.isEmpty) return cleanCity;
+      if (cleanCity.isEmpty) return cleanAddress;
+      if (cleanAddress.toLowerCase().contains(cleanCity.toLowerCase())) {
+        return cleanAddress;
+      }
+      return '$cleanAddress, $cleanCity';
+    }
+
+    final ownerBusinessId = widget.profile.businessId;
+    final ownerBusiness = ownerBusinessId == null
+        ? null
+        : ref.watch(businessByIdProvider(ownerBusinessId)).asData?.value;
+    final ownerCity = (ownerBusiness?.city ?? '').trim();
+
     final direct = (order.deliveryAddress ?? '').trim();
-    if (direct.isNotEmpty) return direct;
+    if (direct.isNotEmpty) {
+      return appendCityIfMissing(direct, ownerCity);
+    }
 
     if (order.requesterType == OrderRequesterType.businessOwner) {
       final requesterBusinessId = order.requesterBusinessId;
@@ -231,6 +250,11 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
       if (city.isEmpty) return address;
       return '$address, $city';
     }
+    final profileAddress = (_customerProfile(order)?.address ?? '').trim();
+    if (profileAddress.isNotEmpty) {
+      return appendCityIfMissing(profileAddress, ownerCity);
+    }
+    if (ownerCity.isNotEmpty) return ownerCity;
     return '-';
   }
 
@@ -274,21 +298,33 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
     final customerShopName = _customerShopName(order);
     final requestedAddress = _requestedByAddress(order);
     final paymentCollector = _paymentCollectorLabel(order);
-    final paymentColor = order.payment.status == PaymentStatus.done
-        ? const Color(0xFF1A7F47)
-        : const Color(0xFFC4432A);
+    final paymentDone = order.payment.status == PaymentStatus.done;
+    final paymentLabel = paymentDone
+        ? 'Payment Done${paymentCollector == null ? '' : ' • $paymentCollector'}'
+        : 'Payment Pending';
+    final paymentBg = paymentDone
+        ? Colors.blueGrey.shade50
+        : Colors.red.shade100;
+    final paymentFg = paymentDone
+        ? Colors.blueGrey.shade800
+        : Colors.red.shade800;
+    final deliveryDelivered = order.delivery.status == DeliveryStatus.delivered;
+    final deliveryLabel = OrderSharedHelpers.capitalize(
+      order.delivery.status.name,
+    );
+    final deliveryBg = deliveryDelivered
+        ? Colors.green.shade100
+        : Colors.grey.shade200;
+    final deliveryFg = deliveryDelivered
+        ? Colors.green.shade700
+        : Colors.grey.shade800;
+    final amountText = OrderSharedHelpers.amountLabel(order.payment.amount);
     final isFast = order.priority == OrderPriority.fast;
-    final lineStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
-      fontSize: 16,
-      height: 1.38,
-      color: colorScheme.onSurface.withValues(alpha: 0.92),
-    );
-    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-      fontSize: 20,
-      fontWeight: FontWeight.w700,
-      height: 1.2,
-      color: const Color(0xFF1F2A37),
-    );
+    final priorityColor = isFast ? Colors.red : colorScheme.onSurface;
+    final cardIconColor = Colors.grey.shade600;
+    final orderDateLabel = order.createdAt == null
+        ? null
+        : OrderSharedHelpers.formatDateTime(order.createdAt!);
     final canApprove = order.status == OrderStatus.pending;
     final canMarkDelivered =
         order.status == OrderStatus.approved ||
@@ -315,12 +351,14 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
                     'Order ${order.displayOrderNumber} • $sourceLabel',
-                    style: titleStyle,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -358,58 +396,156 @@ class _BusinessOrdersTabState extends ConsumerState<_BusinessOrdersTab> {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
-              isBusinessOrder
-                  ? 'Ordered by: $requestedBy'
-                  : 'Customer: $requestedBy',
-              style: lineStyle,
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 18, color: cardIconColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    orderDateLabel ?? '-',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.person_outline, size: 18, color: cardIconColor),
+                const SizedBox(width: 6),
+                Expanded(child: Text(requestedBy)),
+              ],
             ),
             if (!isBusinessOrder && customerShopName != null) ...[
               const SizedBox(height: 8),
-              Text('Shop: $customerShopName', style: lineStyle),
-            ],
-            const SizedBox(height: 8),
-            Text('Address: $requestedAddress', style: lineStyle),
-            const SizedBox(height: 8),
-            Text.rich(
-              TextSpan(
+              Row(
                 children: [
-                  const TextSpan(text: 'Payment: '),
-                  TextSpan(
-                    text: OrderSharedHelpers.paymentStatusLabel(
-                      order.payment.status,
-                    ),
-                    style: TextStyle(
-                      color: paymentColor,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Icon(
+                    Icons.storefront_outlined,
+                    size: 18,
+                    color: cardIconColor,
                   ),
-                  const TextSpan(text: ' | Amount: '),
-                  TextSpan(
-                    text: OrderSharedHelpers.amountLabel(order.payment.amount),
-                    style: TextStyle(
-                      color: paymentColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(customerShopName)),
                 ],
               ),
-              style: lineStyle,
-            ),
-            if (paymentCollector != null) ...[
-              const SizedBox(height: 8),
-              Text('Collected by: $paymentCollector', style: lineStyle),
             ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 18,
+                  color: cardIconColor,
+                ),
+                const SizedBox(width: 6),
+                Expanded(child: Text(requestedAddress)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  isFast ? Icons.bolt_outlined : Icons.speed_outlined,
+                  size: 18,
+                  color: cardIconColor,
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: priorityColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    OrderSharedHelpers.capitalize(order.priority.name),
+                    style: TextStyle(
+                      color: priorityColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  Icons.local_shipping_outlined,
+                  size: 18,
+                  color: cardIconColor,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: paymentBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          paymentLabel,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: paymentFg,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: deliveryBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          deliveryLabel,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: deliveryFg,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Divider(height: 1, color: Colors.grey.shade200),
+            const SizedBox(height: 8),
             if ((order.notes ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
               Text(
                 'Remark: ${order.notes!.trim()}',
-                style: lineStyle?.copyWith(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: const Color(0xFFB54708),
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              const SizedBox(height: 6),
             ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Amount: $amountText',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
       ),

@@ -7,10 +7,10 @@ import 'package:uuid/uuid.dart';
 import '../../../models/catalog.dart';
 import '../../../providers.dart';
 
-final _variantEditorUiProvider =
-    StateProvider.autoDispose.family<_VariantEditorUiState, String>(
-  (ref, _) => const _VariantEditorUiState(),
-);
+final _variantEditorUiProvider = StateProvider.autoDispose
+    .family<_VariantEditorUiState, String>(
+      (ref, _) => const _VariantEditorUiState(),
+    );
 
 class _VariantEditorUiState {
   const _VariantEditorUiState({
@@ -58,10 +58,6 @@ class VariantEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
-  static const List<String> _volumeUnits = ['ml', 'lit'];
-  static const List<String> _weightUnits = ['g', 'kg'];
-  static const List<String> _countUnits = ['pc', 'pack', 'box', 'set'];
-
   late final String _variantId;
   late final TextEditingController _labelController;
   late final TextEditingController _baseValueController;
@@ -78,10 +74,36 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
     final notifier = ref.read(_variantEditorUiProvider(_variantId).notifier);
     notifier.state = update(notifier.state);
   }
+
   CatalogUnitType get _unitType => _ui.unitType;
   bool get _isActive => _ui.isActive;
   List<String> get _imageUrls => _ui.imageUrls;
   bool get _saving => _ui.saving;
+
+  String _packSizeExample(CatalogUnitType unitType, String unit) {
+    final normalizedUnit = unit.trim().toLowerCase();
+    return switch (unitType) {
+      CatalogUnitType.count => switch (normalizedUnit) {
+        'pc' => 'Ex: 12 pc',
+        'pkt' => 'Ex: 1 pkt',
+        'box' => 'Ex: 1 box',
+        'bag' => 'Ex: 1 bag',
+        'btl' => 'Ex: 1 btl',
+        'can' => 'Ex: 1 can',
+        'ctn' => 'Ex: 1 ctn',
+        _ => 'Ex: 1 $normalizedUnit',
+      },
+      CatalogUnitType.weight => switch (normalizedUnit) {
+        'kg' => 'Ex: 1 kg',
+        'ton' => 'Ex: 1 ton',
+        _ => 'Ex: 250 g',
+      },
+      CatalogUnitType.volume => switch (normalizedUnit) {
+        'ml' => 'Ex: 500 ml',
+        _ => 'Ex: 1 l',
+      },
+    };
+  }
 
   @override
   void initState() {
@@ -156,7 +178,9 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
         final file = await picker.pickImage(source: ImageSource.camera);
         if (file == null) return;
         final bytes = await file.readAsBytes();
-        final url = await ref.read(storageServiceProvider).uploadCatalogImage(
+        final url = await ref
+            .read(storageServiceProvider)
+            .uploadCatalogImage(
               businessId: widget.businessId,
               productId: widget.product.id,
               variantId: _variantId,
@@ -169,7 +193,9 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
         if (files.isEmpty) return;
         for (final file in files) {
           final bytes = await file.readAsBytes();
-          final url = await ref.read(storageServiceProvider).uploadCatalogImage(
+          final url = await ref
+              .read(storageServiceProvider)
+              .uploadCatalogImage(
                 businessId: widget.businessId,
                 productId: widget.product.id,
                 variantId: _variantId,
@@ -217,9 +243,9 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
         createdAt: widget.variant?.createdAt ?? DateTime.now(),
       );
       if (widget.variant == null) {
-        await ref.read(firestoreServiceProvider).createCatalogVariant(
-              variantData,
-            );
+        await ref
+            .read(firestoreServiceProvider)
+            .createCatalogVariant(variantData);
       } else {
         await ref
             .read(firestoreServiceProvider)
@@ -238,20 +264,18 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
   Widget build(BuildContext context) {
     ref.watch(_variantEditorUiProvider(_variantId));
     final isEdit = widget.variant != null;
-    final baseUnits = switch (_unitType) {
-      CatalogUnitType.volume => _volumeUnits,
-      CatalogUnitType.weight => _weightUnits,
-      CatalogUnitType.count => _countUnits,
-    };
+    final baseUnits = catalogBaseUnitsForType(_unitType);
     final currentBaseUnit = _baseUnitController.text.trim();
-    final unitOptions = currentBaseUnit.isNotEmpty &&
-            !baseUnits.contains(currentBaseUnit)
+    final packSizeExample = _packSizeExample(
+      _unitType,
+      currentBaseUnit.isEmpty ? 'unit' : currentBaseUnit,
+    );
+    final unitOptions =
+        currentBaseUnit.isNotEmpty && !baseUnits.contains(currentBaseUnit)
         ? [...baseUnits, currentBaseUnit]
         : baseUnits;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEdit ? 'Edit Variant' : 'Add Variant'),
-      ),
+      appBar: AppBar(title: Text(isEdit ? 'Edit Variant' : 'Add Variant')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -275,17 +299,16 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
               decoration: const InputDecoration(labelText: 'Unit Type'),
               items: CatalogUnitType.values
                   .map(
-                    (value) => DropdownMenuItem(
-                      value: value,
-                      child: Text(value.name),
-                    ),
+                    (value) =>
+                        DropdownMenuItem(value: value, child: Text(value.name)),
                   )
                   .toList(),
               onChanged: (value) {
                 if (value != null) {
                   _updateUi((state) => state.copyWith(unitType: value));
-                  if (!baseUnits.contains(_baseUnitController.text.trim())) {
-                    _baseUnitController.text = baseUnits.first;
+                  final nextUnits = catalogBaseUnitsForType(value);
+                  if (!nextUnits.contains(_baseUnitController.text.trim())) {
+                    _baseUnitController.text = nextUnits.first;
                   }
                 }
               },
@@ -297,9 +320,9 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
                   child: TextField(
                     controller: _baseValueController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Base Value',
-                      hintText: 'Example: 1000',
+                    decoration: InputDecoration(
+                      labelText: 'Pack Size/Qty',
+                      hintText: packSizeExample,
                     ),
                   ),
                 ),
@@ -309,13 +332,11 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
                     initialValue: unitOptions.contains(currentBaseUnit)
                         ? currentBaseUnit
                         : unitOptions.first,
-                    decoration: const InputDecoration(labelText: 'Base Unit'),
+                    decoration: const InputDecoration(labelText: 'Unit'),
                     items: unitOptions
                         .map(
-                          (unit) => DropdownMenuItem(
-                            value: unit,
-                            child: Text(unit),
-                          ),
+                          (unit) =>
+                              DropdownMenuItem(value: unit, child: Text(unit)),
                         )
                         .toList(),
                     onChanged: (value) {
@@ -333,8 +354,9 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
                 Expanded(
                   child: TextField(
                     controller: _priceController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Price',
                       hintText: '100',
@@ -345,8 +367,9 @@ class _VariantEditorScreenState extends ConsumerState<VariantEditorScreen> {
                 Expanded(
                   child: TextField(
                     controller: _mrpController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'MRP',
                       hintText: '120',

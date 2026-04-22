@@ -238,6 +238,13 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
     final created = currentOrder.createdAt;
     final legacySplit = _splitLegacyAddress(currentOrder.deliveryAddress ?? '');
     final deliveryAddress = legacySplit.address;
+    final businessCity = _clean(businessAsync.asData?.value?.city);
+    final addressWithCity = switch ((deliveryAddress, businessCity)) {
+      ('-', final city?) => city,
+      (final address, null) => address,
+      (final address, final city?) when address.contains(city) => address,
+      (final address, final city?) => '$address, $city',
+    };
     final businessPhone = businessAsync.asData?.value?.phone?.trim();
     final statusColor = OrderSharedHelpers.statusColor(effectiveStatus);
 
@@ -309,7 +316,7 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
                     _detailRow(
                       context,
                       label: 'Address',
-                      value: deliveryAddress,
+                      value: addressWithCity,
                     ),
                     if ((businessPhone ?? '').isNotEmpty) ...[
                       _detailRow(
