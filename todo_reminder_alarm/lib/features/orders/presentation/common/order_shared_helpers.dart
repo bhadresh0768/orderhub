@@ -24,9 +24,7 @@ class OrderSharedHelpers {
     final mm = local.month.toString().padLeft(2, '0');
     final yyyy = local.year.toString();
     final hour24 = local.hour;
-    final hour12 = hour24 == 0
-        ? 12
-        : (hour24 > 12 ? hour24 - 12 : hour24);
+    final hour12 = hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
     final hh = hour12.toString().padLeft(2, '0');
     final min = local.minute.toString().padLeft(2, '0');
     final meridiem = hour24 >= 12 ? 'PM' : 'AM';

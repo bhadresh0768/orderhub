@@ -6,8 +6,8 @@ import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
-import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
-import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
+import 'package:todo_reminder_alarm/features/orders/presentation/common/order_shared_helpers.dart';
+import 'package:todo_reminder_alarm/features/orders/presentation/customer_order_detail_screen.dart';
 import 'package:todo_reminder_alarm/utils/contact_actions.dart';
 import 'admin_edit_dialogs.dart';
 
@@ -268,7 +268,9 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 ref
                         .read(
-                          _adminCustomerPageProvider(currentCustomer.id).notifier,
+                          _adminCustomerPageProvider(
+                            currentCustomer.id,
+                          ).notifier,
                         )
                         .state =
                     safePage;
@@ -293,7 +295,10 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
               ),
               MapEntry('Shop Name', _display(currentCustomer.shopName)),
               MapEntry('Address', _display(currentCustomer.address)),
-              MapEntry('App Share Link', _display(currentCustomer.appShareLink)),
+              MapEntry(
+                'App Share Link',
+                _display(currentCustomer.appShareLink),
+              ),
               MapEntry('User ID', currentCustomer.id),
               MapEntry('Business ID', _display(currentCustomer.businessId)),
               MapEntry(
@@ -312,10 +317,7 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                     ? '-'
                     : _formatDateTime(currentCustomer.deleteRequestedAt!),
               ),
-              MapEntry(
-                'Total Orders (Filtered)',
-                '${filteredOrders.length}',
-              ),
+              MapEntry('Total Orders (Filtered)', '${filteredOrders.length}'),
             ];
 
             return ListView(
@@ -335,7 +337,9 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                               backgroundColor: Colors.black12,
                               backgroundImage:
                                   _display(currentCustomer.photoUrl) != '-'
-                                  ? NetworkImage(currentCustomer.photoUrl!.trim())
+                                  ? NetworkImage(
+                                      currentCustomer.photoUrl!.trim(),
+                                    )
                                   : null,
                               child: _display(currentCustomer.photoUrl) == '-'
                                   ? const Icon(Icons.person_outline)
@@ -348,13 +352,17 @@ class AdminCustomerDetailScreen extends ConsumerWidget {
                                 children: [
                                   Text(
                                     _display(currentCustomer.name),
-                                    style: Theme.of(context).textTheme.titleLarge
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
                                         ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     '${_capitalize(currentCustomer.role.name)} • ${currentCustomer.isActive ? 'Active' : 'Inactive'}',
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ],
                               ),

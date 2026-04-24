@@ -6,7 +6,7 @@ import 'package:todo_reminder_alarm/models/app_user.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
-import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
+import 'package:todo_reminder_alarm/features/orders/presentation/common/order_shared_helpers.dart';
 import 'admin_customer_detail_screen.dart';
 import 'admin_home_state.dart';
 

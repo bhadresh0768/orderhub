@@ -27,7 +27,9 @@ class PaymentDialogs {
                     .map(
                       (method) => DropdownMenuItem(
                         value: method,
-                        child: Text(OrderSharedHelpers.paymentMethodLabel(method)),
+                        child: Text(
+                          OrderSharedHelpers.paymentMethodLabel(method),
+                        ),
                       ),
                     )
                     .toList(),

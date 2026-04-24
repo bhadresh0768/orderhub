@@ -8,7 +8,7 @@ import '../../../models/catalog.dart';
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
-import '../orders/create_order_screen.dart';
+import 'package:todo_reminder_alarm/features/orders/presentation/create_order_screen.dart';
 
 final _customerCatalogUiProvider = StateProvider.autoDispose
     .family<_CustomerCatalogUiState, String>(

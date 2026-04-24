@@ -144,8 +144,10 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
       return '$cleanAddress, $cleanCity';
     }
 
-    final ownBusiness =
-        ref.watch(businessByIdProvider(_order.businessId)).asData?.value;
+    final ownBusiness = ref
+        .watch(businessByIdProvider(_order.businessId))
+        .asData
+        ?.value;
     final ownCity = (ownBusiness?.city ?? '').trim();
 
     final direct = (_order.deliveryAddress ?? '').trim();

@@ -8,7 +8,7 @@ import 'package:todo_reminder_alarm/models/business.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
-import 'package:todo_reminder_alarm/ui/screens/profile/profile_screen.dart';
+import 'package:todo_reminder_alarm/features/profile/presentation/profile_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/contact_us_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/invite_friends_screen.dart';
 import 'package:todo_reminder_alarm/ui/screens/support/privacy_policy_screen.dart';
@@ -46,6 +46,7 @@ class _DeliveryBoyUiState {
     );
   }
 }
+
 const _deliveryDateUnset = Object();
 
 class DeliveryBoyHomeScreen extends ConsumerWidget {
@@ -66,16 +67,18 @@ class DeliveryBoyHomeScreen extends ConsumerWidget {
         final phone = (profile.phoneNumber ?? '').trim();
         if (phone.isEmpty) {
           return Scaffold(
-            appBar: AppBar(
-              title: const Text('Delivery Dashboard'),
-            ),
+            appBar: AppBar(title: const Text('Delivery Dashboard')),
             drawer: _buildDrawer(context, ref, profile),
             body: const Center(
               child: Text('Phone number missing in profile. Contact admin.'),
             ),
           );
         }
-        return _DeliveryBoyBody(profile: profile, phone: phone, name: profile.name);
+        return _DeliveryBoyBody(
+          profile: profile,
+          phone: phone,
+          name: profile.name,
+        );
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -189,9 +192,11 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
 
   bool _isInDateRange(DateTime date, DateTime from, DateTime to) {
     final start = DateTime(from.year, from.month, from.day);
-    final endExclusive = DateTime(to.year, to.month, to.day).add(
-      const Duration(days: 1),
-    );
+    final endExclusive = DateTime(
+      to.year,
+      to.month,
+      to.day,
+    ).add(const Duration(days: 1));
     return !date.isBefore(start) && date.isBefore(endExclusive);
   }
 
@@ -361,7 +366,9 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<PaymentMethod>(
                   initialValue: method,
-                  decoration: const InputDecoration(labelText: 'Payment Method'),
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Method',
+                  ),
                   items: PaymentMethod.values
                       .map(
                         (value) => DropdownMenuItem(
@@ -466,7 +473,8 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
     );
     final businessesAsync = ref.watch(businessesProvider);
     final businessAddressById = <String, String>{};
-    final businessList = businessesAsync.asData?.value ?? const <BusinessProfile>[];
+    final businessList =
+        businessesAsync.asData?.value ?? const <BusinessProfile>[];
     for (final business in businessList) {
       final address = (business.address ?? '').trim();
       final city = business.city.trim();
@@ -476,9 +484,7 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
       businessAddressById[business.id] = text;
     }
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Delivery Dashboard • ${widget.name}'),
-      ),
+      appBar: AppBar(title: Text('Delivery Dashboard • ${widget.name}')),
       drawer: Drawer(
         backgroundColor: Colors.white,
         child: SafeArea(
@@ -584,37 +590,52 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                               children: [
                                 Expanded(
                                   child:
-                                      DropdownButtonFormField<_DeliveryDateFilter>(
-                                    initialValue: uiState.filter,
-                                    isExpanded: true,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Filter',
-                                    ),
-                                    items: _DeliveryDateFilter.values
-                                        .map(
-                                          (value) => DropdownMenuItem(
-                                            value: value,
-                                            child: Text(_filterLabel(value)),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        ref.read(_deliveryBoyUiProvider.notifier).state =
-                                            uiState.copyWith(filter: value);
-                                        if (value == _DeliveryDateFilter.custom &&
-                                            (uiState.customFrom == null ||
-                                                uiState.customTo == null)) {
-                                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                                            if (!mounted) return;
-                                            _pickCustomRange(
-                                              ref.read(_deliveryBoyUiProvider),
+                                      DropdownButtonFormField<
+                                        _DeliveryDateFilter
+                                      >(
+                                        initialValue: uiState.filter,
+                                        isExpanded: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Filter',
+                                        ),
+                                        items: _DeliveryDateFilter.values
+                                            .map(
+                                              (value) => DropdownMenuItem(
+                                                value: value,
+                                                child: Text(
+                                                  _filterLabel(value),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            ref
+                                                .read(
+                                                  _deliveryBoyUiProvider
+                                                      .notifier,
+                                                )
+                                                .state = uiState.copyWith(
+                                              filter: value,
                                             );
-                                          });
-                                        }
-                                      }
-                                    },
-                                  ),
+                                            if (value ==
+                                                    _DeliveryDateFilter
+                                                        .custom &&
+                                                (uiState.customFrom == null ||
+                                                    uiState.customTo == null)) {
+                                              WidgetsBinding.instance
+                                                  .addPostFrameCallback((_) {
+                                                    if (!mounted) return;
+                                                    _pickCustomRange(
+                                                      ref.read(
+                                                        _deliveryBoyUiProvider,
+                                                      ),
+                                                    );
+                                                  });
+                                            }
+                                          }
+                                        },
+                                      ),
                                 ),
                               ],
                             ),
@@ -638,11 +659,12 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                                   ),
                                   TextButton(
                                     onPressed: () {
-                                      ref.read(_deliveryBoyUiProvider.notifier).state =
-                                          uiState.copyWith(
-                                            customFrom: null,
-                                            customTo: null,
-                                          );
+                                      ref
+                                          .read(_deliveryBoyUiProvider.notifier)
+                                          .state = uiState.copyWith(
+                                        customFrom: null,
+                                        customTo: null,
+                                      );
                                     },
                                     child: const Text('Clear'),
                                   ),
@@ -655,7 +677,8 @@ class _DeliveryBoyBodyState extends ConsumerState<_DeliveryBoyBody> {
                               completedOrders,
                               businessAddressById: businessAddressById,
                               allowActions: false,
-                              emptyText: 'No completed deliveries in this range.',
+                              emptyText:
+                                  'No completed deliveries in this range.',
                             ),
                           ),
                         ],

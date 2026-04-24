@@ -8,8 +8,8 @@ import 'package:todo_reminder_alarm/models/delivery_agent.dart';
 import 'package:todo_reminder_alarm/models/enums.dart';
 import 'package:todo_reminder_alarm/models/order.dart';
 import 'package:todo_reminder_alarm/providers.dart';
-import 'package:todo_reminder_alarm/ui/screens/orders/common/order_shared_helpers.dart';
-import 'package:todo_reminder_alarm/ui/screens/orders/customer_order_detail_screen.dart';
+import 'package:todo_reminder_alarm/features/orders/presentation/common/order_shared_helpers.dart';
+import 'package:todo_reminder_alarm/features/orders/presentation/customer_order_detail_screen.dart';
 import 'package:todo_reminder_alarm/utils/contact_actions.dart';
 import 'admin_edit_dialogs.dart';
 
@@ -303,7 +303,9 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     int processingCount,
     int completedCount,
   ) {
-    final expanded = ref.watch(_adminBusinessProfileExpandedProvider(business.id));
+    final expanded = ref.watch(
+      _adminBusinessProfileExpandedProvider(business.id),
+    );
     final owner = ownerAsync.asData?.value;
     final ownerName = (owner?.name.trim().isNotEmpty ?? false)
         ? owner!.name.trim()
@@ -332,7 +334,9 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
       _BusinessInfoField(label: 'Owner Email', value: ownerEmail),
       _BusinessInfoField(
         label: 'Owner Registration Date',
-        value: owner?.createdAt == null ? '-' : _formatDateTime(owner!.createdAt!),
+        value: owner?.createdAt == null
+            ? '-'
+            : _formatDateTime(owner!.createdAt!),
       ),
       _BusinessInfoField(label: 'Business Name', value: business.name),
       _BusinessInfoField(label: 'Category', value: business.category),
@@ -352,7 +356,10 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
         actionPhone: businessActionPhone,
       ),
       _BusinessInfoField(label: 'Business Unique No', value: businessUnique),
-      _BusinessInfoField(label: 'Status', value: _capitalize(business.status.name)),
+      _BusinessInfoField(
+        label: 'Status',
+        value: _capitalize(business.status.name),
+      ),
       _BusinessInfoField(
         label: 'Business Registration Date',
         value: business.createdAt == null
@@ -401,7 +408,11 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
           borderRadius: BorderRadius.circular(8),
           onTap: () {
             ref
-                    .read(_adminBusinessProfileExpandedProvider(business.id).notifier)
+                    .read(
+                      _adminBusinessProfileExpandedProvider(
+                        business.id,
+                      ).notifier,
+                    )
                     .state =
                 !expanded;
           },
@@ -467,10 +478,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoGrid(
-    BuildContext context,
-    List<_BusinessInfoField> fields,
-  ) {
+  Widget _buildInfoGrid(BuildContext context, List<_BusinessInfoField> fields) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 720;
@@ -480,7 +488,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
         return Wrap(
           spacing: 12,
           runSpacing: 12,
-            children: fields
+          children: fields
               .map(
                 (field) => SizedBox(
                   width: itemWidth,
@@ -524,7 +532,10 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+                  child: Text(
+                    value,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
                 if (actionPhone != null) ...[
                   IconButton(
