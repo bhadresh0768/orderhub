@@ -29,7 +29,11 @@ const Map<CatalogUnitType, List<QuantityUnit>> _catalogUnitsByType = {
 
 List<String> catalogBaseUnitsForType(CatalogUnitType type) {
   final units = _catalogUnitsByType[type] ?? const <QuantityUnit>[];
-  return units.map(quantityUnitDefaultSymbol).toList();
+  final symbols = units.map(quantityUnitDefaultSymbol).toList();
+  if (type == CatalogUnitType.volume && !symbols.contains('ml')) {
+    symbols.add('ml');
+  }
+  return symbols;
 }
 
 class CatalogCategory {

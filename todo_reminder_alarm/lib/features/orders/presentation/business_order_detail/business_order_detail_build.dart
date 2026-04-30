@@ -360,7 +360,7 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                                 _itemGstIncluded[index] ? 'Included' : 'No',
                               ),
                               detailRow(
-                                'Line Total',
+                                'Subtotal',
                                 _formatAmount(lineTotal),
                                 valueWeight: FontWeight.w700,
                               ),
@@ -601,7 +601,7 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                                 ],
                               ),
                               Text(
-                                'Line Total: ${_formatAmount(lineTotal)}',
+                                'Subtotal: ${_formatAmount(lineTotal)}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ],

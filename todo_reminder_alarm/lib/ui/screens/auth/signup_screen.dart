@@ -25,6 +25,7 @@ class _SignUpUiState {
     this.loading = false,
     this.error,
     this.profileOnlyMode = false,
+    this.fiscalYearStartMonth,
   });
 
   final Country selectedCountry;
@@ -32,6 +33,7 @@ class _SignUpUiState {
   final bool loading;
   final String? error;
   final bool profileOnlyMode;
+  final int? fiscalYearStartMonth;
 
   _SignUpUiState copyWith({
     Country? selectedCountry,
@@ -39,6 +41,8 @@ class _SignUpUiState {
     bool? loading,
     Object? error = _signUpUnset,
     bool? profileOnlyMode,
+    int? fiscalYearStartMonth,
+    bool clearFiscalYearStartMonth = false,
   }) {
     return _SignUpUiState(
       selectedCountry: selectedCountry ?? this.selectedCountry,
@@ -46,6 +50,9 @@ class _SignUpUiState {
       loading: loading ?? this.loading,
       error: error == _signUpUnset ? this.error : error as String?,
       profileOnlyMode: profileOnlyMode ?? this.profileOnlyMode,
+      fiscalYearStartMonth: clearFiscalYearStartMonth
+          ? null
+          : (fiscalYearStartMonth ?? this.fiscalYearStartMonth),
     );
   }
 }
@@ -62,6 +69,21 @@ class SignUpScreen extends ConsumerStatefulWidget {
 }
 
 class _SignUpScreenState extends ConsumerState<SignUpScreen> {
+  static const List<String> _monthLabels = <String>[
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _mobileController = TextEditingController();
@@ -167,9 +189,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           city: _businessCityController.text.trim(),
           ownerName: _nameController.text.trim(),
           address: _businessAddressController.text.trim(),
-          fiscalYearStartMonth: defaultFiscalYearStartMonthForCountryCode(
-            _ui.selectedCountry.countryCode,
-          ),
+          fiscalYearStartMonth:
+              _ui.fiscalYearStartMonth ??
+              defaultFiscalYearStartMonthForCountryCode(
+                _ui.selectedCountry.countryCode,
+              ),
           phone: (phoneNumber ?? '').trim().isEmpty
               ? null
               : phoneNumber!.trim(),
@@ -243,6 +267,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         : UserRole.businessOwner;
     final isBusiness = selectedRole == UserRole.businessOwner;
     final isCustomer = selectedRole == UserRole.customer;
+    final defaultFiscalMonth = defaultFiscalYearStartMonthForCountryCode(
+      uiState.selectedCountry.countryCode,
+    );
+    final selectedFiscalMonth =
+        uiState.fiscalYearStartMonth ?? defaultFiscalMonth;
     final existingUser = ref.watch(firebaseAuthProvider).currentUser;
     final profileOnlyMode = uiState.profileOnlyMode || existingUser != null;
     return Scaffold(
@@ -411,7 +440,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               .toList(),
                           onChanged: (value) {
                             if (value != null) {
-                              _updateUi((state) => state.copyWith(role: value));
+                              _updateUi(
+                                (state) => state.copyWith(
+                                  role: value,
+                                  clearFiscalYearStartMonth:
+                                      value != UserRole.businessOwner,
+                                ),
+                              );
                             }
                           },
                         ),
@@ -533,6 +568,29 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               labelText: 'Business Unique No (GST optional)',
                               hintText: 'e.g. 27ABCDE1234F1Z5',
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<int>(
+                            key: ValueKey<int>(selectedFiscalMonth),
+                            initialValue: selectedFiscalMonth,
+                            decoration: const InputDecoration(
+                              labelText: 'Financial Year Start Month',
+                            ),
+                            items: List.generate(12, (index) {
+                              final month = index + 1;
+                              return DropdownMenuItem<int>(
+                                value: month,
+                                child: Text(_monthLabels[index]),
+                              );
+                            }),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              _updateUi(
+                                (state) => state.copyWith(
+                                  fiscalYearStartMonth: value,
+                                ),
+                              );
+                            },
                           ),
                         ],
                         const SizedBox(height: 20),

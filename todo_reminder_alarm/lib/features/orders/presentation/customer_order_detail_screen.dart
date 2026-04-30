@@ -430,7 +430,7 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
                           if ((item.note ?? '').trim().isNotEmpty)
                             item.note!.trim(),
                           if (item.unitPrice != null)
-                            'Price: ${_money(item.unitPrice)} • Line: ${_money(lineTotal)}',
+                            'Price: ${_money(item.unitPrice)} • Subtotal: ${_money(lineTotal)}',
                         ];
                         return Padding(
                           padding: EdgeInsets.only(
