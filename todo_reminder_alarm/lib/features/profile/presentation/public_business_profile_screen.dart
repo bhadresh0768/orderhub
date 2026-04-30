@@ -12,6 +12,21 @@ class PublicBusinessProfileScreen extends ConsumerWidget {
 
   final BusinessProfile business;
 
+  String _displayBusinessLinkText({
+    required String rawLink,
+    required String businessName,
+  }) {
+    final trimmed = rawLink.trim();
+    if (trimmed.isEmpty) return '';
+    final normalizedName = businessName.trim().isEmpty
+        ? 'business'
+        : businessName.trim();
+    if (trimmed.startsWith('orderhub://business/')) {
+      return 'orderhub://business/$normalizedName';
+    }
+    return trimmed;
+  }
+
   String _buildShareMessage({
     required String businessId,
     required String businessName,
@@ -162,26 +177,29 @@ class PublicBusinessProfileScreen extends ConsumerWidget {
                         .trim()
                         .isNotEmpty) ...[
                       Text(
-                        'Business Link: ${currentBusiness.shareLink!.trim()}',
+                        'Business Link: ${_displayBusinessLinkText(rawLink: currentBusiness.shareLink!, businessName: currentBusiness.name)}',
                       ),
                       const SizedBox(height: 8),
                     ],
-                    Text('Deep Link: ${businessDeepLink(currentBusiness.id)}'),
-                    const SizedBox(height: 8),
+                    // Hidden as requested: Deep-link UI block for Business Public Profile.
+                    // Uncomment below if you want to show deep link text and copy button again.
+                    // Text('Deep Link: ${businessDeepLink(currentBusiness.id)}'),
+                    // const SizedBox(height: 8),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        OutlinedButton.icon(
-                          onPressed: () => _copyText(
-                            context,
-                            'Deep link',
-                            businessDeepLink(currentBusiness.id),
-                          ),
-                          icon: const Icon(Icons.link),
-                          label: const Text('Copy Deep Link'),
-                        ),
+                        // Hidden as requested: Uncomment to restore deep-link copy action.
+                        // OutlinedButton.icon(
+                        //   onPressed: () => _copyText(
+                        //     context,
+                        //     'Deep link',
+                        //     businessDeepLink(currentBusiness.id),
+                        //   ),
+                        //   icon: const Icon(Icons.link),
+                        //   label: const Text('Copy Deep Link'),
+                        // ),
                         OutlinedButton.icon(
                           onPressed:
                               (currentBusiness.shareLink ?? '').trim().isEmpty
