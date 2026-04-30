@@ -22,6 +22,7 @@ class _SignUpUiState {
   const _SignUpUiState({
     required this.selectedCountry,
     this.role = UserRole.businessOwner,
+    this.businessCategory,
     this.loading = false,
     this.error,
     this.profileOnlyMode = false,
@@ -30,6 +31,7 @@ class _SignUpUiState {
 
   final Country selectedCountry;
   final UserRole role;
+  final String? businessCategory;
   final bool loading;
   final String? error;
   final bool profileOnlyMode;
@@ -38,6 +40,7 @@ class _SignUpUiState {
   _SignUpUiState copyWith({
     Country? selectedCountry,
     UserRole? role,
+    String? businessCategory,
     bool? loading,
     Object? error = _signUpUnset,
     bool? profileOnlyMode,
@@ -47,6 +50,7 @@ class _SignUpUiState {
     return _SignUpUiState(
       selectedCountry: selectedCountry ?? this.selectedCountry,
       role: role ?? this.role,
+      businessCategory: businessCategory ?? this.businessCategory,
       loading: loading ?? this.loading,
       error: error == _signUpUnset ? this.error : error as String?,
       profileOnlyMode: profileOnlyMode ?? this.profileOnlyMode,
@@ -82,6 +86,20 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     'October',
     'November',
     'December',
+  ];
+  static const List<String> _businessCategoryOptions = <String>[
+    'Retail',
+    'Wholesale',
+    'Chemicals',
+    'Real Estate',
+    'Restaurant',
+    'Grocery',
+    'Pharmacy',
+    'Electronics',
+    'Fashion',
+    'Manufacturing',
+    'Services',
+    'Other',
   ];
 
   final _formKey = GlobalKey<FormState>();
@@ -181,10 +199,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       String? businessId;
       if (roleToSave == UserRole.businessOwner) {
         businessId = const Uuid().v4();
+        final category =
+            (_ui.businessCategory ?? _businessCategoryController.text).trim();
         final business = BusinessProfile(
           id: businessId,
           name: _businessNameController.text.trim(),
-          category: _businessCategoryController.text.trim(),
+          category: category,
           ownerId: uid,
           city: _businessCityController.text.trim(),
           ownerName: _nameController.text.trim(),
@@ -523,15 +543,37 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 : null,
                           ),
                           const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _businessCategoryController,
-                            textCapitalization: TextCapitalization.words,
+                          DropdownButtonFormField<String>(
+                            key: ValueKey<String?>(
+                              uiState.businessCategory,
+                            ),
+                            initialValue: _businessCategoryOptions.contains(
+                                  uiState.businessCategory,
+                                )
+                                ? uiState.businessCategory
+                                : null,
                             decoration: const InputDecoration(
                               labelText: 'Category',
                             ),
+                            items: _businessCategoryOptions
+                                .map(
+                                  (category) => DropdownMenuItem<String>(
+                                    value: category,
+                                    child: Text(category),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              _businessCategoryController.text = value ?? '';
+                              _updateUi(
+                                (state) => state.copyWith(
+                                  businessCategory: value,
+                                ),
+                              );
+                            },
                             validator: (value) =>
                                 isBusiness && (value == null || value.isEmpty)
-                                ? 'Enter category'
+                                ? 'Select category'
                                 : null,
                           ),
                           const SizedBox(height: 12),
