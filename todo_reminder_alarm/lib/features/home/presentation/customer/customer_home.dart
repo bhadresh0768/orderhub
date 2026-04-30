@@ -25,3 +25,5 @@ part 'customer_home_state.dart';
 part 'customer_home_shell.dart';
 part 'customer_home_body.dart';
 part 'customer_home_widgets.dart';
+part 'customer_home_actions.dart';
+part 'customer_home_drawer_tabs.dart';

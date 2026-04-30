@@ -17,6 +17,9 @@ part 'business_order_detail_state.dart';
 part 'business_order_detail_helpers.dart';
 part 'business_order_detail_actions.dart';
 part 'business_order_detail_build.dart';
+part 'business_order_detail_summary_card.dart';
+part 'business_order_detail_pricing_card.dart';
+part 'business_order_detail_status_card.dart';
 
 class BusinessOrderDetailScreen extends ConsumerStatefulWidget {
   const BusinessOrderDetailScreen({super.key, required this.order});
