@@ -432,9 +432,18 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                         final lineTotal = lineSubtotal + lineGst;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.black.withValues(alpha: 0.08),
+                              ),
+                              color: Theme.of(context).colorScheme.surface,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -604,7 +613,8 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
                                 'Subtotal: ${_formatAmount(lineTotal)}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                            ],
+                              ],
+                            ),
                           ),
                         );
                       }),

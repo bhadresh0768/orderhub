@@ -436,87 +436,100 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
                           padding: EdgeInsets.only(
                             bottom: index == includedItems.length - 1 ? 0 : 12,
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${item.title} ${_itemQuantityLabel(item)}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                    if (subtitleParts.isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      Text(subtitleParts.join('\n')),
-                                    ],
-                                  ],
-                                ),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.black.withValues(alpha: 0.08),
                               ),
-                              if (itemImageAttachments.isNotEmpty) ...[
-                                const SizedBox(width: 10),
-                                InkWell(
-                                  onTap: () => _showImageGallery(
-                                    context,
-                                    itemImageAttachments,
-                                    0,
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Stack(
+                              color: Theme.of(context).colorScheme.surface,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Image.network(
-                                          itemImageAttachments.first.url,
-                                          width: 72,
-                                          height: 72,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) => Container(
+                                      Text(
+                                        '${item.title} ${_itemQuantityLabel(item)}',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      if (subtitleParts.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(subtitleParts.join('\n')),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (itemImageAttachments.isNotEmpty) ...[
+                                  const SizedBox(width: 10),
+                                  InkWell(
+                                    onTap: () => _showImageGallery(
+                                      context,
+                                      itemImageAttachments,
+                                      0,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Stack(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          child: Image.network(
+                                            itemImageAttachments.first.url,
                                             width: 72,
                                             height: 72,
-                                            color: Colors.black12,
-                                            alignment: Alignment.center,
-                                            child: const Icon(
-                                              Icons
-                                                  .image_not_supported_outlined,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) =>
+                                                Container(
+                                                  width: 72,
+                                                  height: 72,
+                                                  color: Colors.black12,
+                                                  alignment: Alignment.center,
+                                                  child: const Icon(
+                                                    Icons
+                                                        .image_not_supported_outlined,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 5,
+                                          right: 5,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.7,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              '${itemImageAttachments.length}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      Positioned(
-                                        top: 5,
-                                        right: 5,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.7,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${itemImageAttachments.length}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         );
                       }),
