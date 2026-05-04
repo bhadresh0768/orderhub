@@ -48,7 +48,7 @@ class OrderBillPdfGenerator {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(
-                child: pw.Column(
+                child: pw.Row(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     if (businessLogoImage != null) ...[
@@ -65,19 +65,26 @@ class OrderBillPdfGenerator {
                           fit: pw.BoxFit.contain,
                         ),
                       ),
-                      pw.SizedBox(height: 8),
+                      pw.SizedBox(width: 10),
                     ],
-                    pw.Text(
-                      businessName,
-                      style: pw.TextStyle(
-                        fontSize: 20,
-                        fontWeight: pw.FontWeight.bold,
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            businessName,
+                            style: pw.TextStyle(
+                              fontSize: 20,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                          if ((businessAddress ?? '').trim().isNotEmpty)
+                            pw.Text(businessAddress!.trim()),
+                          if ((businessPhone ?? '').trim().isNotEmpty)
+                            pw.Text('Phone: ${businessPhone!.trim()}'),
+                        ],
                       ),
                     ),
-                    if ((businessAddress ?? '').trim().isNotEmpty)
-                      pw.Text(businessAddress!.trim()),
-                    if ((businessPhone ?? '').trim().isNotEmpty)
-                      pw.Text('Phone: ${businessPhone!.trim()}'),
                   ],
                 ),
               ),
