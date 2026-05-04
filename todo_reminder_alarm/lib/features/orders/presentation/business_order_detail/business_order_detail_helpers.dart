@@ -474,4 +474,56 @@ $items
       );
     }
   }
+
+  Future<XFile> _generateBillFile(BusinessProfile? business) async {
+    final bytes = await OrderBillPdfGenerator.build(
+      order: _order,
+      businessName: _order.businessName,
+      businessAddress: business?.address,
+      businessPhone: business?.phone,
+      businessLogoUrl: business?.logoUrl,
+    );
+    final fileName =
+        'bill_${_order.displayOrderNumber.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+    final file = await FileStorageHelper.savePdfToUserVisibleLocation(
+      bytes: bytes,
+      fileName: fileName,
+    );
+    return XFile(file.path);
+  }
+
+  Future<void> _downloadBill() async {
+    try {
+      final business = ref.read(businessByIdProvider(_order.businessId)).value;
+      final file = await _generateBillFile(business);
+      await Clipboard.setData(ClipboardData(text: file.path));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bill saved. File path copied: ${file.path}')),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to generate bill: $err')),
+      );
+    }
+  }
+
+  Future<void> _printOrShareBill() async {
+    try {
+      final business = ref.read(businessByIdProvider(_order.businessId)).value;
+      final file = await _generateBillFile(business);
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Order Bill ${_order.displayOrderNumber}',
+          files: [file],
+        ),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to share/print bill: $err')),
+      );
+    }
+  }
 }

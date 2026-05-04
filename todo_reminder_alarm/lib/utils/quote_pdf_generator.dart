@@ -1,5 +1,6 @@
-import 'dart:typed_data';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -61,6 +62,7 @@ class QuotePdfDocumentData {
     required this.business,
     required this.customer,
     required this.items,
+    this.businessLogoUrl,
     this.currencySymbol = 'Rs.',
     this.preparedBy,
     this.extraCharges = 0,
@@ -79,6 +81,7 @@ class QuotePdfDocumentData {
   final QuotePdfParty business;
   final QuotePdfParty customer;
   final List<QuotePdfLineItem> items;
+  final String? businessLogoUrl;
   final String currencySymbol;
   final String? preparedBy;
   final double extraCharges;
@@ -122,6 +125,7 @@ class QuotePdfGenerator {
 
   static Future<Uint8List> buildQuotePdf(QuotePdfDocumentData data) async {
     final pdf = pw.Document();
+    final businessLogoImage = await _loadBusinessLogo(data.businessLogoUrl);
 
     pdf.addPage(
       pw.MultiPage(
@@ -135,7 +139,7 @@ class QuotePdfGenerator {
           ),
         ),
         build: (context) => [
-          _buildHeader(data),
+          _buildHeader(data, businessLogoImage),
           pw.SizedBox(height: 18),
           _buildQuoteMeta(data),
           pw.SizedBox(height: 18),
@@ -163,7 +167,10 @@ class QuotePdfGenerator {
     return pdf.save();
   }
 
-  static pw.Widget _buildHeader(QuotePdfDocumentData data) {
+  static pw.Widget _buildHeader(
+    QuotePdfDocumentData data,
+    pw.MemoryImage? businessLogoImage,
+  ) {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 14),
       decoration: const pw.BoxDecoration(
@@ -171,41 +178,74 @@ class QuotePdfGenerator {
           bottom: pw.BorderSide(color: PdfColors.blueGrey100, width: 1),
         ),
       ),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  data.business.name,
-                  style: pw.TextStyle(
-                    fontSize: 22,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.blueGrey900,
-                  ),
+          if (businessLogoImage != null) ...[
+            pw.Center(
+              child: pw.Container(
+                height: 64,
+                width: 64,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: pw.BorderRadius.circular(8),
                 ),
-                pw.SizedBox(height: 6),
-                ..._partyLines(data.business).map(
-                  (line) => pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: 2),
-                    child: pw.Text(
-                      line,
-                      style: const pw.TextStyle(
-                        fontSize: 10,
-                        color: PdfColors.blueGrey700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                padding: const pw.EdgeInsets.all(5),
+                child: pw.Image(businessLogoImage, fit: pw.BoxFit.contain),
+              ),
+            ),
+            pw.SizedBox(height: 8),
+          ],
+          pw.Text(
+            data.business.name,
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(
+              fontSize: 22,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blueGrey900,
             ),
           ),
+          if ((data.business.address ?? '').trim().isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 4),
+              child: pw.Text(
+                data.business.address!.trim(),
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.blueGrey700,
+                ),
+              ),
+            ),
+          if ((data.business.phone ?? '').trim().isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 2),
+              child: pw.Text(
+                'Mobile: ${data.business.phone!.trim()}',
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.blueGrey700,
+                ),
+              ),
+            ),
+          if ((data.business.email ?? '').trim().isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 2),
+              child: pw.Text(
+                'Email: ${data.business.email!.trim()}',
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.blueGrey700,
+                ),
+              ),
+            ),
+          pw.SizedBox(height: 8),
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(
               horizontal: 14,
-              vertical: 10,
+              vertical: 7,
             ),
             decoration: pw.BoxDecoration(
               color: PdfColors.blueGrey900,
@@ -217,7 +257,7 @@ class QuotePdfGenerator {
                 color: PdfColors.white,
                 fontWeight: pw.FontWeight.bold,
                 letterSpacing: 1.2,
-                fontSize: 13,
+                fontSize: 12,
               ),
             ),
           ),
@@ -607,5 +647,28 @@ class QuotePdfGenerator {
       return value.toStringAsFixed(0);
     }
     return value.toStringAsFixed(2);
+  }
+
+  static Future<pw.MemoryImage?> _loadBusinessLogo(String? logoUrl) async {
+    final url = (logoUrl ?? '').trim();
+    if (url.isEmpty) return null;
+    try {
+      final uri = Uri.parse(url);
+      if (!(uri.scheme == 'http' || uri.scheme == 'https')) return null;
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 8);
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        client.close(force: true);
+        return null;
+      }
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      client.close(force: true);
+      if (bytes.isEmpty) return null;
+      return pw.MemoryImage(bytes);
+    } catch (_) {
+      return null;
+    }
   }
 }

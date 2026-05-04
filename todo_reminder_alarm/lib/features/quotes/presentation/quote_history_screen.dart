@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +7,7 @@ import '../../../models/app_user.dart';
 import '../../../models/business.dart';
 import '../../../models/quote.dart';
 import '../../../providers.dart';
+import '../../../utils/file_storage_helper.dart';
 import '../../../utils/quote_pdf_generator.dart';
 import 'create_quote_screen.dart';
 
@@ -76,6 +75,7 @@ class _QuoteHistoryCard extends ConsumerWidget {
         name: business.name,
         address: business.address,
         phone: business.phone ?? business.ownerPhone,
+        email: profile.email.trim().isEmpty ? null : profile.email.trim(),
         taxRegistrationNumber: business.gstNumber,
       ),
       customer: QuotePdfParty(
@@ -104,6 +104,7 @@ class _QuoteHistoryCard extends ConsumerWidget {
       paymentTerms: quote.paymentTerms,
       deliveryTimeline: quote.deliveryTimeline,
       additionalTerms: quote.additionalTerms,
+      businessLogoUrl: business.logoUrl,
     );
   }
 
@@ -120,8 +121,10 @@ class _QuoteHistoryCard extends ConsumerWidget {
       );
       final fileName =
           'quote_${quote.quoteNumber.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')}.pdf';
-      final file = File('${Directory.systemTemp.path}/$fileName');
-      await file.writeAsBytes(pdfBytes, flush: true);
+      final file = await FileStorageHelper.savePdfToUserVisibleLocation(
+        bytes: pdfBytes,
+        fileName: fileName,
+      );
       await SharePlus.instance.share(
         ShareParams(
           text: _quoteShareMessage(quote),

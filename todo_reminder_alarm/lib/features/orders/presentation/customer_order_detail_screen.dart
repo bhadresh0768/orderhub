@@ -2,11 +2,16 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../models/business.dart';
 import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
+import '../../../utils/file_storage_helper.dart';
+import '../../../utils/order_bill_pdf_generator.dart';
 import 'common/order_shared_helpers.dart';
 
 class CustomerOrderDetailScreen extends ConsumerWidget {
@@ -204,6 +209,69 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
     );
   }
 
+  Future<XFile> _generateBillFile(
+    Order currentOrder,
+    BusinessProfile? business,
+  ) async {
+    final bytes = await OrderBillPdfGenerator.build(
+      order: currentOrder,
+      businessName: currentOrder.businessName,
+      businessAddress: business?.address,
+      businessPhone: business?.phone,
+      businessLogoUrl: business?.logoUrl,
+    );
+    final fileName =
+        'bill_${currentOrder.displayOrderNumber.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+    final file = await FileStorageHelper.savePdfToUserVisibleLocation(
+      bytes: bytes,
+      fileName: fileName,
+    );
+    return XFile(file.path);
+  }
+
+  Future<void> _downloadBill(
+    BuildContext context,
+    Order currentOrder,
+    BusinessProfile? business,
+  ) async {
+    try {
+      final file = await _generateBillFile(currentOrder, business);
+      await Clipboard.setData(ClipboardData(text: file.path));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Bill saved. File path copied: ${file.path}'),
+        ),
+      );
+    } catch (err) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to generate bill: $err')),
+      );
+    }
+  }
+
+  Future<void> _printOrShareBill(
+    BuildContext context,
+    Order currentOrder,
+    BusinessProfile? business,
+  ) async {
+    try {
+      final file = await _generateBillFile(currentOrder, business);
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Order Bill ${currentOrder.displayOrderNumber}',
+          files: [file],
+        ),
+      );
+    } catch (err) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to share/print bill: $err')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final liveOrderAsync = ref.watch(orderByIdProvider(order.id));
@@ -247,9 +315,34 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
     };
     final businessPhone = businessAsync.asData?.value?.phone?.trim();
     final statusColor = OrderSharedHelpers.statusColor(effectiveStatus);
+    final canGenerateBill = effectiveStatus == OrderStatus.completed;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Order ${currentOrder.displayOrderNumber}')),
+      appBar: AppBar(
+        title: Text('Order ${currentOrder.displayOrderNumber}'),
+        actions: [
+          if (canGenerateBill)
+            IconButton(
+              tooltip: 'Download Bill',
+              onPressed: () => _downloadBill(
+                context,
+                currentOrder,
+                businessAsync.asData?.value,
+              ),
+              icon: const Icon(Icons.download_outlined),
+            ),
+          if (canGenerateBill)
+            IconButton(
+              tooltip: 'Print / Share Bill',
+              onPressed: () => _printOrShareBill(
+                context,
+                currentOrder,
+                businessAsync.asData?.value,
+              ),
+              icon: const Icon(Icons.print_outlined),
+            ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: ListView(

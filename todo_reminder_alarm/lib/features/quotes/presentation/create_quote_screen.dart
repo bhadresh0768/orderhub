@@ -14,6 +14,7 @@ import '../../../models/business.dart';
 import '../../../models/quote.dart';
 import '../../../models/quote_customer.dart';
 import '../../../providers.dart';
+import '../../../utils/file_storage_helper.dart';
 import '../../../utils/quote_pdf_generator.dart';
 
 part 'create_quote_form_body.dart';
@@ -562,6 +563,9 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
         name: business.name,
         address: business.address,
         phone: business.phone ?? business.ownerPhone,
+        email: widget.profile.email.trim().isEmpty
+            ? null
+            : widget.profile.email.trim(),
         taxRegistrationNumber: business.gstNumber,
       ),
       customer: QuotePdfParty(
@@ -590,6 +594,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       paymentTerms: quote.paymentTerms,
       deliveryTimeline: quote.deliveryTimeline,
       additionalTerms: quote.additionalTerms,
+      businessLogoUrl: business.logoUrl,
     );
   }
 
@@ -647,8 +652,10 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       );
       final fileName =
           'quote_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
-      final file = File('${Directory.systemTemp.path}/$fileName');
-      await file.writeAsBytes(pdfBytes, flush: true);
+      final file = await FileStorageHelper.savePdfToUserVisibleLocation(
+        bytes: pdfBytes,
+        fileName: fileName,
+      );
 
       if (!mounted) return;
       await showDialog<void>(

@@ -16,6 +16,18 @@ extension _BusinessOrderDetailBuild on _BusinessOrderDetailScreenState {
             onPressed: _shareOrderDetails,
             icon: const Icon(Icons.share_outlined),
           ),
+          if (_isLocked)
+            IconButton(
+              tooltip: 'Download Bill',
+              onPressed: _downloadBill,
+              icon: const Icon(Icons.download_outlined),
+            ),
+          if (_isLocked)
+            IconButton(
+              tooltip: 'Print / Share Bill',
+              onPressed: _printOrShareBill,
+              icon: const Icon(Icons.print_outlined),
+            ),
           IconButton(
             tooltip: 'Share on WhatsApp',
             onPressed: _shareOrderDetailsOnWhatsApp,
