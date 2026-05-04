@@ -101,6 +101,8 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return ref.read(authServiceProvider).authStateChanges();
 });
 
+bool _isSignedIn(Ref ref) => ref.watch(authStateProvider).value != null;
+
 final internetConnectedProvider = StreamProvider<bool>((ref) async* {
   final connectivity = ref.read(connectivityProvider);
   final initial = await connectivity.checkConnectivity();
@@ -113,18 +115,22 @@ final internetConnectedProvider = StreamProvider<bool>((ref) async* {
 });
 
 final userProfileProvider = StreamProvider.family<AppUser?, String>((ref, uid) {
+  if (!_isSignedIn(ref)) return Stream.value(null);
   return ref.read(firestoreServiceProvider).userStream(uid);
 });
 
 final allUsersProvider = StreamProvider<List<AppUser>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <AppUser>[]);
   return ref.read(firestoreServiceProvider).allUsersStream();
 });
 
 final businessesProvider = StreamProvider<List<BusinessProfile>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <BusinessProfile>[]);
   return ref.read(firestoreServiceProvider).businessesStream();
 });
 
 final approvedBusinessesProvider = StreamProvider<List<BusinessProfile>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <BusinessProfile>[]);
   return ref
       .read(firestoreServiceProvider)
       .businessesStream(onlyApproved: true);
@@ -134,6 +140,7 @@ final businessByIdProvider = StreamProvider.family<BusinessProfile?, String>((
   ref,
   businessId,
 ) {
+  if (!_isSignedIn(ref)) return Stream.value(null);
   return ref.read(firestoreServiceProvider).businessStream(businessId);
 });
 
@@ -141,6 +148,7 @@ final ordersForBusinessProvider = StreamProvider.family<List<Order>, String>((
   ref,
   businessId,
 ) {
+  if (!_isSignedIn(ref)) return Stream.value(const <Order>[]);
   return ref.read(firestoreServiceProvider).ordersForBusinessStream(businessId);
 });
 
@@ -148,11 +156,13 @@ final ordersForCustomerProvider = StreamProvider.family<List<Order>, String>((
   ref,
   customerId,
 ) {
+  if (!_isSignedIn(ref)) return Stream.value(const <Order>[]);
   return ref.read(firestoreServiceProvider).ordersForCustomerStream(customerId);
 });
 
 final ordersPlacedByBusinessOwnerProvider =
     StreamProvider.family<List<Order>, String>((ref, ownerId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <Order>[]);
       return ref
           .read(firestoreServiceProvider)
           .ordersPlacedByBusinessOwnerStream(ownerId);
@@ -160,17 +170,20 @@ final ordersPlacedByBusinessOwnerProvider =
 
 final ordersForDeliveryAgentByPhoneProvider =
     StreamProvider.family<List<Order>, String>((ref, phone) {
+      if (!_isSignedIn(ref)) return Stream.value(const <Order>[]);
       return ref
           .read(firestoreServiceProvider)
           .ordersForDeliveryAgentByPhoneStream(phone);
     });
 
 final orderByIdProvider = StreamProvider.family<Order?, String>((ref, orderId) {
+  if (!_isSignedIn(ref)) return Stream.value(null);
   return ref.read(firestoreServiceProvider).orderStream(orderId);
 });
 
 final catalogCategoriesProvider =
     StreamProvider.family<List<CatalogCategory>, String>((ref, businessId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <CatalogCategory>[]);
       return ref
           .read(firestoreServiceProvider)
           .catalogCategoriesStream(businessId);
@@ -178,6 +191,7 @@ final catalogCategoriesProvider =
 
 final catalogProductsProvider =
     StreamProvider.family<List<CatalogProduct>, String>((ref, businessId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <CatalogProduct>[]);
       return ref
           .read(firestoreServiceProvider)
           .catalogProductsStream(businessId);
@@ -185,20 +199,24 @@ final catalogProductsProvider =
 
 final catalogVariantsProvider =
     StreamProvider.family<List<CatalogVariant>, String>((ref, productId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <CatalogVariant>[]);
       return ref
           .read(firestoreServiceProvider)
           .catalogVariantsStream(productId);
     });
 
 final allOrdersProvider = StreamProvider<List<Order>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <Order>[]);
   return ref.read(firestoreServiceProvider).allOrdersStream();
 });
 
 final orderUnitsProvider = StreamProvider<List<OrderUnit>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <OrderUnit>[]);
   return ref.read(firestoreServiceProvider).orderUnitsStream();
 });
 
 final allOrderUnitsProvider = StreamProvider<List<OrderUnit>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <OrderUnit>[]);
   return ref
       .read(firestoreServiceProvider)
       .orderUnitsStream(includeInactive: true);
@@ -208,11 +226,13 @@ final quotesForBusinessProvider = StreamProvider.family<List<Quote>, String>((
   ref,
   businessId,
 ) {
+  if (!_isSignedIn(ref)) return Stream.value(const <Quote>[]);
   return ref.read(firestoreServiceProvider).quotesForBusinessStream(businessId);
 });
 
 final quoteCustomersForBusinessProvider =
     StreamProvider.family<List<QuoteCustomer>, String>((ref, businessId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <QuoteCustomer>[]);
       return ref
           .read(firestoreServiceProvider)
           .quoteCustomersForBusinessStream(businessId);
@@ -220,27 +240,34 @@ final quoteCustomersForBusinessProvider =
 
 final supportTicketsForUserProvider =
     StreamProvider.family<List<SupportTicket>, String>((ref, userId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <SupportTicket>[]);
       return ref
           .read(firestoreServiceProvider)
           .supportTicketsForUserStream(userId);
     });
 
 final allSupportTicketsProvider = StreamProvider<List<SupportTicket>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <SupportTicket>[]);
   return ref.read(firestoreServiceProvider).allSupportTicketsStream();
 });
 
 final allContactUsProvider = StreamProvider<List<ContactUsMessage>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <ContactUsMessage>[]);
   return ref.read(firestoreServiceProvider).allContactUsStream();
 });
 
 final subscriptionRenewalRequestsProvider =
     StreamProvider<List<SubscriptionRenewalRequest>>((ref) {
+      if (!_isSignedIn(ref)) {
+        return Stream.value(const <SubscriptionRenewalRequest>[]);
+      }
       return ref
           .read(firestoreServiceProvider)
           .subscriptionRenewalRequestsStream();
     });
 
 final appUpdateConfigProvider = StreamProvider<AppUpdateConfig?>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(null);
   return ref.read(firestoreServiceProvider).appUpdateConfigStream();
 });
 
@@ -283,17 +310,20 @@ final appVersionProvider = FutureProvider<String>((ref) async {
 
 final deliveryAgentsForBusinessProvider =
     StreamProvider.family<List<DeliveryAgent>, String>((ref, businessId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <DeliveryAgent>[]);
       return ref
           .read(firestoreServiceProvider)
           .deliveryAgentsForBusinessStream(businessId);
     });
 
 final allDeliveryAgentsProvider = StreamProvider<List<DeliveryAgent>>((ref) {
+  if (!_isSignedIn(ref)) return Stream.value(const <DeliveryAgent>[]);
   return ref.read(firestoreServiceProvider).allDeliveryAgentsStream();
 });
 
 final deliveryAddressesProvider =
     StreamProvider.family<List<DeliveryAddressEntry>, String>((ref, userId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <DeliveryAddressEntry>[]);
       return ref
           .read(firestoreServiceProvider)
           .deliveryAddressesForUserStream(userId);
