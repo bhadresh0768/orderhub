@@ -143,8 +143,6 @@ class QuotePdfGenerator {
           pw.SizedBox(height: 18),
           _buildQuoteMeta(data),
           pw.SizedBox(height: 18),
-          _buildPartySection(data),
-          pw.SizedBox(height: 18),
           _buildItemsTable(data),
           pw.SizedBox(height: 18),
           _buildTotalsSection(data),
@@ -172,94 +170,120 @@ class QuotePdfGenerator {
     pw.MemoryImage? businessLogoImage,
   ) {
     return pw.Container(
-      padding: const pw.EdgeInsets.only(bottom: 14),
+      padding: const pw.EdgeInsets.only(bottom: 10),
       decoration: const pw.BoxDecoration(
         border: pw.Border(
           bottom: pw.BorderSide(color: PdfColors.blueGrey100, width: 1),
         ),
       ),
       child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          if (businessLogoImage != null) ...[
-            pw.Center(
-              child: pw.Container(
-                height: 64,
-                width: 64,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey300),
-                  borderRadius: pw.BorderRadius.circular(8),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      data.business.name,
+                      style: pw.TextStyle(
+                        fontSize: 20,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blueGrey900,
+                      ),
+                    ),
+                    if ((data.business.address ?? '').trim().isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 3),
+                        child: pw.Text(
+                          data.business.address!.trim(),
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.blueGrey700,
+                          ),
+                        ),
+                      ),
+                    if ((data.business.phone ?? '').trim().isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 2),
+                        child: pw.Text(
+                          'Mobile: ${data.business.phone!.trim()}',
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.blueGrey700,
+                          ),
+                        ),
+                      ),
+                    if ((data.business.email ?? '').trim().isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 2),
+                        child: pw.Text(
+                          'Email: ${data.business.email!.trim()}',
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.blueGrey700,
+                          ),
+                        ),
+                      ),
+                    if ((data.business.taxRegistrationNumber ?? '')
+                        .trim()
+                        .isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 2),
+                        child: pw.Text(
+                          'Tax ID: ${data.business.taxRegistrationNumber!.trim()}',
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.blueGrey700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                padding: const pw.EdgeInsets.all(5),
-                child: pw.Image(businessLogoImage, fit: pw.BoxFit.contain),
               ),
-            ),
-            pw.SizedBox(height: 8),
-          ],
-          pw.Text(
-            data.business.name,
-            textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(
-              fontSize: 22,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.blueGrey900,
-            ),
-          ),
-          if ((data.business.address ?? '').trim().isNotEmpty)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 4),
-              child: pw.Text(
-                data.business.address!.trim(),
-                textAlign: pw.TextAlign.center,
-                style: const pw.TextStyle(
-                  fontSize: 10,
-                  color: PdfColors.blueGrey700,
-                ),
+              pw.SizedBox(width: 10),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  if (businessLogoImage != null)
+                    pw.Container(
+                      height: 60,
+                      width: 60,
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey300),
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Image(
+                        businessLogoImage,
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  pw.SizedBox(height: 8),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.blueGrey900,
+                      borderRadius: pw.BorderRadius.circular(10),
+                    ),
+                    child: pw.Text(
+                      'QUOTATION',
+                      style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.2,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          if ((data.business.phone ?? '').trim().isNotEmpty)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 2),
-              child: pw.Text(
-                'Mobile: ${data.business.phone!.trim()}',
-                textAlign: pw.TextAlign.center,
-                style: const pw.TextStyle(
-                  fontSize: 10,
-                  color: PdfColors.blueGrey700,
-                ),
-              ),
-            ),
-          if ((data.business.email ?? '').trim().isNotEmpty)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 2),
-              child: pw.Text(
-                'Email: ${data.business.email!.trim()}',
-                textAlign: pw.TextAlign.center,
-                style: const pw.TextStyle(
-                  fontSize: 10,
-                  color: PdfColors.blueGrey700,
-                ),
-              ),
-            ),
-          pw.SizedBox(height: 8),
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 7,
-            ),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.blueGrey900,
-              borderRadius: pw.BorderRadius.circular(10),
-            ),
-            child: pw.Text(
-              'QUOTATION',
-              style: pw.TextStyle(
-                color: PdfColors.white,
-                fontWeight: pw.FontWeight.bold,
-                letterSpacing: 1.2,
-                fontSize: 12,
-              ),
-            ),
+            ],
           ),
         ],
       ),
@@ -271,6 +295,7 @@ class QuotePdfGenerator {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Expanded(
+          flex: 4,
           child: _infoCard(
             title: 'Quote Details',
             rows: [
@@ -286,37 +311,13 @@ class QuotePdfGenerator {
           ),
         ),
         pw.SizedBox(width: 12),
-        pw.Expanded(
-          child: _infoCard(
-            title: 'Customer',
-            rows: [
-              ('Name', data.customer.name),
-              if ((data.customer.contactName ?? '').trim().isNotEmpty)
-                ('Contact', data.customer.contactName!.trim()),
-              if ((data.customer.phone ?? '').trim().isNotEmpty)
-                ('Phone', data.customer.phone!.trim()),
-              if ((data.customer.email ?? '').trim().isNotEmpty)
-                ('Email', data.customer.email!.trim()),
-            ],
-          ),
-        ),
+        pw.Expanded(flex: 5, child: _buildPartySection(data)),
       ],
     );
   }
 
   static pw.Widget _buildPartySection(QuotePdfDocumentData data) {
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Expanded(
-          child: _addressCard(title: 'From', party: data.business),
-        ),
-        pw.SizedBox(width: 12),
-        pw.Expanded(
-          child: _addressCard(title: 'Bill To', party: data.customer),
-        ),
-      ],
-    );
+    return _addressCard(title: 'Customer & Bill To', party: data.customer);
   }
 
   static pw.Widget _buildItemsTable(QuotePdfDocumentData data) {
@@ -421,7 +422,7 @@ class QuotePdfGenerator {
       title: 'Notes',
       child: pw.Text(
         data.notes!.trim(),
-        style: const pw.TextStyle(fontSize: 10, color: PdfColors.blueGrey800),
+        style: const pw.TextStyle(fontSize: 10, color: PdfColors.red),
       ),
     );
   }

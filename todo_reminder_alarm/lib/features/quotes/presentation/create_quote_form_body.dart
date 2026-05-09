@@ -70,14 +70,36 @@ extension _CreateQuoteFormBody on _CreateQuoteScreenState {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: _DateField(
-                          label: 'Valid Until',
-                          value: ui.validUntil,
+                        child: TextFormField(
+                          controller: _validUntilController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: 'Valid Until',
+                            suffixIcon: IconButton(
+                              onPressed: () => _pickDate(
+                                initialDate: ui.validUntil,
+                                onSelected: (date) {
+                                  _validUntilController.text = DateFormat(
+                                    'dd MMM yyyy',
+                                  ).format(date);
+                                  _updateUi(
+                                    (state) => state.copyWith(validUntil: date),
+                                  );
+                                },
+                              ),
+                              icon: const Icon(Icons.calendar_today_outlined),
+                            ),
+                          ),
                           onTap: () => _pickDate(
                             initialDate: ui.validUntil,
-                            onSelected: (date) => _updateUi(
-                              (state) => state.copyWith(validUntil: date),
-                            ),
+                            onSelected: (date) {
+                              _validUntilController.text = DateFormat(
+                                'dd MMM yyyy',
+                              ).format(date);
+                              _updateUi(
+                                (state) => state.copyWith(validUntil: date),
+                              );
+                            },
                           ),
                         ),
                       ),

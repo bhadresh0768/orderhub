@@ -100,6 +100,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
   final _notesController = TextEditingController();
   final _additionalTermsController = TextEditingController();
   final _currencySymbolController = TextEditingController(text: 'Rs.');
+  final _validUntilController = TextEditingController();
 
   static const _uuid = Uuid();
 
@@ -133,6 +134,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     final quoteDate = quote?.quoteDate ?? DateTime.now();
     final validUntil =
         quote?.validUntil ?? quoteDate.add(const Duration(days: 7));
+    _validUntilController.text = DateFormat('dd MMM yyyy').format(validUntil);
     _preparedByController.text = quote?.preparedBy ?? widget.profile.name;
     _customerNameController.text = quote?.customerName ?? '';
     _customerContactController.text = quote?.customerContact ?? '';
@@ -190,6 +192,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     _notesController.dispose();
     _additionalTermsController.dispose();
     _currencySymbolController.dispose();
+    _validUntilController.dispose();
     for (final item in _draftItemsForDispose) {
       item.dispose();
     }
