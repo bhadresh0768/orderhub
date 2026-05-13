@@ -10,6 +10,7 @@ class _UpgradeBusinessData {
     this.address,
     this.phone,
     this.gstNumber,
+    required this.taxLabel,
     this.description,
   });
 
@@ -21,6 +22,7 @@ class _UpgradeBusinessData {
   final String? address;
   final String? phone;
   final String? gstNumber;
+  final String taxLabel;
   final String? description;
 }
 
@@ -65,6 +67,7 @@ class _UpgradeToBusinessOwnerDialogState
   final _gstController = TextEditingController();
   final _phoneController = TextEditingController();
   final _descriptionController = TextEditingController();
+  String _selectedTaxLabel = _ProfileScreenState._taxLabelOptions.first;
   late final ValueNotifier<Country> _selectedCountry;
   late final ValueNotifier<int> _fiscalYearStartMonth;
 
@@ -223,9 +226,28 @@ class _UpgradeToBusinessOwnerDialogState
                   controller: _gstController,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(
-                    labelText: 'Business Unique No (GST optional)',
+                    labelText: 'Tax Registration Number',
                     hintText: 'e.g. 27ABCDE1234F1Z5',
                   ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedTaxLabel,
+                  decoration: const InputDecoration(labelText: 'Tax Label'),
+                  items: _ProfileScreenState._taxLabelOptions
+                      .map(
+                        (label) => DropdownMenuItem<String>(
+                          value: label,
+                          child: Text(label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedTaxLabel = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
@@ -291,6 +313,7 @@ class _UpgradeToBusinessOwnerDialogState
                               gstNumber: _gstController.text.trim().isEmpty
                                   ? null
                                   : _gstController.text.trim().toUpperCase(),
+                              taxLabel: _selectedTaxLabel,
                               description:
                                   _descriptionController.text.trim().isEmpty
                                   ? null

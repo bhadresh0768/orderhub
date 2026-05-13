@@ -1,6 +1,12 @@
 part of 'business_order_detail_screen.dart';
 
 extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
+  String get _taxLabel {
+    final business = ref.watch(businessByIdProvider(_order.businessId)).asData?.value;
+    final label = (business?.taxLabel ?? '').trim();
+    return label.isEmpty ? 'TAX' : label;
+  }
+
   String _formatQuantity(double value) {
     return value == value.truncateToDouble()
         ? value.toInt().toString()
@@ -95,11 +101,12 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
     };
   }
 
-  String _formatAmount(double? value) {
-    if (value == null) return 'Not set';
-    return value == value.truncateToDouble()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(2);
+  String _formatNumber(double? value) {
+    return formatMoney(value, currencySymbol: '');
+  }
+
+  String _formatCurrency(double? value) {
+    return OrderSharedHelpers.amountLabel(value);
   }
 
   Color _orderStatusColor(OrderStatus status) {
@@ -391,7 +398,9 @@ extension _BusinessOrderDetailHelpers on _BusinessOrderDetailScreenState {
           final unitPriceText = _itemPriceControllers[index].text.trim().isEmpty
               ? 'Not set'
               : _itemPriceControllers[index].text.trim();
-          final gstText = _itemGstIncluded[index] ? 'GST: Yes' : 'GST: No';
+          final gstText = _itemGstIncluded[index]
+              ? '$_taxLabel: Yes'
+              : '$_taxLabel: No';
           final unavailableReason = (item.unavailableReason ?? '').trim();
           final note = (item.note ?? '').trim();
           return '- ${item.title} | Qty: ${_itemQuantityLabel(item)} | $include | Unit Price: $unitPriceText | $gstText'
@@ -414,14 +423,14 @@ Address: $requestedAddress
 ${requestedContact == null ? '' : 'Contact: $requestedContact\n'}Status: ${_statusLabel(_order.status)}
 Delivery: ${_capitalize(_order.delivery.status.name)}
 Payment: ${_paymentStatusLabel(_order.payment.status)} (${_paymentMethodLabel(_order.payment.method)})
-Amount: ${_formatAmount(_order.payment.amount)}
+Amount: ${_formatCurrency(_order.payment.amount)}
 ${paymentCollector == null ? '' : 'Collected By: $paymentCollector\n'}Delivery Agent: ${_order.assignedDeliveryAgentName ?? 'Not assigned'}
 Included Items: ${_itemIncluded.where((e) => e).length} / ${_order.items.length}
-Subtotal: ${_formatAmount(billing.subtotal)}
-GST %: ${billing.gstPercent.toStringAsFixed(2)}
-GST Amount: ${_formatAmount(billing.gstAmount)}
-Extra Charges: ${_formatAmount(billing.extra)}
-Total: ${_formatAmount(billing.total)}
+Subtotal: ${_formatCurrency(billing.subtotal)}
+$_taxLabel %: ${billing.gstPercent.toStringAsFixed(2)}
+$_taxLabel Amount: ${_formatCurrency(billing.gstAmount)}
+Extra Charges: ${_formatCurrency(billing.extra)}
+Total: ${_formatCurrency(billing.total)}
 ${orderNote.isEmpty ? '' : 'Order Remark: $orderNote\n'}${deliveryNote.isEmpty ? '' : 'Delivery Remark: $deliveryNote\n'}${paymentNote.isEmpty ? '' : 'Payment Remark: $paymentNote\n'}
 Items:
 $items
@@ -482,6 +491,7 @@ $items
       businessAddress: business?.address,
       businessPhone: business?.phone,
       businessLogoUrl: business?.logoUrl,
+      taxLabel: business?.taxLabel,
     );
     final fileName =
         'bill_${_order.displayOrderNumber.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';

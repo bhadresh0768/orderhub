@@ -122,7 +122,7 @@ extension _BusinessOrderDetailSummaryCard on _BusinessOrderDetailScreenState {
             _detailRow(
               context,
               'Amount',
-              _formatAmount(_order.payment.amount),
+              _formatCurrency(_order.payment.amount),
               valueColor: _paymentStatusColor(_order.payment.status),
               valueWeight: FontWeight.w700,
             ),

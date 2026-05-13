@@ -23,6 +23,7 @@ class _SignUpUiState {
     required this.selectedCountry,
     this.role = UserRole.businessOwner,
     this.businessCategory,
+    this.taxLabel = 'GST',
     this.loading = false,
     this.error,
     this.profileOnlyMode = false,
@@ -32,6 +33,7 @@ class _SignUpUiState {
   final Country selectedCountry;
   final UserRole role;
   final String? businessCategory;
+  final String taxLabel;
   final bool loading;
   final String? error;
   final bool profileOnlyMode;
@@ -41,6 +43,7 @@ class _SignUpUiState {
     Country? selectedCountry,
     UserRole? role,
     String? businessCategory,
+    String? taxLabel,
     bool? loading,
     Object? error = _signUpUnset,
     bool? profileOnlyMode,
@@ -51,6 +54,7 @@ class _SignUpUiState {
       selectedCountry: selectedCountry ?? this.selectedCountry,
       role: role ?? this.role,
       businessCategory: businessCategory ?? this.businessCategory,
+      taxLabel: taxLabel ?? this.taxLabel,
       loading: loading ?? this.loading,
       error: error == _signUpUnset ? this.error : error as String?,
       profileOnlyMode: profileOnlyMode ?? this.profileOnlyMode,
@@ -100,6 +104,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     'Manufacturing',
     'Services',
     'Other',
+  ];
+  static const List<String> _taxLabelOptions = <String>[
+    'GST',
+    'VAT',
+    'JCT',
+    'TIN',
+    'Tax ID',
   ];
 
   final _formKey = GlobalKey<FormState>();
@@ -223,6 +234,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           gstNumber: _businessGstController.text.trim().isEmpty
               ? null
               : _businessGstController.text.trim().toUpperCase(),
+          taxLabel: _ui.taxLabel,
         );
         await firestore.createBusiness(business);
       }
@@ -544,10 +556,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            key: ValueKey<String?>(
-                              uiState.businessCategory,
-                            ),
-                            initialValue: _businessCategoryOptions.contains(
+                            key: ValueKey<String?>(uiState.businessCategory),
+                            initialValue:
+                                _businessCategoryOptions.contains(
                                   uiState.businessCategory,
                                 )
                                 ? uiState.businessCategory
@@ -566,9 +577,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             onChanged: (value) {
                               _businessCategoryController.text = value ?? '';
                               _updateUi(
-                                (state) => state.copyWith(
-                                  businessCategory: value,
-                                ),
+                                (state) =>
+                                    state.copyWith(businessCategory: value),
                               );
                             },
                             validator: (value) =>
@@ -607,9 +617,34 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             controller: _businessGstController,
                             textCapitalization: TextCapitalization.characters,
                             decoration: const InputDecoration(
-                              labelText: 'Business Unique No (GST optional)',
+                              labelText: 'Tax Registration Number',
                               hintText: 'e.g. 27ABCDE1234F1Z5',
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            key: ValueKey<String>(uiState.taxLabel),
+                            initialValue:
+                                _taxLabelOptions.contains(uiState.taxLabel)
+                                ? uiState.taxLabel
+                                : _taxLabelOptions.first,
+                            decoration: const InputDecoration(
+                              labelText: 'Tax Label',
+                            ),
+                            items: _taxLabelOptions
+                                .map(
+                                  (label) => DropdownMenuItem<String>(
+                                    value: label,
+                                    child: Text(label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              _updateUi(
+                                (state) => state.copyWith(taxLabel: value),
+                              );
+                            },
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
@@ -628,9 +663,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             onChanged: (value) {
                               if (value == null) return;
                               _updateUi(
-                                (state) => state.copyWith(
-                                  fiscalYearStartMonth: value,
-                                ),
+                                (state) =>
+                                    state.copyWith(fiscalYearStartMonth: value),
                               );
                             },
                           ),

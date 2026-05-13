@@ -19,6 +19,7 @@ import 'models/order.dart';
 import 'models/order_unit.dart';
 import 'models/quote.dart';
 import 'models/quote_customer.dart';
+import 'models/quote_item_name.dart';
 import 'models/subscription_renewal_request.dart';
 import 'models/support_ticket.dart';
 import 'services/auth_service.dart';
@@ -238,6 +239,14 @@ final quoteCustomersForBusinessProvider =
           .quoteCustomersForBusinessStream(businessId);
     });
 
+final quoteItemNamesForBusinessProvider =
+    StreamProvider.family<List<QuoteItemName>, String>((ref, businessId) {
+      if (!_isSignedIn(ref)) return Stream.value(const <QuoteItemName>[]);
+      return ref
+          .read(firestoreServiceProvider)
+          .quoteItemNamesForBusinessStream(businessId);
+    });
+
 final supportTicketsForUserProvider =
     StreamProvider.family<List<SupportTicket>, String>((ref, userId) {
       if (!_isSignedIn(ref)) return Stream.value(const <SupportTicket>[]);
@@ -323,7 +332,8 @@ final allDeliveryAgentsProvider = StreamProvider<List<DeliveryAgent>>((ref) {
 
 final deliveryAddressesProvider =
     StreamProvider.family<List<DeliveryAddressEntry>, String>((ref, userId) {
-      if (!_isSignedIn(ref)) return Stream.value(const <DeliveryAddressEntry>[]);
+      if (!_isSignedIn(ref))
+        return Stream.value(const <DeliveryAddressEntry>[]);
       return ref
           .read(firestoreServiceProvider)
           .deliveryAddressesForUserStream(userId);

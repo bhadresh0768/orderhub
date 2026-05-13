@@ -8,6 +8,7 @@ import '../../../models/business.dart';
 import '../../../models/quote.dart';
 import '../../../providers.dart';
 import '../../../utils/file_storage_helper.dart';
+import '../../../utils/money_format.dart';
 import '../../../utils/quote_pdf_generator.dart';
 import 'create_quote_screen.dart';
 
@@ -58,7 +59,7 @@ class _QuoteHistoryCard extends ConsumerWidget {
     return 'Quotation ${quote.quoteNumber}\n'
         'Business: ${quote.customerName}\n'
         'Valid Until: ${DateFormat('dd MMM yyyy').format(quote.validUntil)}\n'
-        'Total: ${quote.currencySymbol} ${NumberFormat('#,##0.00').format(quote.grandTotal)}';
+        'Total: ${formatMoney(quote.grandTotal, currencySymbol: quote.currencySymbol)}';
   }
 
   QuotePdfDocumentData _buildPdfDocument(
@@ -76,6 +77,7 @@ class _QuoteHistoryCard extends ConsumerWidget {
         address: business.address,
         phone: business.phone ?? business.ownerPhone,
         email: profile.email.trim().isEmpty ? null : profile.email.trim(),
+        taxRegistrationLabel: business.taxLabel,
         taxRegistrationNumber: business.gstNumber,
       ),
       customer: QuotePdfParty(
@@ -177,7 +179,6 @@ class _QuoteHistoryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final money = NumberFormat('#,##0.00');
     final updatedLabel = quote.updatedAt ?? quote.createdAt ?? quote.quoteDate;
     return Card(
       child: Padding(
@@ -211,7 +212,10 @@ class _QuoteHistoryCard extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  '${quote.currencySymbol} ${money.format(quote.grandTotal)}',
+                  formatMoney(
+                    quote.grandTotal,
+                    currencySymbol: quote.currencySymbol,
+                  ),
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),

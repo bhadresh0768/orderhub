@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +7,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/order.dart';
+import 'currency_defaults.dart';
+import 'money_format.dart';
 
 class OrderBillPdfGenerator {
   OrderBillPdfGenerator._();
@@ -16,7 +19,8 @@ class OrderBillPdfGenerator {
     String? businessAddress,
     String? businessPhone,
     String? businessLogoUrl,
-    String currencySymbol = 'Rs.',
+    String? currencySymbol,
+    String? taxLabel,
   }) async {
     final pdf = pw.Document();
     final businessLogoImage = await _loadBusinessLogo(businessLogoUrl);
@@ -26,12 +30,18 @@ class OrderBillPdfGenerator {
     final gstAmount = order.gstAmount ?? 0;
     final extra = order.extraCharges ?? 0;
     final grandTotal = order.totalAmount ?? order.payment.amount ?? 0;
+    final resolvedTaxLabel = (taxLabel ?? '').trim().isEmpty
+        ? 'TAX'
+        : taxLabel!.trim();
+    final resolvedCurrencySymbol =
+        (currencySymbol ?? '').trim().isNotEmpty
+        ? currencySymbol!.trim()
+        : defaultCurrencySymbolForCountryCode(
+            ui.PlatformDispatcher.instance.locale.countryCode,
+          );
 
     String fmtAmount(double value) {
-      final fixed = value == value.truncateToDouble()
-          ? value.toInt().toString()
-          : value.toStringAsFixed(2);
-      return '$currencySymbol $fixed';
+      return formatMoney(value, currencySymbol: resolvedCurrencySymbol);
     }
 
     String fmtDate(DateTime? date) {
@@ -153,7 +163,10 @@ class OrderBillPdfGenerator {
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                 children: [
                   _summaryRow('Subtotal', fmtAmount(subtotal)),
-                  _summaryRow('GST ($gstPercent%)', fmtAmount(gstAmount)),
+                  _summaryRow(
+                    '$resolvedTaxLabel ($gstPercent%)',
+                    fmtAmount(gstAmount),
+                  ),
                   _summaryRow('Extra Charges', fmtAmount(extra)),
                   pw.Divider(),
                   _summaryRow('Grand Total', fmtAmount(grandTotal), bold: true),

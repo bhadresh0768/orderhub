@@ -12,6 +12,7 @@ import '../models/order.dart';
 import '../models/order_unit.dart';
 import '../models/quote.dart';
 import '../models/quote_customer.dart';
+import '../models/quote_item_name.dart';
 import '../models/subscription_renewal_request.dart';
 import '../models/support_ticket.dart';
 
@@ -32,6 +33,8 @@ class FirestoreService {
       _db.collection('quotes');
   CollectionReference<Map<String, dynamic>> get _quoteCustomers =>
       _db.collection('quoteCustomers');
+  CollectionReference<Map<String, dynamic>> get _quoteItemNames =>
+      _db.collection('quoteItemNames');
   CollectionReference<Map<String, dynamic>> get _deliveryAgents =>
       _db.collection('deliveryAgents');
   CollectionReference<Map<String, dynamic>> get _deliveryAddresses =>
@@ -191,6 +194,15 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map(QuoteCustomer.fromDoc).toList());
   }
 
+  Stream<List<QuoteItemName>> quoteItemNamesForBusinessStream(
+    String businessId,
+  ) {
+    return _quoteItemNames
+        .where('businessId', isEqualTo: businessId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(QuoteItemName.fromDoc).toList());
+  }
+
   Stream<List<SupportTicket>> supportTicketsForUserStream(String userId) {
     return _supportTickets
         .where('userId', isEqualTo: userId)
@@ -320,6 +332,39 @@ class FirestoreService {
         .set(customer.toMap(), SetOptions(merge: true));
   }
 
+  Future<void> upsertQuoteItemNames({
+    required String businessId,
+    required Iterable<String> names,
+  }) async {
+    final normalizedToOriginal = <String, String>{};
+    for (final raw in names) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final normalized = trimmed.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      normalizedToOriginal[normalized] = trimmed;
+    }
+    if (normalizedToOriginal.isEmpty) return;
+
+    final batch = _db.batch();
+    final now = DateTime.now();
+    for (final entry in normalizedToOriginal.entries) {
+      final docId = '${businessId.trim().toLowerCase()}|${entry.key}';
+      final item = QuoteItemName(
+        id: docId,
+        businessId: businessId,
+        name: entry.value,
+        createdAt: now,
+        updatedAt: now,
+      );
+      batch.set(
+        _quoteItemNames.doc(docId),
+        item.toMap(),
+        SetOptions(merge: true),
+      );
+    }
+    await batch.commit();
+  }
+
   Future<void> updateQuote(String quoteId, Map<String, dynamic> data) async {
     await _quotes.doc(quoteId).update({
       ...data,
@@ -345,10 +390,7 @@ class FirestoreService {
     if (existing.exists) {
       throw StateError('Unit with code "$code" already exists');
     }
-    await ref.set(
-      unit.toMap(),
-      SetOptions(merge: true),
-    );
+    await ref.set(unit.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateOrderUnit(OrderUnit unit) async {
@@ -356,10 +398,7 @@ class FirestoreService {
     if (code.isEmpty) {
       throw StateError('Unit code cannot be empty');
     }
-    await _orderUnits.doc(code).set(
-      unit.toMap(),
-      SetOptions(merge: true),
-    );
+    await _orderUnits.doc(code).set(unit.toMap(), SetOptions(merge: true));
   }
 
   Future<void> renameOrderUnit({

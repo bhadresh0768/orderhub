@@ -63,17 +63,17 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                       _detailRow(
                         context,
                         'Unit Price',
-                        _formatAmount(included ? unitPrice : null),
+                        _formatCurrency(included ? unitPrice : null),
                       ),
                       _detailRow(
                         context,
-                        'GST',
+                        _taxLabel,
                         _itemGstIncluded[index] ? 'Included' : 'No',
                       ),
                       _detailRow(
                         context,
                         'Subtotal',
-                        _formatAmount(lineTotal),
+                        _formatCurrency(lineTotal),
                         valueWeight: FontWeight.w700,
                       ),
                     ],
@@ -86,8 +86,8 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                   Expanded(
                     child: _metricTile(
                       context,
-                      'Common GST %',
-                      _formatAmount(billing.gstPercent),
+                      'Common $_taxLabel %',
+                      _formatNumber(billing.gstPercent),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -95,7 +95,7 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                     child: _metricTile(
                       context,
                       'Extra Charges',
-                      _formatAmount(billing.extra),
+                      _formatCurrency(billing.extra),
                     ),
                   ),
                 ],
@@ -107,15 +107,15 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                     child: _metricTile(
                       context,
                       'Subtotal',
-                      _formatAmount(billing.subtotal),
+                      _formatCurrency(billing.subtotal),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _metricTile(
                       context,
-                      'GST Amount',
-                      _formatAmount(billing.gstAmount),
+                      '$_taxLabel Amount',
+                      _formatCurrency(billing.gstAmount),
                     ),
                   ),
                 ],
@@ -124,7 +124,7 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
               _metricTile(
                 context,
                 'Grand Total',
-                _formatAmount(billing.total),
+                _formatCurrency(billing.total),
                 emphasize: true,
               ),
             ] else ...[
@@ -292,13 +292,13 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                                         );
                                       })
                                     : null,
-                                title: const Text('GST'),
+                                title: Text(_taxLabel),
                               ),
                             ),
                           ],
                         ),
                         Text(
-                          'Subtotal: ${_formatAmount(lineTotal)}',
+                          'Subtotal: ${_formatCurrency(lineTotal)}',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -317,8 +317,8 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Common GST %',
+                      decoration: InputDecoration(
+                        labelText: 'Common $_taxLabel %',
                         hintText: 'e.g. 18',
                       ),
                       onChanged: canEditAfterAccept
@@ -373,10 +373,10 @@ extension _BusinessOrderDetailPricingCard on _BusinessOrderDetailScreenState {
                 ),
               ],
               const SizedBox(height: 10),
-              Text('Subtotal: ${_formatAmount(billing.subtotal)}'),
-              Text('GST Amount: ${_formatAmount(billing.gstAmount)}'),
+              Text('Subtotal: ${_formatCurrency(billing.subtotal)}'),
+              Text('$_taxLabel Amount: ${_formatCurrency(billing.gstAmount)}'),
               Text(
-                'Grand Total: ${_formatAmount(billing.total)}',
+                'Grand Total: ${_formatCurrency(billing.total)}',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 10),

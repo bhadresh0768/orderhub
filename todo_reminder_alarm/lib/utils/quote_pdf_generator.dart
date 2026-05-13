@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import 'money_format.dart';
+
 class QuotePdfParty {
   const QuotePdfParty({
     required this.name,
@@ -12,6 +14,7 @@ class QuotePdfParty {
     this.address,
     this.phone,
     this.email,
+    this.taxRegistrationLabel,
     this.taxRegistrationNumber,
   });
 
@@ -20,6 +23,7 @@ class QuotePdfParty {
   final String? address;
   final String? phone;
   final String? email;
+  final String? taxRegistrationLabel;
   final String? taxRegistrationNumber;
 }
 
@@ -106,15 +110,25 @@ class QuotePdfDocumentData {
   double get grandTotal => taxableAmount + taxAmount + extraCharges;
 
   List<String> get resolvedTerms {
+    final customTerms = additionalTerms
+        .map((term) => term.trim())
+        .where((term) => term.isNotEmpty)
+        .toList();
+    if (customTerms.isNotEmpty) {
+      return <String>[
+        if ((paymentTerms ?? '').trim().isNotEmpty) paymentTerms!.trim(),
+        if ((deliveryTimeline ?? '').trim().isNotEmpty)
+          deliveryTimeline!.trim(),
+        ...customTerms,
+      ];
+    }
+
     final terms = <String>[
       'Quotation valid until ${DateFormat('dd MMM yyyy').format(validUntil)}.',
       if ((paymentTerms ?? '').trim().isNotEmpty) paymentTerms!.trim(),
       if ((deliveryTimeline ?? '').trim().isNotEmpty) deliveryTimeline!.trim(),
       'Rates are subject to stock availability and final confirmation.',
       'Taxes ${taxAmount > 0 ? 'are included as shown above' : 'are extra if applicable'}.',
-      ...additionalTerms
-          .map((term) => term.trim())
-          .where((term) => term.isNotEmpty),
     ];
     return terms;
   }
@@ -150,6 +164,7 @@ class QuotePdfGenerator {
             pw.SizedBox(height: 18),
             _buildNotesSection(data),
           ],
+          pw.NewPage(freeSpace: 90),
           pw.SizedBox(height: 18),
           _buildTermsSection(data),
           if (data.showAcceptanceSection) ...[
@@ -233,7 +248,7 @@ class QuotePdfGenerator {
                       pw.Padding(
                         padding: const pw.EdgeInsets.only(top: 2),
                         child: pw.Text(
-                          'Tax ID: ${data.business.taxRegistrationNumber!.trim()}',
+                          '${((data.business.taxRegistrationLabel ?? '').trim().isEmpty ? 'Tax ID' : data.business.taxRegistrationLabel!.trim())}: ${data.business.taxRegistrationNumber!.trim()}',
                           style: const pw.TextStyle(
                             fontSize: 10,
                             color: PdfColors.blueGrey700,
@@ -321,6 +336,7 @@ class QuotePdfGenerator {
   }
 
   static pw.Widget _buildItemsTable(QuotePdfDocumentData data) {
+    final hasAnyDiscount = data.items.any((item) => item.discountAmount > 0);
     final headerStyle = pw.TextStyle(
       fontWeight: pw.FontWeight.bold,
       color: PdfColors.white,
@@ -333,12 +349,12 @@ class QuotePdfGenerator {
       headerStyle: headerStyle,
       cellStyle: cellStyle,
       cellAlignment: pw.Alignment.centerLeft,
-      headers: const [
+      headers: [
         'No',
         'Item',
         'Qty',
         'Unit Price',
-        'Discount',
+        if (hasAnyDiscount) 'Discount',
         'Tax %',
         'Amount',
       ],
@@ -347,9 +363,9 @@ class QuotePdfGenerator {
         1: const pw.FlexColumnWidth(3.4),
         2: const pw.FlexColumnWidth(1),
         3: const pw.FlexColumnWidth(1.3),
-        4: const pw.FlexColumnWidth(1.2),
-        5: const pw.FlexColumnWidth(0.9),
-        6: const pw.FlexColumnWidth(1.3),
+        if (hasAnyDiscount) 4: const pw.FlexColumnWidth(1.2),
+        hasAnyDiscount ? 5 : 4: const pw.FlexColumnWidth(0.9),
+        hasAnyDiscount ? 6 : 5: const pw.FlexColumnWidth(1.3),
       },
       rowDecoration: const pw.BoxDecoration(
         border: pw.Border(
@@ -370,7 +386,10 @@ class QuotePdfGenerator {
           itemLabel,
           '${_formatNumber(item.quantity)}$unitSuffix',
           _money(data.currencySymbol, item.unitPrice),
-          _money(data.currencySymbol, item.discountAmount),
+          if (hasAnyDiscount)
+            item.discountAmount > 0
+                ? _money(data.currencySymbol, item.discountAmount)
+                : '',
           _formatNumber(item.taxPercent),
           _money(data.currencySymbol, item.totalAmount),
         ];
@@ -391,15 +410,17 @@ class QuotePdfGenerator {
         child: pw.Column(
           children: [
             _totalRow('Subtotal', _money(data.currencySymbol, data.subtotal)),
-            _totalRow(
-              'Discount',
-              _money(data.currencySymbol, data.discountTotal),
-            ),
+            if (data.discountTotal > 0)
+              _totalRow(
+                'Discount',
+                _money(data.currencySymbol, data.discountTotal),
+              ),
             _totalRow(
               'Taxable Amount',
               _money(data.currencySymbol, data.taxableAmount),
             ),
-            _totalRow('Tax', _money(data.currencySymbol, data.taxAmount)),
+            if (data.taxAmount > 0)
+              _totalRow('Tax', _money(data.currencySymbol, data.taxAmount)),
             if (data.extraCharges > 0)
               _totalRow(
                 data.extraChargesLabel,
@@ -572,7 +593,7 @@ class QuotePdfGenerator {
       if ((party.email ?? '').trim().isNotEmpty)
         'Email: ${party.email!.trim()}',
       if ((party.taxRegistrationNumber ?? '').trim().isNotEmpty)
-        'Tax ID: ${party.taxRegistrationNumber!.trim()}',
+        '${((party.taxRegistrationLabel ?? '').trim().isEmpty ? 'Tax ID' : party.taxRegistrationLabel!.trim())}: ${party.taxRegistrationNumber!.trim()}',
     ];
   }
 
@@ -640,7 +661,7 @@ class QuotePdfGenerator {
   }
 
   static String _money(String currencySymbol, double amount) {
-    return '$currencySymbol ${NumberFormat('#,##0.00').format(amount)}';
+    return formatMoney(amount, currencySymbol: currencySymbol);
   }
 
   static String _formatNumber(double value) {

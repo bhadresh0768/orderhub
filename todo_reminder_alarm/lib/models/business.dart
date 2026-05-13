@@ -20,6 +20,7 @@ class BusinessProfile {
     this.phone,
     this.ownerPhone,
     this.gstNumber,
+    this.taxLabel,
     this.logoUrl,
     this.shareLink,
     this.createdAt,
@@ -41,6 +42,7 @@ class BusinessProfile {
   final String? phone;
   final String? ownerPhone;
   final String? gstNumber;
+  final String? taxLabel;
   final String? logoUrl;
   final String? shareLink;
   final DateTime? createdAt;
@@ -81,6 +83,7 @@ class BusinessProfile {
       'phone': phone,
       'ownerPhone': ownerPhone,
       'gstNumber': gstNumber,
+      'taxLabel': taxLabel,
       'logoUrl': logoUrl,
       'shareLink': shareLink,
       'createdAt': Timestamp.fromDate(createdAt ?? DateTime.now()),
@@ -115,6 +118,7 @@ class BusinessProfile {
       phone: data['phone'] as String?,
       ownerPhone: data['ownerPhone'] as String?,
       gstNumber: data['gstNumber'] as String?,
+      taxLabel: data['taxLabel'] as String?,
       logoUrl: data['logoUrl'] as String?,
       shareLink: data['shareLink'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),

@@ -116,12 +116,16 @@ class _QuoteItemCard extends StatelessWidget {
   const _QuoteItemCard({
     required this.index,
     required this.item,
+    required this.taxLabel,
+    required this.savedItemNames,
     required this.onRemove,
     required this.onChanged,
   });
 
   final int index;
   final _QuoteItemDraft item;
+  final String taxLabel;
+  final List<String> savedItemNames;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
 
@@ -154,16 +158,92 @@ class _QuoteItemCard extends StatelessWidget {
               ),
             ],
           ),
-          TextFormField(
-            controller: item.titleController,
-            textCapitalization: TextCapitalization.words,
-            inputFormatters: const [_CapitalizeWordsFormatter()],
-            decoration: const InputDecoration(labelText: 'Item Name'),
-            validator: (value) => value == null || value.trim().isEmpty
-                ? 'Enter item name'
-                : null,
-            onChanged: (_) => onChanged(),
-          ),
+          if (savedItemNames.isEmpty)
+            TextFormField(
+              controller: item.titleController,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [_CapitalizeWordsFormatter()],
+              decoration: const InputDecoration(labelText: 'Item Name'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter item name'
+                  : null,
+              onChanged: (_) => onChanged(),
+            )
+          else
+            Autocomplete<String>(
+              initialValue: TextEditingValue(text: item.titleController.text),
+              optionsBuilder: (textEditingValue) {
+                final query = textEditingValue.text.trim().toLowerCase();
+                if (query.isEmpty) return savedItemNames.take(12);
+                return savedItemNames
+                    .where((name) => name.toLowerCase().contains(query))
+                    .take(12);
+              },
+              onSelected: (selected) {
+                item.titleController.text = selected;
+                onChanged();
+              },
+              fieldViewBuilder:
+                  (
+                    context,
+                    textEditingController,
+                    focusNode,
+                    onFieldSubmitted,
+                  ) {
+                    if (textEditingController.text !=
+                        item.titleController.text) {
+                      textEditingController.text = item.titleController.text;
+                    }
+                    textEditingController.addListener(() {
+                      if (item.titleController.text !=
+                          textEditingController.text) {
+                        item.titleController.text = textEditingController.text;
+                        onChanged();
+                      }
+                    });
+                    return TextFormField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [_CapitalizeWordsFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: 'Item Name',
+                        hintText: 'Type to search saved items',
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Enter item name'
+                          : null,
+                      onFieldSubmitted: (_) => onFieldSubmitted(),
+                    );
+                  },
+              optionsViewBuilder: (context, onSelected, options) {
+                final optionList = options.toList();
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.78,
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: optionList.length,
+                        itemBuilder: (context, index) {
+                          final option = optionList[index];
+                          return ListTile(
+                            dense: true,
+                            title: Text(option),
+                            onTap: () => onSelected(option),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 10),
           TextFormField(
             controller: item.descriptionController,
@@ -324,7 +404,7 @@ class _QuoteItemCard extends StatelessWidget {
           TextFormField(
             controller: item.taxPercentController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Tax %'),
+            decoration: InputDecoration(labelText: '$taxLabel %'),
             onTap: item.clearTaxDefaultOnFirstTap,
             onChanged: (_) => onChanged(),
           ),

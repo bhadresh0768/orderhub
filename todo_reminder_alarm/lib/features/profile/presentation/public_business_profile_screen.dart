@@ -169,7 +169,7 @@ class PublicBusinessProfileScreen extends ConsumerWidget {
                         .trim()
                         .isNotEmpty) ...[
                       Text(
-                        'Business Unique No: ${currentBusiness.gstNumber!.trim()}',
+                        'Tax Registration Number: ${currentBusiness.gstNumber!.trim()}',
                       ),
                       const SizedBox(height: 8),
                     ],

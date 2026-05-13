@@ -5,7 +5,11 @@ extension _CreateQuoteFormBody on _CreateQuoteScreenState {
     required BusinessProfile business,
     required _CreateQuoteUiState ui,
     required List<QuoteCustomer> savedCustomers,
+    required List<String> savedItemNames,
   }) {
+    final taxLabel = (business.taxLabel ?? '').trim().isEmpty
+        ? 'TAX'
+        : business.taxLabel!.trim();
     final lineItems = _lineItems();
     final customerQuery = _customerNameController.text.trim().toLowerCase();
     final filteredCustomers = customerQuery.isEmpty
@@ -248,6 +252,8 @@ extension _CreateQuoteFormBody on _CreateQuoteScreenState {
                     child: _QuoteItemCard(
                       index: index,
                       item: item,
+                      taxLabel: taxLabel,
+                      savedItemNames: savedItemNames,
                       onRemove: () => _removeItem(index),
                       onChanged: _touchUi,
                     ),
@@ -348,7 +354,7 @@ extension _CreateQuoteFormBody on _CreateQuoteScreenState {
                   _SummaryRow(label: 'Subtotal', value: _money(subtotal)),
                   _SummaryRow(label: 'Discount', value: _money(discount)),
                   _SummaryRow(label: 'Taxable Amount', value: _money(taxable)),
-                  _SummaryRow(label: 'Tax', value: _money(tax)),
+                  _SummaryRow(label: '$taxLabel Amount', value: _money(tax)),
                   _SummaryRow(
                     label: _extraChargesLabelController.text.trim().isEmpty
                         ? 'Extra Charges'

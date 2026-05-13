@@ -11,6 +11,7 @@ import '../../../models/enums.dart';
 import '../../../models/order.dart';
 import '../../../providers.dart';
 import '../../../utils/file_storage_helper.dart';
+import '../../../utils/money_format.dart';
 import '../../../utils/order_bill_pdf_generator.dart';
 import 'common/order_shared_helpers.dart';
 
@@ -59,10 +60,7 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
   }
 
   String _money(double? value) {
-    if (value == null) return 'Not set';
-    return value == value.truncateToDouble()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(2);
+    return formatMoney(value);
   }
 
   String _statusLabel(OrderStatus status) {
@@ -219,6 +217,7 @@ class CustomerOrderDetailScreen extends ConsumerWidget {
       businessAddress: business?.address,
       businessPhone: business?.phone,
       businessLogoUrl: business?.logoUrl,
+      taxLabel: business?.taxLabel,
     );
     final fileName =
         'bill_${currentOrder.displayOrderNumber.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';

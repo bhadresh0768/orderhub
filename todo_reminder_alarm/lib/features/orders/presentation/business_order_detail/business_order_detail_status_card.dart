@@ -164,9 +164,11 @@ extension _BusinessOrderDetailStatusCard on _BusinessOrderDetailScreenState {
               enabled: canEditAfterAccept,
               onTap: () => _clearDefaultNumericOnTap(_paymentAmountController),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Order Amount',
                 hintText: 'e.g. 1250',
+                prefixText:
+                    '${defaultCurrencySymbolForCountryCode(ui.PlatformDispatcher.instance.locale.countryCode)} ',
               ),
             ),
             const SizedBox(height: 12),

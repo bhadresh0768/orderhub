@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,8 +14,11 @@ import '../../../models/app_user.dart';
 import '../../../models/business.dart';
 import '../../../models/quote.dart';
 import '../../../models/quote_customer.dart';
+import '../../../models/quote_item_name.dart';
 import '../../../providers.dart';
 import '../../../utils/file_storage_helper.dart';
+import '../../../utils/currency_defaults.dart';
+import '../../../utils/money_format.dart';
 import '../../../utils/quote_pdf_generator.dart';
 
 part 'create_quote_form_body.dart';
@@ -87,12 +91,8 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
   final _customerEmailController = TextEditingController();
   final _customerAddressController = TextEditingController();
   final _preparedByController = TextEditingController();
-  final _paymentTermsController = TextEditingController(
-    text: '50% advance, balance on delivery',
-  );
-  final _deliveryTimelineController = TextEditingController(
-    text: 'Delivery within 3 to 5 working days from confirmation',
-  );
+  final _paymentTermsController = TextEditingController();
+  final _deliveryTimelineController = TextEditingController();
   final _extraChargesController = TextEditingController(text: '0');
   final _extraChargesLabelController = TextEditingController(
     text: 'Extra Charges',
@@ -141,17 +141,17 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     _customerPhoneController.text = quote?.customerPhone ?? '';
     _customerEmailController.text = quote?.customerEmail ?? '';
     _customerAddressController.text = quote?.customerAddress ?? '';
-    _paymentTermsController.text =
-        quote?.paymentTerms ?? '50% advance, balance on delivery';
-    _deliveryTimelineController.text =
-        quote?.deliveryTimeline ??
-        'Delivery within 3 to 5 working days from confirmation';
+    _paymentTermsController.text = quote?.paymentTerms ?? '';
+    _deliveryTimelineController.text = quote?.deliveryTimeline ?? '';
     _extraChargesController.text = (quote?.extraCharges ?? 0).toString();
     _extraChargesLabelController.text =
         quote?.extraChargesLabel ?? 'Extra Charges';
     _notesController.text = quote?.notes ?? '';
     _additionalTermsController.text = (quote?.additionalTerms ?? []).join('\n');
-    _currencySymbolController.text = quote?.currencySymbol ?? 'Rs.';
+    final localeCountryCode = ui.PlatformDispatcher.instance.locale.countryCode;
+    _currencySymbolController.text =
+        quote?.currencySymbol ??
+        defaultCurrencySymbolForCountryCode(localeCountryCode);
     final initialItems = quote == null || quote.items.isEmpty
         ? [_QuoteItemDraft()]
         : quote.items.map(_QuoteItemDraft.fromQuoteLineItem).toList();
@@ -169,8 +169,6 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     _clearOnFirstTapControllers = {
       if (quote == null) ...{
         _preparedByController,
-        _paymentTermsController,
-        _deliveryTimelineController,
         _extraChargesController,
         _extraChargesLabelController,
       },
@@ -515,7 +513,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     return 'Quotation ${quote.quoteNumber}\n'
         'Business: ${quote.customerName}\n'
         'Valid Until: ${DateFormat('dd MMM yyyy').format(quote.validUntil)}\n'
-        'Total: ${quote.currencySymbol} ${NumberFormat('#,##0.00').format(quote.grandTotal)}';
+        'Total: ${formatMoney(quote.grandTotal, currencySymbol: quote.currencySymbol)}';
   }
 
   Future<void> _shareGeneratedPdf(File file, Quote quote) async {
@@ -569,6 +567,7 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
         email: widget.profile.email.trim().isEmpty
             ? null
             : widget.profile.email.trim(),
+        taxRegistrationLabel: business.taxLabel,
         taxRegistrationNumber: business.gstNumber,
       ),
       customer: QuotePdfParty(
@@ -621,6 +620,12 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
       await ref
           .read(firestoreServiceProvider)
           .upsertQuoteCustomer(_buildQuoteCustomer(business));
+      await ref
+          .read(firestoreServiceProvider)
+          .upsertQuoteItemNames(
+            businessId: business.id,
+            names: lineItems.map((item) => item.title),
+          );
       if (!mounted) return quote;
       if (showSnackBar) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -723,6 +728,9 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     final savedCustomersAsync = businessId == null
         ? null
         : ref.watch(quoteCustomersForBusinessProvider(businessId));
+    final savedItemNamesAsync = businessId == null
+        ? null
+        : ref.watch(quoteItemNamesForBusinessProvider(businessId));
 
     return Scaffold(
       appBar: AppBar(
@@ -739,10 +747,21 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
                 final savedCustomers =
                     savedCustomersAsync?.asData?.value ??
                     const <QuoteCustomer>[];
+                final savedItemNames =
+                    (savedItemNamesAsync?.asData?.value ??
+                            const <QuoteItemName>[])
+                        .map((item) => item.name.trim())
+                        .where((name) => name.isNotEmpty)
+                        .toSet()
+                        .toList()
+                      ..sort(
+                        (a, b) => a.toLowerCase().compareTo(b.toLowerCase()),
+                      );
                 return _buildQuoteFormBody(
                   business: business,
                   ui: ui,
                   savedCustomers: savedCustomers,
+                  savedItemNames: savedItemNames,
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -756,6 +775,6 @@ class _CreateQuoteScreenState extends ConsumerState<CreateQuoteScreen> {
     final symbol = _currencySymbolController.text.trim().isEmpty
         ? 'Rs.'
         : _currencySymbolController.text.trim();
-    return '$symbol ${NumberFormat('#,##0.00').format(value)}';
+    return formatMoney(value, currencySymbol: symbol);
   }
 }

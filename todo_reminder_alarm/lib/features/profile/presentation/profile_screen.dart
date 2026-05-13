@@ -109,6 +109,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _businessDescriptionController = TextEditingController();
   final _businessShareLinkController = TextEditingController();
   int? _selectedFiscalYearStartMonth;
+  static const List<String> _taxLabelOptions = <String>[
+    'GST',
+    'VAT',
+    'JCT',
+    'TIN',
+    'Tax ID',
+  ];
+  String _selectedTaxLabel = _taxLabelOptions.first;
 
   String get _activeUid =>
       ref.read(authStateProvider).value?.uid ?? widget.user.id;
@@ -162,6 +170,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _businessCityController.text = business.city;
     _businessAddressController.text = business.address ?? '';
     _businessGstController.text = business.gstNumber ?? '';
+    final existingTaxLabel = (business.taxLabel ?? '').trim();
+    _selectedTaxLabel = _taxLabelOptions.contains(existingTaxLabel)
+        ? existingTaxLabel
+        : _taxLabelOptions.first;
     _businessPhoneController.text = (business.phone ?? '').trim().isNotEmpty
         ? business.phone!
         : (widget.user.phoneNumber ?? '');
@@ -309,6 +321,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'gstNumber': _businessGstController.text.trim().isEmpty
               ? null
               : _businessGstController.text.trim().toUpperCase(),
+          'taxLabel': _selectedTaxLabel,
           'description': _businessDescriptionController.text.trim().isEmpty
               ? null
               : _businessDescriptionController.text.trim(),
@@ -425,6 +438,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ? widget.user.phoneNumber!.trim()
                   : null,
               gstNumber: data.gstNumber,
+              taxLabel: data.taxLabel,
               description: data.description,
               fiscalYearStartMonth: data.fiscalYearStartMonth,
               shareLink: businessDeepLink(businessId),

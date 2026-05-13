@@ -75,9 +75,27 @@ extension _ProfileBusinessDetailsSection on _ProfileScreenState {
           controller: _businessGstController,
           textCapitalization: TextCapitalization.characters,
           decoration: const InputDecoration(
-            labelText: 'Business Unique No (GST optional)',
+            labelText: 'Tax Registration Number',
             hintText: 'e.g. 27ABCDE1234F1Z5',
           ),
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedTaxLabel,
+          decoration: const InputDecoration(labelText: 'Tax Label'),
+          items: _ProfileScreenState._taxLabelOptions
+              .map(
+                (label) =>
+                    DropdownMenuItem<String>(value: label, child: Text(label)),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            _selectedTaxLabel = value;
+            _updateUi(
+              (state) => state.copyWith(refreshTick: state.refreshTick + 1),
+            );
+          },
         ),
         const SizedBox(height: 10),
         Row(
@@ -213,6 +231,7 @@ extension _ProfileBusinessDetailsSection on _ProfileScreenState {
       gstNumber: _businessGstController.text.trim().isEmpty
           ? business.gstNumber
           : _businessGstController.text.trim().toUpperCase(),
+      taxLabel: _selectedTaxLabel,
       status: business.status,
       description: _businessDescriptionController.text.trim().isEmpty
           ? business.description

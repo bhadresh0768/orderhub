@@ -1,7 +1,11 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../../../../models/enums.dart';
 import '../../../../models/order.dart';
+import '../../../../utils/currency_defaults.dart';
+import '../../../../utils/money_format.dart';
 
 /// Shared order UI/data helpers reused by multiple order screens.
 enum OrderDateFilterOption { all, today, thisWeek, thisMonth, thisYear, custom }
@@ -131,10 +135,12 @@ class OrderSharedHelpers {
     };
   }
 
-  static String amountLabel(double? value) {
-    if (value == null) return 'Not set';
-    return value == value.truncateToDouble()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(2);
+  static String amountLabel(double? value, {String? currencySymbol}) {
+    final symbol =
+        currencySymbol ??
+        defaultCurrencySymbolForCountryCode(
+          ui.PlatformDispatcher.instance.locale.countryCode,
+        );
+    return formatMoney(value, currencySymbol: symbol);
   }
 }

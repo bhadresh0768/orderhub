@@ -221,6 +221,32 @@ service cloud.firestore {
       );
     }
 
+    match /quoteItemNames/{itemId} {
+      allow read: if isAdmin() || (
+        signedIn() && isBusinessOwnerOf(resource.data.businessId)
+      );
+      allow create: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.businessId is string &&
+        request.resource.data.businessId.size() > 0 &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        isBusinessOwnerOf(request.resource.data.businessId)
+      );
+      allow update: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.businessId is string &&
+        request.resource.data.businessId.size() > 0 &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.businessId == resource.data.businessId &&
+        isBusinessOwnerOf(resource.data.businessId)
+      );
+      allow delete: if isAdmin() || (
+        signedIn() && isBusinessOwnerOf(resource.data.businessId)
+      );
+    }
+
     match /item_catalog/{itemId} {
       allow read: if signedIn();
       allow create, update: if signedIn();
