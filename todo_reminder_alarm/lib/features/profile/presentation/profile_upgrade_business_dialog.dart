@@ -67,7 +67,7 @@ class _UpgradeToBusinessOwnerDialogState
   final _gstController = TextEditingController();
   final _phoneController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _selectedTaxLabel = _ProfileScreenState._taxLabelOptions.first;
+  late final ValueNotifier<String> _selectedTaxLabel;
   late final ValueNotifier<Country> _selectedCountry;
   late final ValueNotifier<int> _fiscalYearStartMonth;
 
@@ -79,6 +79,9 @@ class _UpgradeToBusinessOwnerDialogState
     );
     _addressController = TextEditingController(text: widget.initialAddress);
     _selectedCountry = ValueNotifier<Country>(widget.initialCountry);
+    _selectedTaxLabel = ValueNotifier<String>(
+      _ProfileScreenState._taxLabelOptions.first,
+    );
     _fiscalYearStartMonth = ValueNotifier<int>(
       defaultFiscalYearStartMonthForCountryCode(
         widget.initialCountry.countryCode,
@@ -96,6 +99,7 @@ class _UpgradeToBusinessOwnerDialogState
     _phoneController.dispose();
     _descriptionController.dispose();
     _selectedCountry.dispose();
+    _selectedTaxLabel.dispose();
     _fiscalYearStartMonth.dispose();
     super.dispose();
   }
@@ -231,22 +235,25 @@ class _UpgradeToBusinessOwnerDialogState
                   ),
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedTaxLabel,
-                  decoration: const InputDecoration(labelText: 'Tax Label'),
-                  items: _ProfileScreenState._taxLabelOptions
-                      .map(
-                        (label) => DropdownMenuItem<String>(
-                          value: label,
-                          child: Text(label),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _selectedTaxLabel = value;
-                    });
+                ValueListenableBuilder<String>(
+                  valueListenable: _selectedTaxLabel,
+                  builder: (context, selectedTaxLabel, _) {
+                    return DropdownButtonFormField<String>(
+                      initialValue: selectedTaxLabel,
+                      decoration: const InputDecoration(labelText: 'Tax Label'),
+                      items: _ProfileScreenState._taxLabelOptions
+                          .map(
+                            (label) => DropdownMenuItem<String>(
+                              value: label,
+                              child: Text(label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _selectedTaxLabel.value = value;
+                      },
+                    );
                   },
                 ),
                 const SizedBox(height: 10),
@@ -313,7 +320,7 @@ class _UpgradeToBusinessOwnerDialogState
                               gstNumber: _gstController.text.trim().isEmpty
                                   ? null
                                   : _gstController.text.trim().toUpperCase(),
-                              taxLabel: _selectedTaxLabel,
+                              taxLabel: _selectedTaxLabel.value,
                               description:
                                   _descriptionController.text.trim().isEmpty
                                   ? null
