@@ -9,7 +9,7 @@ class AdUnitIds {
 
   // Global bottom banner placement (shown app-wide when showAds=true).
   static const String _androidGlobalBottomBannerProd =
-      'ca-app-pub-xxxxxxxxxxxxxxxx/1111111111';
+      'ca-app-pub-8305846642095523/6354581971';
   static const String _iosGlobalBottomBannerProd =
       'ca-app-pub-xxxxxxxxxxxxxxxx/2222222222';
 
