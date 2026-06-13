@@ -67,7 +67,13 @@ class _InternetStatusOverlay extends ConsumerWidget {
       color: Colors.white,
       child: Stack(
         children: [
-          child,
+          //child,
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: showGlobalBanner ? 58 : 0,
+            ),
+            child: child,
+          ),
           if (!isOnline)
             Positioned(
               top: 0,
