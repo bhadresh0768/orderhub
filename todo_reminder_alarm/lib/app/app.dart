@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:todo_reminder_alarm/ui/screens/widget/global_banner_widget.dart';
 
 import '../models/app_user.dart';
 import '../models/business.dart';
@@ -62,156 +63,35 @@ class _InternetStatusOverlay extends ConsumerWidget {
     final adConsent = ref.watch(adConsentProvider);
     final showGlobalBanner =
         showAds && authUser != null && adConsent.canRequestAds;
-    return Stack(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(
-            bottom: showGlobalBanner ? _GlobalBottomBannerAd.totalHeight : 0,
-          ),
-          child: child,
-        ),
-        if (showGlobalBanner)
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _GlobalBottomBannerAd(),
-          ),
-        if (!isOnline)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Material(
-                color: Colors.red.shade700,
-                elevation: 4,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.wifi_off, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        'No internet connection',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+    return Container(
+      color: Colors.white,
+      child: Stack(
+        children: [
+          child,
+          if (!isOnline)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.red,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: const Center(
+                  child: Text(
+                    'No internet connection',
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
-    );
-  }
-}
-
-class _GlobalBottomBannerAd extends ConsumerStatefulWidget {
-  const _GlobalBottomBannerAd();
-
-  static const double totalHeight = 58;
-
-  @override
-  ConsumerState<_GlobalBottomBannerAd> createState() =>
-      _GlobalBottomBannerAdState();
-}
-
-final _globalBannerAdProvider = StateProvider<BannerAd?>((ref) => null);
-final _globalBannerLoadedProvider = StateProvider<bool>((ref) => false);
-
-class _GlobalBottomBannerAdState extends ConsumerState<_GlobalBottomBannerAd> {
-  BannerAd? _bannerAd;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBanner();
-  }
-
-  void _loadBanner() {
-    if (kIsWeb) return;
-    final adUnitId = AdUnitIds.globalBottomBanner;
-    if (adUnitId.isEmpty) return;
-
-    final ad = BannerAd(
-      adUnitId: adUnitId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          if (!mounted) {
-            ad.dispose();
-            return;
-          }
-          final loadedAd = ad as BannerAd;
-          final previous = _bannerAd;
-          if (previous != null && previous != loadedAd) {
-            previous.dispose();
-          }
-          _bannerAd = loadedAd;
-          _queueBannerStateUpdate(ad: loadedAd, isLoaded: true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          if (!mounted) return;
-          debugPrint(
-            'Global banner failed to load: '
-            'code=${error.code}, domain=${error.domain}, message=${error.message}',
-          );
-          _bannerAd = null;
-          _queueBannerStateUpdate(ad: null, isLoaded: false);
-        },
-      ),
-    );
-    ad.load();
-  }
-
-  void _queueBannerStateUpdate({
-    required BannerAd? ad,
-    required bool isLoaded,
-  }) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(_globalBannerAdProvider.notifier).state = ad;
-      ref.read(_globalBannerLoadedProvider.notifier).state = isLoaded;
-    });
-  }
-
-  @override
-  void dispose() {
-    _bannerAd?.dispose();
-    _bannerAd = null;
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bannerAd = ref.watch(_globalBannerAdProvider);
-    final isLoaded = ref.watch(_globalBannerLoadedProvider);
-    if (!isLoaded || bannerAd == null) {
-      return const SizedBox(height: _GlobalBottomBannerAd.totalHeight);
-    }
-    return Material(
-      color: Colors.white,
-      elevation: 6,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: _GlobalBottomBannerAd.totalHeight,
-          child: Center(
-            child: SizedBox(
-              width: bannerAd.size.width.toDouble(),
-              height: bannerAd.size.height.toDouble(),
-              child: AdWidget(ad: bannerAd),
+          if (showGlobalBanner)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: const GlobalBannerWidget(),
             ),
-          ),
-        ),
+        ],
       ),
     );
   }
